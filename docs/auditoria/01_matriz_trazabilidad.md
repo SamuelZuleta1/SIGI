@@ -72,3 +72,13 @@ Criterio: una HU está ✅ solo si su rol es un actor del CU, cada criterio de a
 | DS ↔ AD | ⚠️ H-09 (AD-01 exige verificar antes de radicar) y ❌ H-02 |
 | DS ↔ Modelo | ❌ H-06 (trámite de pensión); ⚠️ H-10 (falta el id en varios mensajes); ⚠️ H-11 (fechaPago) |
 | «extend» coherentes con los flujos | ✅ CU-05→CU-04 y CU-07→CU-06. ⚠️ CU-12→CU-11 se dispara también por «rechazo», que viene de CU-10, no de CU-11 (H-02) |
+
+## Implementado / Test
+
+Se llena al cerrar cada historia (plan de desarrollo §7). Los tests llevan el ID del criterio en el nombre.
+
+| HU | Estado | Código | Tests |
+| --- | --- | --- | --- |
+| Base (T-00) | Hecha (2026-11-16) | `supabase/migrations/`, `supabase/seed.sql`, `scripts/crear-usuarios-demo.js`, `src/servicios/correo.js` | `tests/unit/correo.test.js`, `tests/unit/conversion.test.js`, `tests/http/base.http.test.js`, `tests/integracion/base.int.test.js` |
+| HU-01 | Hecha (2026-11-16) | `src/middleware/autenticacion.js`, `src/servicios/sesion.js`, `src/routes/sesion.routes.js`, `src/views/iniciar-sesion.ejs` | CA1, CA2, CA3: `tests/http/sesion.http.test.js`; CA2, CA3: `tests/integracion/sesion.int.test.js` |
+| HU-02 | Parcial (2026-11-16): permisos y restricción listos; la operación «ver documento» llega con HU-06 (T-06) | `src/config/permisos.js`, `permitir` y `restringirDocumento` en `src/middleware/autenticacion.js` | CA1, CA2 y DA-02: `tests/unit/permisos.test.js`, `tests/http/permisos.http.test.js` (rutas de ensayo); CA3: `tests/integracion/base.int.test.js` |

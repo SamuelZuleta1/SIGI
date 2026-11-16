@@ -93,7 +93,7 @@ describe('T-00b — esquema', () => {
   });
 });
 
-describe('T-00b — bucket privado de documentos (HU-02, RNF-03)', () => {
+describe('HU-02.CA3 — bucket privado de documentos, sin acceso desde el navegador (RNF-03)', () => {
   it('el bucket existe y es privado', async () => {
     const { data, error } = await servidor.storage.getBucket(BUCKET_DOCUMENTOS);
     expect(error).toBeNull();
