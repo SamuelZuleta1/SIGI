@@ -4,19 +4,42 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title><%= titulo %> · SIGI</title>
+  <link rel="preload" href="/fonts/inter-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="/css/sigi.css">
 </head>
-<body>
+<% if (usuario) { %>
+<body class="con-marco">
   <a class="saltar" href="#contenido">Saltar al contenido</a>
-  <header class="cabecera">
+  <nav class="lateral" aria-label="Módulos">
     <a class="marca" href="/">SIGI</a>
-    <span class="marca-detalle">Sistema Integral de Gestión de Incapacidades</span>
-    <% if (usuario) { %>
-      <span class="sesion"><%= usuario.correo %></span>
-    <% } %>
-  </header>
-  <main id="contenido" class="contenido">
+    <ul class="menu">
+      <li>
+        <a href="/" <%- ruta === '/' ? 'aria-current="page"' : '' %>>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11l8-7 8 7v9h-5v-6H9v6H4z"/></svg>
+          Inicio
+        </a>
+      </li>
+    </ul>
+    <div class="cuenta">
+      <p class="cuenta-correo"><%= usuario.correo %></p>
+      <p class="cuenta-rol"><%= nombreRol %></p>
+      <form method="post" action="/cerrar-sesion">
+        <button class="enlace-lateral">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 4h4v16h-4M10 8l-4 4 4 4M6 12h9"/></svg>
+          Cerrar sesión
+        </button>
+      </form>
+    </div>
+  </nav>
+  <main id="contenido" class="contenido" tabindex="-1">
     <%- cuerpo %>
   </main>
 </body>
+<% } else { %>
+<body class="sin-marco">
+  <main id="contenido" class="acceso">
+    <%- cuerpo %>
+  </main>
+</body>
+<% } %>
 </html>

@@ -1,0 +1,19 @@
+<form class="tarjeta" method="post" action="/iniciar-sesion" novalidate>
+  <span class="marca-tarjeta">SIGI</span>
+  <div>
+    <h1>Iniciar sesión</h1>
+    <p class="sub">Use su correo institucional.</p>
+  </div>
+  <% if (error) { %>
+    <p class="mensaje mensaje-error" role="alert"><%= error %></p>
+  <% } %>
+  <div class="campo">
+    <label for="correo">Correo</label>
+    <input id="correo" name="correo" type="email" value="<%= correo %>" autocomplete="username" required autofocus>
+  </div>
+  <div class="campo">
+    <label for="contrasena">Contraseña</label>
+    <input id="contrasena" name="contrasena" type="password" autocomplete="current-password" required>
+  </div>
+  <button class="boton">Entrar</button>
+</form>
