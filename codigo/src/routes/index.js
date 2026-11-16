@@ -1,14 +1,25 @@
 // Índice de rutas: compone los 14 archivos <grupo>.routes.js (se agregan módulo por módulo).
 import { Router } from 'express';
+import { exigirSesion } from '../middleware/autenticacion.js';
+import { NOMBRES_DE_ROL } from '../config/permisos.js';
+import { crearRutasSesion } from './sesion.routes.js';
 
-// eslint-disable-next-line no-unused-vars
-export function crearRutas(dependencias = {}) {
+export function crearRutas(dependencias) {
   const rutas = Router();
 
-  // Comprobación de que el servidor responde.
+  // Públicas: comprobación del servidor e inicio de sesión.
   rutas.get('/salud', (req, res) => res.json({ estado: 'ok' }));
+  rutas.use(crearRutasSesion(dependencias));
 
-  rutas.get('/', (req, res) => res.pagina('inicio', { titulo: 'Inicio' }));
+  // Desde aquí, todo exige una sesión válida (HU-01).
+  rutas.use(exigirSesion);
+
+  rutas.get('/', (req, res) =>
+    res.pagina('inicio', { titulo: 'Inicio', nombreRol: NOMBRES_DE_ROL[req.usuario.rol] }),
+  );
+
+  // Solo para las pruebas: rutas de ensayo detrás de la sesión.
+  if (dependencias.rutasAdicionales) rutas.use(dependencias.rutasAdicionales);
 
   return rutas;
 }
