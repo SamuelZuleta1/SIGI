@@ -1,0 +1,20 @@
+# Sistema operativo
+.DS_Store
+Thumbs.db
+
+# Archivos temporales de Office y draw.io
+~$*
+*.bkp
+*.drawio.bkp
+.$*.drawio*
+
+# Node / código
+node_modules/
+.env
+npm-debug.log*
+coverage/
+dist/
+
+# Editores
+.vscode/
+.idea/
