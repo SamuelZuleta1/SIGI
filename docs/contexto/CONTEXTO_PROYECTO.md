@@ -298,7 +298,7 @@ Modelos: `colaborador`, `incapacidad`, `entidad`, `documento`, `reemplazo`, `rad
 - Sin integración con portales de EPS/ARL; la radicación y la transcripción se hacen fuera y solo se registran.
 - Las alertas nunca bloquean operaciones.
 - La historia clínica y la epicrisis solo las ve el auxiliar; el navegador nunca accede directamente al bucket.
-- No se definen permisos por rol más allá de la restricción anterior; agregar perfiles es un requisito nuevo.
+- ~~No se definen permisos por rol más allá de la restricción anterior.~~ **Cambiado por DA-02 (auditoría, 2026-11-16):** cada operación solo la ejecuta el actor que la envía en su diagrama de secuencia; 10 usuarios de demostración `@sigi.test` (2 por rol); Coordinación, SG-SST y Gestión Documental sin cuenta. Ver `docs/auditoria/03_decisiones.md`.
 - Sin inteligencia artificial en esta versión.
 
 ## 15. Dependencias entre módulos
@@ -339,9 +339,10 @@ Se trabaja **módulo por módulo, del 1 al 12**. Cada módulo se programa, se pr
 ## 17. Estado actual del proyecto
 
 - Primera Entrega (Visión y Alcance, Acta, diagrama de casos de uso) y Segunda Entrega (casos de uso documentados, 14 diagramas de secuencia y 14 de comunicación, diagrama de clases, 7 de actividades, 2 de estados, componentes, despliegue y estructura de carpetas) **terminadas**.
-- **Código: sin iniciar.** Próximo paso: día 1 (base del proyecto).
+- **Auditoría de trazabilidad: aprobada (2026-11-16).** Hallazgos y decisiones en `docs/auditoria/` (DA-01 a DA-25). Las decisiones prevalecen sobre este archivo donde lo contradigan.
+- **Código: sin iniciar.** Próximo paso: aprobar `docs/plan_desarrollo.md`.
 - Nombre del sistema e integrantes: se usan los de la Segunda Entrega.
-- **Pendientes de definición** (decidir antes de programar la historia afectada; no resolverlos por cuenta propia):
+- **Pendientes de definición** — **resueltos en la auditoría**: 1→DA-04, 2→DA-02, 3→DA-03, 4→DA-13, 5→DA-09, 6→DA-20, 7→DA-21, 8→DA-11. Texto original:
   1. Correo del colaborador: Colaborador solo tiene `nombre`, pero recibe 4 correos (HU-07, HU-22, HU-23, HU-24).
   2. Cómo reconoce el sistema al auxiliar para la restricción de la epicrisis (HU-02).
   3. Cómo se cargan los catálogos de entidades (con sus plazos) y de colaboradores: no hay caso de uso para administrarlos (HU-03, HU-09, HU-12).
