@@ -2,7 +2,7 @@
 
 > Fase 2. Fecha: 2026-11-16. Estado: **aprobado (2026-11-16).** Próximo paso: T-00.
 > Base: `docs/contexto/CONTEXTO_PROYECTO.md`, F1 (PDF de la Segunda Entrega), `docs/auditoria/` (hallazgos H-xx y decisiones DA-xx).
-> Las decisiones técnicas que **no** salen de la documentación están marcadas como **[NUEVA]** y se resumen en la §8 para que las apruebes.
+> Las decisiones técnicas que **no** salen de la documentación están marcadas como **[NUEVA]** y se resumen en la §8 (aprobadas el 2026-11-16).
 
 ---
 
@@ -283,7 +283,7 @@ Storage: bucket privado `documentos`, con rutas `incapacidades/{id}/{tipo}-{arch
 
 ---
 
-## 8. Decisiones nuevas de este plan que necesitan tu aprobación
+## 8. Decisiones nuevas de este plan (aprobadas el 2026-11-16)
 
 | ID | Decisión propuesta | Alternativa |
 | --- | --- | --- |
