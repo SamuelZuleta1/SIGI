@@ -1,0 +1,10 @@
+/* SIGI — estilos base provisionales. El estilo visual definitivo está pendiente de elegir. */
+*, *::before, *::after { box-sizing: border-box; }
+body { margin: 0; font-family: system-ui, sans-serif; line-height: 1.5; color: #1a1a1a; background: #fff; }
+.saltar { position: absolute; left: -999px; }
+.saltar:focus { left: 8px; top: 8px; background: #fff; padding: 8px; }
+.cabecera { display: flex; gap: 12px; align-items: baseline; padding: 12px 24px; border-bottom: 1px solid #ddd; }
+.marca { font-weight: 700; color: inherit; text-decoration: none; }
+.marca-detalle { color: #555; font-size: 0.9rem; }
+.sesion { margin-left: auto; font-size: 0.9rem; }
+.contenido { max-width: 960px; margin: 0 auto; padding: 24px; }

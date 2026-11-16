@@ -1,0 +1,68 @@
+// Arranque de Express (F1 §11.2).
+// `crearApp` recibe sus dependencias para poder probarla con persistencia y correo falsos.
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import express from 'express';
+import cookieParser from 'cookie-parser';
+import { crearRutas } from './routes/index.js';
+
+const directorio = path.dirname(fileURLToPath(import.meta.url));
+
+export function crearApp(dependencias = {}) {
+  const app = express();
+
+  app.disable('x-powered-by');
+  app.set('view engine', 'ejs');
+  app.set('views', path.join(directorio, 'views'));
+
+  // Cabeceras de seguridad básicas (RNF-02).
+  app.use((req, res, next) => {
+    res.set({
+      'X-Content-Type-Options': 'nosniff',
+      'X-Frame-Options': 'DENY',
+      'Referrer-Policy': 'same-origin',
+      'Content-Security-Policy':
+        "default-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'",
+    });
+    next();
+  });
+
+  app.use(express.static(path.join(directorio, '..', 'public')));
+  app.use(express.urlencoded({ extended: false }));
+  app.use(cookieParser());
+
+  // res.pagina(vista, datos): dibuja la vista dentro de layout.ejs.
+  app.use((req, res, next) => {
+    res.pagina = (vista, datos = {}) => {
+      res.render(vista, datos, (error, cuerpo) => {
+        if (error) return next(error);
+        res.render('layout', { titulo: datos.titulo ?? 'SIGI', cuerpo, usuario: res.locals.usuario ?? null });
+      });
+    };
+    next();
+  });
+
+  app.use(crearRutas(dependencias));
+
+  app.use((req, res) => {
+    res.status(404).pagina('error', { titulo: 'Página no encontrada', mensaje: 'La página que busca no existe.' });
+  });
+
+  // eslint-disable-next-line no-unused-vars
+  app.use((error, req, res, next) => {
+    console.error(error);
+    res.status(500).pagina('error', {
+      titulo: 'Error',
+      mensaje: 'Ocurrió un error inesperado. Intente de nuevo.',
+    });
+  });
+
+  return app;
+}
+
+// Solo escucha cuando se ejecuta directamente (`npm start`), no al importarla en las pruebas.
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  await import('dotenv/config');
+  const puerto = Number(process.env.PORT) || 3000;
+  crearApp().listen(puerto, () => console.log(`SIGI en http://localhost:${puerto}`));
+}
