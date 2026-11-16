@@ -1,6 +1,6 @@
 # Plan de desarrollo — SIGI
 
-> Fase 2. Fecha: 2026-11-16. Estado: **pendiente de aprobación.**
+> Fase 2. Fecha: 2026-11-16. Estado: **aprobado (2026-11-16).** Próximo paso: T-00.
 > Base: `docs/contexto/CONTEXTO_PROYECTO.md`, F1 (PDF de la Segunda Entrega), `docs/auditoria/` (hallazgos H-xx y decisiones DA-xx).
 > Las decisiones técnicas que **no** salen de la documentación están marcadas como **[NUEVA]** y se resumen en la §8 para que las apruebes.
 
@@ -17,7 +17,7 @@ El stack y la arquitectura **ya están aprobados en la documentación** (F1 §2.
 | Base de datos | Supabase PostgreSQL (13 tablas del Modelo + `usuario`) | F1 §2.6, CMP-01; DA-02 |
 | Documentos | Supabase Storage, bucket **privado**; solo el servidor accede | F1 §2.6, RNF-03, HU-02 |
 | Autenticación | Supabase Auth (correo + contraseña) | HU-01, Visión §5.3 |
-| Correo | SMTP con `nodemailer`. En desarrollo y demostración, **Mailpit** (el que trae Supabase local, bandeja en `localhost:54324`) | F1 §2.6; DA-02 (e) |
+| Correo | SMTP con `nodemailer`. En desarrollo y demostración, **Mailpit** (en principio, el que trae Supabase local; **por verificar en T-00**) | F1 §2.6; DA-02 (e) |
 | Acceso a datos | `@supabase/supabase-js` con la clave *service role*, **solo en el servidor** | F1 §2.6 («nunca el navegador») |
 | Pruebas | **[NUEVA]** Vitest + Supertest; Supabase local (CLI 2.109 + Docker, ya instalados) para las pruebas de integración | §6 |
 | Validación de entradas | **[NUEVA]** `zod` en los controladores | Tipos de dato no definidos en el diseño (F1 §6.3) |
@@ -203,19 +203,19 @@ Storage: bucket privado `documentos`, con rutas `incapacidades/{id}/{tipo}-{arch
 
 **Criterios de aceptación → tests (64 CA):**
 
-| HU | CA | Test(s) | Nivel |
-| --- | --- | --- | --- |
-| HU-01 | CA1 sin sesión → pide login | GET a una página protegida redirige a `/iniciar-sesion` | H |
-| | CA2 login con Supabase Auth → entra | login con usuario de demostración crea la sesión | I |
-| | CA3 petición sin sesión válida → rechazada | POST sin cookie o con token inválido → 401 | H |
-| HU-02 | CA1 otro usuario no ve historia clínica ni epicrisis | receptor, líder, contabilidad y cartera → 403 en ver documento de esos tipos | H |
-| | CA2 el auxiliar sí las ve | auxiliar → 200 con el archivo | H, I |
-| | CA3 bucket privado, sin acceso desde el navegador | URL pública del objeto → denegada; descarga anónima falla | I |
-| | DA-02 permisos por actor | por cada operación, un rol no permitido → 403 (tabla de §4 de las decisiones) | H |
+| HU | Criterio de aceptación | Test(s) y nivel (U / H / I) |
+| --- | --- | --- |
+| HU-01 | CA1 sin sesión → pide login | GET a una página protegida redirige a `/iniciar-sesion` — **H** |
+| | CA2 login con Supabase Auth → entra | login con usuario de demostración crea la sesión — **I** |
+| | CA3 petición sin sesión válida → rechazada | POST sin cookie o con token inválido → 401 — **H** |
+| HU-02 | CA1 otro usuario no ve historia clínica ni epicrisis | receptor, líder, contabilidad y cartera → 403 en ver documento de esos tipos — **H** |
+| | CA2 el auxiliar sí las ve | auxiliar → 200 con el archivo — **H, I** |
+| | CA3 bucket privado, sin acceso desde el navegador | URL pública del objeto → denegada; descarga anónima falla — **I** |
+| | DA-02 permisos por actor | por cada operación, un rol no permitido → 403 (tabla «Permisos por rol» de `docs/auditoria/03_decisiones.md`) — **H** |
 | HU-03 | CA1 receptor registra 6 datos → id + confirmación | U + H |
 | | CA2 auxiliar por correo → igual | H |
-| | CA3 tipo ∈ 6 valores | tipo inválido → error de validación; constraint en la base de datos | U, I |
-| | CA4 estado inicial sin valor | estado es null tras registrar | U, I |
+| | CA3 tipo ∈ 6 valores | tipo inválido → error de validación; constraint en la base de datos — **U, I** |
+| | CA4 estado inicial sin valor | estado es null tras registrar — **U, I** |
 | HU-04 | CA1 guarda tipo + archivo, asocia, correo al auxiliar, confirma | U (correo notificarRecepcion), I (Storage) |
 | | CA2 por correo → original pendiente, sin aviso | U |
 | HU-05 | CA1 guarda y confirma | U, H |

@@ -340,7 +340,7 @@ Se trabaja **módulo por módulo, del 1 al 12**. Cada módulo se programa, se pr
 
 - Primera Entrega (Visión y Alcance, Acta, diagrama de casos de uso) y Segunda Entrega (casos de uso documentados, 14 diagramas de secuencia y 14 de comunicación, diagrama de clases, 7 de actividades, 2 de estados, componentes, despliegue y estructura de carpetas) **terminadas**.
 - **Auditoría de trazabilidad: aprobada (2026-11-16).** Hallazgos y decisiones en `docs/auditoria/` (DA-01 a DA-25). Las decisiones prevalecen sobre este archivo donde lo contradigan.
-- **Código: sin iniciar.** Próximo paso: aprobar `docs/plan_desarrollo.md`.
+- **Código: sin iniciar.** Plan de desarrollo aprobado (2026-11-16). Próximo paso: T-00 (base del proyecto) de `docs/plan_desarrollo.md`.
 - Nombre del sistema e integrantes: se usan los de la Segunda Entrega.
 - **Pendientes de definición** — **resueltos en la auditoría**: 1→DA-04, 2→DA-02, 3→DA-03, 4→DA-13, 5→DA-09, 6→DA-20, 7→DA-21, 8→DA-11. Texto original:
   1. Correo del colaborador: Colaborador solo tiene `nombre`, pero recibe 4 correos (HU-07, HU-22, HU-23, HU-24).
