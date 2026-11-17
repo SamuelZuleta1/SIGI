@@ -41,11 +41,6 @@
   --ease: cubic-bezier(0.23, 1, 0.32, 1);
 }
 
-/* En pantallas muy anchas el panel crece para no dejar media pantalla vacía. */
-@media (min-width: 1600px) {
-  :root { --ancho: 1200px; }
-}
-
 @media (prefers-color-scheme: dark) {
   :root {
     --fondo: #0f141c;
@@ -227,6 +222,7 @@ p { margin: 0 0 12px; max-width: 70ch; }
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--acento) 22%, transparent);
 }
 .campo .ayuda { font-size: 0.78rem; color: var(--tenue); }
+.campo input[type='number'] { max-width: 10rem; } /* días: hasta 4 cifras */
 .campo .error { font-size: 0.78rem; color: var(--mal); }
 .campo.invalido input, .campo.invalido select, .campo.invalido textarea { border-color: var(--mal); }
 
@@ -271,6 +267,8 @@ p { margin: 0 0 12px; max-width: 70ch; }
 
 .buscar { display: flex; gap: 8px; align-items: end; }
 .buscar .campo { flex: 1; max-width: 220px; }
+/* Búsqueda por número: un cuadro compacto, no un panel ancho casi vacío. */
+.formulario:has(> .buscar) { max-width: 480px; }
 
 /* ---------- lista de documentos por tipo: cada fila recibe un archivo (clic o arrastre) ---------- */
 .lista-tipos { border: 1px solid var(--borde); border-radius: var(--radio); overflow: hidden; }
@@ -313,7 +311,7 @@ input[type='file']::file-selector-button {
 /* ---------- verificación: marcador y tabla de cruce (HU-06) ---------- */
 .marcador { display: flex; gap: 8px; align-items: baseline; margin: 0; font-size: 0.78rem; color: var(--tenue); }
 .marcador b { font-size: 1.4rem; font-weight: 650; letter-spacing: -0.02em; color: var(--texto); }
-.cruce { width: 100%; border-collapse: collapse; font-size: 0.84rem; }
+.cruce { width: 100%; max-width: 720px; border-collapse: collapse; font-size: 0.84rem; } /* estado cerca del nombre */
 .cruce th { text-align: left; font-weight: 500; font-size: 0.76rem; color: var(--tenue); padding: 6px 10px; border-bottom: 1px solid var(--borde); }
 .cruce td { padding: 8px 10px; border-bottom: 1px solid var(--raya); vertical-align: middle; overflow-wrap: anywhere; }
 .cruce tr.falta td { background: var(--mal-f); }
@@ -330,6 +328,8 @@ input[type='file']::file-selector-button {
 .casilla { display: flex; gap: 8px; align-items: flex-start; font-size: 0.84rem; cursor: pointer; }
 .casilla input { width: 16px; height: 16px; margin: 3px 0 0; }
 .casilla small { display: block; color: var(--tenue); font-size: 0.78rem; }
+.casilla.fija { cursor: default; }
+.casilla.fija input { opacity: 1; cursor: default; } /* se lee como estado, no como control apagado */
 .boton.pequeno { height: 30px; padding: 0 10px; font-size: 0.82rem; }
 .js .exencion .boton { display: none; } /* con JavaScript, la casilla actualiza sola */
 .veredicto { display: grid; gap: 8px; }
