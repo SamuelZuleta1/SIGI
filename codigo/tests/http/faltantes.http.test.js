@@ -138,7 +138,9 @@ describe('HU-07 — notificar los faltantes (rutas)', () => {
     expect(pagina.text).toContain('La documentación está completa.');
     expect(pagina.text).not.toContain('Falta 1 documento');
     expect(pagina.text).toContain('No se exige');
-    expect(pagina.text).toMatch(/name="eps" value="si" checked/);
+    expect(pagina.text).toMatch(/<input type="checkbox" checked disabled>/);
+    expect(pagina.text).toContain('Se archivó con la transcripción: no se exigió la epicrisis.');
+    expect(pagina.text).not.toContain('data-enviar-al-cambiar');
     const res = await agente.post('/incapacidades/2/faltantes').type('form').send({ faltantes: 'epicrisis' });
     expect(res.status).toBe(409);
     expect(enviados).toHaveLength(0);

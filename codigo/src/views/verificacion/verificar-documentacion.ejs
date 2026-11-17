@@ -76,7 +76,15 @@
       </tbody>
     </table>
 
-    <% if (incapacidad.admiteExencion) { %>
+    <% if (incapacidad.admiteExencion && archivada) { %>
+      <%# Ya archivada: la casilla muestra con qué se archivó y no se puede cambiar. %>
+      <div class="exencion">
+        <label class="casilla fija">
+          <input type="checkbox" <%= resultado.epsTranscribio ? 'checked' : '' %> disabled>
+          <span>La EPS ya transcribió esta incapacidad<small><%= resultado.epsTranscribio ? 'Se archivó con la transcripción: no se exigió la epicrisis.' : 'Se archivó con la epicrisis.' %></small></span>
+        </label>
+      </div>
+    <% } else if (incapacidad.admiteExencion) { %>
       <%# Al recargar, el ancla deja la página en la casilla y sigi.js le devuelve el foco. %>
       <form method="get" action="/incapacidades/<%= incapacidad.idIncapacidad %>/verificacion#exencion" id="exencion" class="exencion" data-enviar-al-cambiar>
         <label class="casilla">
