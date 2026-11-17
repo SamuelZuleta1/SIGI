@@ -19,7 +19,7 @@
 <form class="formulario" method="post" action="/incapacidades" novalidate>
   <fieldset>
     <legend>Colaborador</legend>
-    <div class="pareja">
+    <div class="campos dos">
       <div class="campo <%= errores.colaborador ? 'invalido' : '' %>">
         <label for="colaborador">Nombre completo</label>
         <input id="colaborador" name="colaborador" type="text" value="<%= valores.colaborador %>" maxlength="200" autocomplete="off" required<%- atributos('colaborador') %>>
@@ -39,7 +39,7 @@
 
   <fieldset>
     <legend>Incapacidad o licencia</legend>
-    <div class="pareja">
+    <div class="campos">
       <div class="campo <%= errores.tipo ? 'invalido' : '' %>">
         <label for="tipo">Tipo</label>
         <select id="tipo" name="tipo" required<%- atributos('tipo') %>>
@@ -60,8 +60,6 @@
         </select>
         <% if (errores.entidad) { %><span class="error" id="error-entidad"><%= errores.entidad %></span><% } %>
       </div>
-    </div>
-    <div class="pareja">
       <div class="campo <%= errores.fechaInicio ? 'invalido' : '' %>">
         <label for="fechaInicio">Fecha de inicio</label>
         <input id="fechaInicio" name="fechaInicio" type="date" value="<%= valores.fechaInicio %>" required<%- atributos('fechaInicio') %>>
@@ -72,8 +70,6 @@
         <input id="diasIncapacidad" name="diasIncapacidad" type="number" inputmode="numeric" min="1" max="9999" step="1" value="<%= valores.diasIncapacidad %>" required<%- atributos('diasIncapacidad') %>>
         <% if (errores.diasIncapacidad) { %><span class="error" id="error-diasIncapacidad"><%= errores.diasIncapacidad %></span><% } %>
       </div>
-    </div>
-    <div class="pareja">
       <div class="campo <%= errores.fechaRecepcion ? 'invalido' : '' %>">
         <label for="fechaRecepcion">Fecha de recepción</label>
         <input id="fechaRecepcion" name="fechaRecepcion" type="date" value="<%= valores.fechaRecepcion %>" required<%- atributos('fechaRecepcion') %>>

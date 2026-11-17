@@ -36,8 +36,14 @@
   --radio: 7px;
   --alto: 36px;
   --fila: 40px;
+  --ancho: 960px; /* ancho máximo de los paneles de página */
   --sombra: 0 1px 2px rgb(0 0 0 / 0.06), 0 6px 16px -8px rgb(0 0 0 / 0.18);
   --ease: cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+/* En pantallas muy anchas el panel crece para no dejar media pantalla vacía. */
+@media (min-width: 1600px) {
+  :root { --ancho: 1200px; }
 }
 
 @media (prefers-color-scheme: dark) {
@@ -228,8 +234,9 @@ p { margin: 0 0 12px; max-width: 70ch; }
 .formulario {
   display: grid;
   gap: 24px;
-  max-width: 640px;
+  max-width: var(--ancho);
   margin-top: 14px;
+  container-type: inline-size; /* los campos se reacomodan según el ancho del panel, no de la ventana */
   padding: 20px;
   background: var(--panel);
   border: 1px solid var(--borde);
@@ -237,12 +244,14 @@ p { margin: 0 0 12px; max-width: 70ch; }
 }
 .formulario fieldset { display: grid; gap: 14px; min-width: 0; margin: 0; padding: 0; border: 0; }
 .formulario legend { padding: 0; margin-bottom: 10px; font-weight: 600; }
-.pareja { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; align-items: start; }
-.acciones { display: flex; gap: 8px; }
-.contenido > .mensaje { max-width: 640px; }
+.campos { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; align-items: start; }
+.campos.dos { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+@container (max-width: 680px) { .campos { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@container (max-width: 440px) { .campos, .campos.dos { grid-template-columns: 1fr; } }
+.acciones { display: flex; flex-wrap: wrap; gap: 8px; }
+.contenido > .mensaje { max-width: var(--ancho); }
 .contenido > .mensaje + .mensaje { margin-top: 8px; }
 @media (max-width: 560px) {
-  .pareja { grid-template-columns: 1fr; }
   .formulario { padding: 16px; }
 }
 
@@ -296,6 +305,7 @@ input[type='file']::file-selector-button {
 }
 @media (hover: hover) { input[type='file']::file-selector-button:hover { background: var(--raya); } }
 .formulario .ayuda { margin: 0; font-size: 0.78rem; color: var(--tenue); }
+.formulario .mensaje { max-width: none; } /* los avisos ocupan el ancho del panel */
 @media (max-width: 560px) {
   .lista-tipos .fila { grid-template-columns: 1fr; }
 }
