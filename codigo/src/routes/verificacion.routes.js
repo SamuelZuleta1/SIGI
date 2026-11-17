@@ -41,7 +41,9 @@ export function crearRutasVerificacion({ control }) {
   rutas.get('/incapacidades/:id/verificacion', permitir('verificarDocumentacion'), async (req, res) => {
     const verificacion = await control.verificarDocumentacion(req.params.id, conEps(req.query.eps));
     if (!verificacion) return noExiste(res, req.params.id);
-    await pagina(res, 200, { verificacion, verificada: req.query.verificada === '1' });
+    // La confirmación solo se muestra si la incapacidad de verdad quedó archivada (no basta con la URL).
+    const verificada = req.query.verificada === '1' && verificacion.incapacidad.archivadoDigital;
+    await pagina(res, 200, { verificacion, verificada });
   });
 
   // confirmarVerificacion → registrarVerificacion → archivarDigital (HU-06.CA2).

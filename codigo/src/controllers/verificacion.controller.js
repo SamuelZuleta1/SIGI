@@ -2,8 +2,8 @@
 // Operaciones: verificarDocumentacion (con compararConRequisitos), registrarVerificacion
 // y «ver documento» (DA-06). notificarFaltantes y registrarSegundoLlamado llegan con HU-07 y HU-08.
 import { ErrorDeValidacion } from './error-de-validacion.js';
+import { esIdentificador } from './identificador.js';
 
-const esIdentificador = (valor) => /^[1-9]\d{0,17}$/.test(String(valor ?? ''));
 
 // La epicrisis se exime si la EPS ya transcribió (F1 §2.8; DA-26).
 const EXIMIBLE = new Set(['enfermedad_laboral', 'accidente_laboral']);

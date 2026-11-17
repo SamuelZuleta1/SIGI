@@ -3,14 +3,13 @@
 // Apoyo: obtenerReemplazo, para mostrar la incapacidad y el reemplazo que ya tiene.
 import { z } from 'zod';
 import { ErrorDeValidacion } from './error-de-validacion.js';
+import { esIdentificador } from './identificador.js';
 
 const nombreDelReemplazo = z
   .string({ error: 'Escriba el nombre de quien reemplaza.' })
   .trim()
   .min(1, 'Escriba el nombre de quien reemplaza.')
   .max(200, 'El nombre es demasiado largo.');
-
-const esIdentificador = (valor) => /^[1-9]\d{0,17}$/.test(String(valor ?? ''));
 
 export function crearControlReemplazo({ baseDeDatos }) {
   const buscar = async (idIncapacidad) =>

@@ -4,6 +4,8 @@ document.documentElement.classList.add('js');
 // Formularios que se envían solos al cambiar una casilla (verificación, DA-26): sin JavaScript tienen su botón.
 for (const formulario of document.querySelectorAll('[data-enviar-al-cambiar]')) {
   formulario.addEventListener('change', () => formulario.requestSubmit());
+  // Tras la recarga, el foco vuelve a la casilla para no perder el sitio con teclado o lector de pantalla.
+  if (formulario.id && location.hash === `#${formulario.id}`) formulario.querySelector('input')?.focus();
 }
 
 // Lista de documentos por tipo: cada fila recibe el archivo que se suelta sobre ella.

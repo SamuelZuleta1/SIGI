@@ -94,6 +94,19 @@ describe('HU-06 — verificar la documentación (rutas)', () => {
     expect(baseDeDatos.incapacidades[0].archivadoDigital).toBe(true);
   });
 
+  it('?verificada=1 escrito a mano no muestra la confirmación si la incapacidad no está archivada', async () => {
+    const agente = await agenteCon(request, app, 'auxiliar');
+    const res = await agente.get('/incapacidades/1/verificacion?verificada=1');
+    expect(res.status).toBe(200);
+    expect(res.text).not.toContain('Verificación registrada.');
+  });
+
+  it('la casilla de la EPS vuelve a su sitio tras recargar (ancla #exencion)', async () => {
+    const agente = await agenteCon(request, app, 'auxiliar');
+    const res = await agente.get('/incapacidades/1/verificacion');
+    expect(res.text).toContain('action="/incapacidades/1/verificacion#exencion" id="exencion"');
+  });
+
   it('una incapacidad ya archivada lo informa y no vuelve a ofrecer confirmar', async () => {
     await completar();
     await control.registrarVerificacion(1);

@@ -6,6 +6,7 @@ import { z } from 'zod';
 import { TIPOS_DOCUMENTO } from '../models/documento.model.js';
 import { TIPOS_INCAPACIDAD } from '../models/incapacidad.model.js';
 import { ErrorDeValidacion } from './error-de-validacion.js';
+import { esIdentificador } from './identificador.js';
 
 const fecha = (mensaje) => z.string({ error: mensaje }).pipe(z.iso.date({ error: mensaje }));
 
@@ -51,7 +52,6 @@ const FIRMAS = [
 const tipoDeArchivo = (contenido) =>
   FIRMAS.find(([, firma]) => firma.every((byte, i) => contenido[i] === byte))?.[0] ?? null;
 
-const esIdentificador = (valor) => /^[1-9]\d{0,17}$/.test(String(valor ?? ''));
 
 export function crearControlRegistro({ baseDeDatos, correo }) {
   return {

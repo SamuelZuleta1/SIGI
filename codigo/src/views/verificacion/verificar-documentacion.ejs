@@ -71,7 +71,8 @@
     </table>
 
     <% if (incapacidad.admiteExencion) { %>
-      <form method="get" action="/incapacidades/<%= incapacidad.idIncapacidad %>/verificacion" class="exencion" data-enviar-al-cambiar>
+      <%# Al recargar, el ancla deja la página en la casilla y sigi.js le devuelve el foco. %>
+      <form method="get" action="/incapacidades/<%= incapacidad.idIncapacidad %>/verificacion#exencion" id="exencion" class="exencion" data-enviar-al-cambiar>
         <label class="casilla">
           <input type="checkbox" name="eps" value="si" <%= resultado.epsTranscribio ? 'checked' : '' %>>
           <span>La EPS ya transcribió esta incapacidad<small>Con la transcripción no se exige la epicrisis.</small></span>
