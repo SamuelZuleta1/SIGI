@@ -1,4 +1,4 @@
-// Grupo `registro` contra Supabase local. Requisitos: `npm run db:start` y `npm run db:usuarios`.
+// Grupo `registro` contra Supabase (nube). Requisitos: proyecto vinculado y `npm run db:usuarios`.
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { crearClienteServidor } from '../../src/config/supabase.js';
 import { crearControlIncapacidades } from '../../src/controllers/control-incapacidades.js';

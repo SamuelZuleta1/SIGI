@@ -7,29 +7,40 @@ y [docs/plan_desarrollo.md](../docs/plan_desarrollo.md).
 ## Requisitos
 
 - Node.js 20 o superior
-- Docker Desktop abierto
 - Supabase CLI
+- Acceso al proyecto de Supabase en la nube de SIGI
 
-## Puesta en marcha (local)
+La base de datos, Auth y Storage viven en el proyecto de Supabase en la nube: la aplicación,
+las pruebas de integración y las migraciones usan siempre ese proyecto, así que los datos
+persisten entre equipos. No se usa Supabase en Docker.
+
+## Puesta en marcha
 
 ```bash
 npm install
-npm run db:start            # Supabase local: base de datos, Auth, Storage y Mailpit
-cp .env.example .env        # completar con los valores de `supabase status`
-npm run db:usuarios         # 10 usuarios de demostración @sigi.test
+cp .env.example .env        # URL y claves del proyecto (panel → Project Settings → API)
+supabase link --project-ref <ref-del-proyecto>   # una sola vez por equipo
+npm run db:migrar           # aplica las migraciones pendientes a la nube
+npm run db:usuarios         # 10 usuarios de demostración @sigi.test (no duplica)
 npm run dev                 # http://localhost:3000
 ```
 
-- `npm run db:reset` vuelve a crear la base de datos (migraciones + `supabase/seed.sql`).
-  Después hay que repetir `npm run db:usuarios`.
-- Los correos que envía el sistema se ven en Mailpit: http://127.0.0.1:54324
+- Los cambios de esquema van como migraciones nuevas en `supabase/migrations/`
+  (`supabase migration new <nombre>`) y se aplican con `npm run db:migrar`.
+  `npm run db:estado` compara las migraciones del repositorio con las de la nube.
+- `supabase/seed.sql` (entidades) ya está cargado en la nube; si se crea un proyecto nuevo,
+  se ejecuta una vez desde el editor SQL del panel.
+- El correo sale por el servidor SMTP de `.env`. Si no hay uno, los registros se guardan igual
+  y la pantalla avisa que no se pudo enviar el correo.
 
 ## Pruebas
 
 ```bash
 npm test            # unitarias y HTTP (sin red)
-npm run test:int    # integración, contra Supabase local
+npm run test:int    # integración, contra el proyecto de Supabase en la nube
 ```
+
+Las pruebas de integración crean sus propios datos y los borran al terminar.
 
 ## Estructura
 

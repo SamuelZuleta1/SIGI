@@ -1,4 +1,4 @@
-// HU-01 contra Supabase Auth local. Requisitos: `npm run db:start` y `npm run db:usuarios`.
+// HU-01 contra Supabase Auth (nube). Requisitos: proyecto vinculado y `npm run db:usuarios`.
 import request from 'supertest';
 import { describe, expect, it } from 'vitest';
 import { crearApp } from '../../src/app.js';

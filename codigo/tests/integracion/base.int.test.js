@@ -1,4 +1,4 @@
-// Pruebas contra Supabase local. Requisitos: `npm run db:start` y `npm run db:usuarios`.
+// Pruebas contra Supabase (nube). Requisitos: proyecto vinculado y `npm run db:usuarios`.
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { BUCKET_DOCUMENTOS, crearClientePublico, crearClienteServidor } from '../../src/config/supabase.js';
 import { crearTransporte, destinatariosPorArea, remitente } from '../../src/config/correo.js';

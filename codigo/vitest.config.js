@@ -3,7 +3,7 @@ import { defineConfig } from 'vitest/config';
 // Tres niveles de prueba (docs/plan_desarrollo.md §6):
 //   unit        Control con persistencia y correo falsos.
 //   http        rutas + middleware con Supertest.
-//   integracion contra Supabase local (`npm run db:start`).
+//   integracion contra el proyecto de Supabase en la nube.
 export default defineConfig({
   test: {
     projects: [

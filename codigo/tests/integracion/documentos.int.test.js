@@ -1,5 +1,5 @@
-// registrarDocumentos contra Supabase local (tabla `documento` + bucket privado).
-// Requisitos: `npm run db:start` y `npm run db:usuarios`.
+// registrarDocumentos contra Supabase (nube) (tabla `documento` + bucket privado).
+// Requisitos: proyecto vinculado y `npm run db:usuarios`.
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { BUCKET_DOCUMENTOS, crearClientePublico, crearClienteServidor } from '../../src/config/supabase.js';
 import { crearControlIncapacidades } from '../../src/controllers/control-incapacidades.js';
