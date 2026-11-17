@@ -3,10 +3,12 @@
 import { crearClienteServidor } from '../config/supabase.js';
 import { crearPersistenciaReemplazo } from './reemplazo.persistence.js';
 import { crearPersistenciaRegistro } from './registro.persistence.js';
+import { crearPersistenciaVerificacion } from './verificacion.persistence.js';
 
 export function crearBaseDeDatos(cliente = crearClienteServidor()) {
   return {
     ...crearPersistenciaRegistro(cliente),
     ...crearPersistenciaReemplazo(cliente),
+    ...crearPersistenciaVerificacion(cliente),
   };
 }

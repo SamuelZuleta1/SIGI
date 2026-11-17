@@ -36,6 +36,14 @@
         </a>
       </li>
       <% } %>
+      <% if (puede('verificarDocumentacion')) { %>
+      <li>
+        <a href="/verificacion" <%- ruta === '/verificacion' || /^\/incapacidades\/\d+\/verificacion$/.test(ruta) ? 'aria-current="page"' : '' %>>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5H6v16h12V5h-3M9 3h6v4H9zM9 14l2 2 4-4"/></svg>
+          Verificar documentación
+        </a>
+      </li>
+      <% } %>
       <% if (puede('registrarReemplazo')) { %>
       <li>
         <a href="/reemplazo" <%- ruta === '/reemplazo' || /^\/incapacidades\/\d+\/reemplazo$/.test(ruta) ? 'aria-current="page"' : '' %>>

@@ -1,0 +1,110 @@
+<%
+  const ICONOS = {
+    recibido: '<path d="M5 12.5l4.5 4.5L19 7.5"/>',
+    falta: '<path d="M7 7l10 10M17 7L7 17"/>',
+    exento: '<path d="M6 12h12"/>',
+  };
+  const TEXTOS = { recibido: 'Recibido', falta: 'Falta', exento: 'No se exige' };
+  const enlaces = (ids) => ids.map((id, i) =>
+    `<a class="ver" href="/documentos/${id}/archivo" target="_blank" rel="noopener">${ids.length > 1 ? `Ver ${i + 1}` : 'Ver'}</a>`).join(' ');
+%>
+<h1>Verificar documentación</h1>
+<% if (!verificacion) { %>
+  <p class="sub">Escriba el número de la incapacidad cuya documentación va a verificar.</p>
+  <form class="formulario" method="get" action="/verificacion" novalidate>
+    <div class="buscar">
+      <div class="campo <%= errorNumero ? 'invalido' : '' %>">
+        <label for="incapacidad">Incapacidad n.º</label>
+        <input id="incapacidad" name="incapacidad" type="text" inputmode="numeric" pattern="[0-9]*" value="<%= numero %>" maxlength="18" autocomplete="off" required autofocus<%- errorNumero ? ' aria-invalid="true" aria-describedby="error-incapacidad"' : '' %>>
+      </div>
+      <button class="boton">Verificar</button>
+    </div>
+    <% if (errorNumero) { %>
+      <p class="mensaje mensaje-error" id="error-incapacidad" role="alert"><%= errorNumero %> Revise el número que recibió al registrarla.</p>
+    <% } else { %>
+      <p class="ayuda">Es el número que SIGI mostró al registrar la incapacidad.</p>
+    <% } %>
+  </form>
+<% } else {
+  const { incapacidad, resultado } = verificacion;
+  const archivada = incapacidad.archivadoDigital;
+%>
+  <p class="sub">Cruce de los documentos obligatorios para el tipo de caso con el expediente.</p>
+
+  <% if (verificada) { %>
+    <p class="mensaje mensaje-ok" role="status">Verificación registrada. La documentación de la incapacidad n.º <strong><%= incapacidad.idIncapacidad %></strong> quedó archivada en digital.</p>
+  <% } %>
+  <% if (error) { %>
+    <p class="mensaje mensaje-error" role="alert"><%= error %> Revise el resultado.</p>
+  <% } %>
+
+  <div class="formulario">
+    <dl class="resumen">
+      <dt>Incapacidad</dt><dd>n.º <%= incapacidad.idIncapacidad %></dd>
+      <dt>Colaborador</dt><dd><%= incapacidad.colaborador %></dd>
+      <dt>Tipo</dt><dd><%= nombresTipo[incapacidad.tipo] %> · <%= incapacidad.entidad %></dd>
+      <dt>Inicio</dt><dd><%= incapacidad.fechaInicio %> · <%= incapacidad.diasIncapacidad %> <%= incapacidad.diasIncapacidad === 1 ? 'día' : 'días' %></dd>
+      <% if (incapacidad.originalPendiente) { %><dt>Original</dt><dd>Pendiente en físico</dd><% } %>
+    </dl>
+
+    <p class="marcador"><b><%= resultado.recibidos %> de <%= resultado.exigidos %></b> <span>documentos obligatorios recibidos</span></p>
+
+    <table class="cruce">
+      <caption class="oculto">Documentos obligatorios y estado de cada uno</caption>
+      <thead><tr><th scope="col">Documento</th><th scope="col">Estado</th><th scope="col">Archivo</th></tr></thead>
+      <tbody>
+        <% for (const requisito of resultado.requisitos) { %>
+          <tr class="<%= requisito.estado %>">
+            <td><%= nombresDocumento[requisito.tipo] %></td>
+            <td><span class="estado <%= requisito.estado %>"><svg viewBox="0 0 24 24" aria-hidden="true"><%- ICONOS[requisito.estado] %></svg><%= TEXTOS[requisito.estado] %></span></td>
+            <td><% if (requisito.documentos.length > 0) { %><%- enlaces(requisito.documentos) %><% } else { %><span aria-hidden="true">—</span><% } %></td>
+          </tr>
+        <% } %>
+        <% for (const otro of resultado.otros) { %>
+          <tr>
+            <td><%= nombresDocumento[otro.tipo] %> <span class="tenue">(no obligatorio)</span></td>
+            <td></td>
+            <td><%- enlaces(otro.documentos) %></td>
+          </tr>
+        <% } %>
+      </tbody>
+    </table>
+
+    <% if (incapacidad.admiteExencion) { %>
+      <form method="get" action="/incapacidades/<%= incapacidad.idIncapacidad %>/verificacion" class="exencion" data-enviar-al-cambiar>
+        <label class="casilla">
+          <input type="checkbox" name="eps" value="si" <%= resultado.epsTranscribio ? 'checked' : '' %>>
+          <span>La EPS ya transcribió esta incapacidad<small>Con la transcripción no se exige la epicrisis.</small></span>
+        </label>
+        <button class="boton secundario pequeno">Actualizar</button>
+      </form>
+    <% } %>
+
+    <div class="veredicto">
+      <% if (resultado.completa) { %>
+        <p class="mensaje mensaje-ok" role="status">La documentación está completa.</p>
+      <% } else { %>
+        <p class="mensaje mensaje-error" role="status">
+          <%= resultado.faltantes.length === 1 ? 'Falta 1 documento' : `Faltan ${resultado.faltantes.length} documentos` %>.
+          La documentación no se archiva: notifique los faltantes al colaborador.
+        </p>
+      <% } %>
+      <% if (incapacidad.originalPendiente) { %>
+        <p class="mensaje mensaje-aviso">El original en físico sigue pendiente. Puede confirmar la verificación; recuerde pedirlo.</p>
+      <% } %>
+      <% if (archivada && !verificada) { %>
+        <p class="mensaje mensaje-info">Esta documentación ya se verificó y está archivada en digital.</p>
+      <% } %>
+    </div>
+
+    <div class="acciones">
+      <% if (resultado.completa && !archivada) { %>
+        <form method="post" action="/incapacidades/<%= incapacidad.idIncapacidad %>/verificacion">
+          <% if (resultado.epsTranscribio) { %><input type="hidden" name="eps" value="si"><% } %>
+          <button class="boton">Confirmar y archivar en digital</button>
+        </form>
+      <% } %>
+      <a class="boton secundario" href="/verificacion">Otra incapacidad</a>
+    </div>
+  </div>
+<% } %>

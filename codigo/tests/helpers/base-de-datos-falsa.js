@@ -5,6 +5,8 @@ export const ENTIDADES = Object.freeze([
   { id: 3, nombre: 'Sanitas', tipo: 'EPS' },
 ]);
 
+const EXTENSIONES = { 'application/pdf': 'pdf', 'image/jpeg': 'jpg', 'image/png': 'png' };
+
 export function crearBaseDeDatosFalsa() {
   const colaboradores = [];
   const incapacidades = [];
@@ -46,16 +48,41 @@ export function crearBaseDeDatosFalsa() {
     },
     async guardarDocumentos(idIncapacidad, nuevos, creadoPor, { originalPendiente = false } = {}) {
       const guardados = nuevos.map(({ tipo, contenido, tipoMime }, i) => ({
+        idDocumento: documentos.length + i + 1,
         idIncapacidad,
         tipo,
-        archivo: `incapacidades/${idIncapacidad}/${tipo}-${documentos.length + i + 1}`,
+        archivo: `incapacidades/${idIncapacidad}/${tipo}-${documentos.length + i + 1}.${EXTENSIONES[tipoMime]}`,
         tipoMime,
         tamano: contenido.length,
+        contenido,
         creadoPor,
       }));
       documentos.push(...guardados);
       if (originalPendiente) incapacidades.find((i) => i.idIncapacidad === idIncapacidad).originalPendiente = true;
       return guardados.map(({ tipo, archivo }) => ({ tipo, archivo }));
+    },
+    async obtenerExpediente(idIncapacidad) {
+      const datos = await this.consultarIncapacidad(idIncapacidad);
+      if (!datos) return null;
+      const guardada = incapacidades.find((i) => i.idIncapacidad === idIncapacidad);
+      const { correoColaborador, ...expediente } = datos;
+      return {
+        ...expediente,
+        documentacionCompleta: guardada.documentacionCompleta ?? null,
+        archivadoDigital: guardada.archivadoDigital ?? false,
+        documentos: documentos.filter((d) => d.idIncapacidad === idIncapacidad).map(({ idDocumento, tipo }) => ({ idDocumento, tipo })),
+      };
+    },
+    async archivarDigital(idIncapacidad) {
+      Object.assign(incapacidades.find((i) => i.idIncapacidad === idIncapacidad), { documentacionCompleta: true, archivadoDigital: true });
+    },
+    async consultarDocumento(idDocumento) {
+      const documento = documentos.find((d) => d.idDocumento === idDocumento);
+      return documento ? { idDocumento, idIncapacidad: documento.idIncapacidad, tipo: documento.tipo, archivo: documento.archivo } : null;
+    },
+    async descargarDocumento(archivo) {
+      const documento = documentos.find((d) => d.archivo === archivo);
+      return { contenido: documento.contenido, tipoMime: documento.tipoMime };
     },
     async consultarReemplazo(idIncapacidad) {
       return reemplazos.find((r) => r.idIncapacidad === idIncapacidad)?.reemplazo ?? null;

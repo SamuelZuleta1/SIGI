@@ -300,11 +300,41 @@ input[type='file']::file-selector-button {
   .lista-tipos .fila { grid-template-columns: 1fr; }
 }
 
+/* ---------- verificación: marcador y tabla de cruce (HU-06) ---------- */
+.marcador { display: flex; gap: 8px; align-items: baseline; margin: 0; font-size: 0.78rem; color: var(--tenue); }
+.marcador b { font-size: 1.4rem; font-weight: 650; letter-spacing: -0.02em; color: var(--texto); }
+.cruce { width: 100%; border-collapse: collapse; font-size: 0.84rem; }
+.cruce th { text-align: left; font-weight: 500; font-size: 0.76rem; color: var(--tenue); padding: 6px 10px; border-bottom: 1px solid var(--borde); }
+.cruce td { padding: 8px 10px; border-bottom: 1px solid var(--raya); vertical-align: middle; overflow-wrap: anywhere; }
+.cruce tr.falta td { background: var(--mal-f); }
+.cruce tr.exento td:first-child { color: var(--tenue); }
+.cruce .ver { font-weight: 500; white-space: nowrap; }
+.cruce .ver + .ver { margin-left: 8px; }
+.tenue { color: var(--tenue); font-size: 0.78rem; }
+.estado { display: inline-flex; align-items: center; gap: 5px; font-size: 0.8rem; font-weight: 600; white-space: nowrap; }
+.estado svg { width: 15px; height: 15px; flex: none; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.estado.recibido { color: var(--ok); }
+.estado.falta { color: var(--mal); }
+.estado.exento { color: var(--tenue); }
+.exencion { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; }
+.casilla { display: flex; gap: 8px; align-items: flex-start; font-size: 0.84rem; cursor: pointer; }
+.casilla input { width: 16px; height: 16px; margin: 3px 0 0; }
+.casilla small { display: block; color: var(--tenue); font-size: 0.78rem; }
+.boton.pequeno { height: 30px; padding: 0 10px; font-size: 0.82rem; }
+.js .exencion .boton { display: none; } /* con JavaScript, la casilla actualiza sola */
+.veredicto { display: grid; gap: 8px; }
+.veredicto:empty { display: none; }
+.oculto { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+@media (max-width: 560px) {
+  .cruce th, .cruce td { padding: 7px 6px; }
+}
+
 /* ---------- mensajes ---------- */
 .mensaje { margin: 0; padding: 9px 12px; border-radius: var(--radio); font-size: 0.84rem; font-weight: 500; }
 .mensaje-error { color: var(--mal); background: var(--mal-f); }
 .mensaje-aviso { color: var(--aviso); background: var(--aviso-f); }
 .mensaje-ok { color: var(--ok); background: var(--ok-f); }
+.mensaje-info { color: var(--info); background: var(--info-f); }
 
 @media (prefers-reduced-motion: reduce) {
   .boton:active { transform: none; }

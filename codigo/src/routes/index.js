@@ -5,6 +5,7 @@ import { NOMBRES_DE_ROL } from '../config/permisos.js';
 import { crearRutasReemplazo } from './reemplazo.routes.js';
 import { crearRutasRegistro } from './registro.routes.js';
 import { crearRutasSesion } from './sesion.routes.js';
+import { crearRutasVerificacion } from './verificacion.routes.js';
 
 export function crearRutas(dependencias) {
   const rutas = Router();
@@ -24,6 +25,7 @@ export function crearRutas(dependencias) {
   if (dependencias.control) {
     rutas.use(crearRutasRegistro(dependencias));
     rutas.use(crearRutasReemplazo(dependencias));
+    rutas.use(crearRutasVerificacion(dependencias));
   }
 
   // Solo para las pruebas: rutas de ensayo detrás de la sesión.

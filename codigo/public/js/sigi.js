@@ -1,4 +1,10 @@
 // Mejoras opcionales de la interfaz: todo funciona igual sin este archivo.
+document.documentElement.classList.add('js');
+
+// Formularios que se envían solos al cambiar una casilla (verificación, DA-26): sin JavaScript tienen su botón.
+for (const formulario of document.querySelectorAll('[data-enviar-al-cambiar]')) {
+  formulario.addEventListener('change', () => formulario.requestSubmit());
+}
 
 // Lista de documentos por tipo: cada fila recibe el archivo que se suelta sobre ella.
 for (const lista of document.querySelectorAll('[data-soltar-archivos]')) {

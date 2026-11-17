@@ -11,6 +11,13 @@ export function crearAlmacenDocumentos(cliente) {
       if (error) throw error;
     },
 
+    /** Descarga un archivo como Buffer (DA-06: lo entrega el servidor, nunca el bucket al navegador). */
+    async descargar(ruta) {
+      const { data, error } = await bucket().download(ruta);
+      if (error) throw error;
+      return Buffer.from(await data.arrayBuffer());
+    },
+
     /** Borra archivos (para deshacer una subida que no se pudo registrar). */
     async eliminar(rutas) {
       if (rutas.length === 0) return;
