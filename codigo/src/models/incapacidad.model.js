@@ -8,6 +8,15 @@ export const TIPOS_INCAPACIDAD = Object.freeze([
   'licencia_paternidad',
 ]);
 
+export const NOMBRES_TIPO_INCAPACIDAD = Object.freeze({
+  enfermedad_general: 'Enfermedad general',
+  accidente_laboral: 'Accidente laboral',
+  enfermedad_laboral: 'Enfermedad laboral',
+  accidente_transito: 'Accidente de tránsito',
+  licencia_maternidad: 'Licencia de maternidad',
+  licencia_paternidad: 'Licencia de paternidad',
+});
+
 // EST-01. El estado inicial («registrada») no tiene valor: null.
 export const ESTADOS_INCAPACIDAD = Object.freeze(['transcrita', 'cobrada', 'rechazada', 'pagada']);
 

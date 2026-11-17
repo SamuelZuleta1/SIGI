@@ -19,6 +19,14 @@
           Inicio
         </a>
       </li>
+      <% if (puede('registrarIncapacidad')) { %>
+      <li>
+        <a href="/incapacidades/nueva" <%- ruta === '/incapacidades/nueva' ? 'aria-current="page"' : '' %>>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3H6v18h12V7zM14 3v4h4M12 11v6M9 14h6"/></svg>
+          Registrar incapacidad
+        </a>
+      </li>
+      <% } %>
     </ul>
     <div class="cuenta">
       <p class="cuenta-correo"><%= usuario.correo %></p>

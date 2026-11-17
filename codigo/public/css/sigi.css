@@ -102,7 +102,7 @@ p { margin: 0 0 12px; max-width: 70ch; }
   position: sticky;
   top: 0;
   height: 100dvh;
-  width: 208px;
+  width: 224px;
   flex: none;
   display: flex;
   flex-direction: column;
@@ -223,6 +223,27 @@ p { margin: 0 0 12px; max-width: 70ch; }
 .campo .ayuda { font-size: 0.78rem; color: var(--tenue); }
 .campo .error { font-size: 0.78rem; color: var(--mal); }
 .campo.invalido input, .campo.invalido select, .campo.invalido textarea { border-color: var(--mal); }
+
+/* ---------- formularios de página ---------- */
+.formulario {
+  display: grid;
+  gap: 24px;
+  max-width: 640px;
+  margin-top: 14px;
+  padding: 20px;
+  background: var(--panel);
+  border: 1px solid var(--borde);
+  border-radius: calc(var(--radio) + 2px);
+}
+.formulario fieldset { display: grid; gap: 14px; min-width: 0; margin: 0; padding: 0; border: 0; }
+.formulario legend { padding: 0; margin-bottom: 10px; font-weight: 600; }
+.pareja { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; align-items: start; }
+.acciones { display: flex; gap: 8px; }
+.contenido > .mensaje { max-width: 640px; }
+@media (max-width: 560px) {
+  .pareja { grid-template-columns: 1fr; }
+  .formulario { padding: 16px; }
+}
 
 /* ---------- mensajes ---------- */
 .mensaje { margin: 0; padding: 9px 12px; border-radius: var(--radio); font-size: 0.84rem; font-weight: 500; }

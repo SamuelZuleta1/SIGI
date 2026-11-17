@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import express from 'express';
 import cookieParser from 'cookie-parser';
 import { cargarSesion, mismoOrigen } from './middleware/autenticacion.js';
-import { NOMBRES_DE_ROL } from './config/permisos.js';
+import { NOMBRES_DE_ROL, puedeEjecutar } from './config/permisos.js';
 import { crearRutas } from './routes/index.js';
 
 const directorio = path.dirname(fileURLToPath(import.meta.url));
@@ -47,6 +47,7 @@ export function crearApp(dependencias) {
           usuario,
           nombreRol: usuario ? NOMBRES_DE_ROL[usuario.rol] : null,
           ruta: req.path,
+          puede: (operacion) => Boolean(usuario) && puedeEjecutar(usuario.rol, operacion),
         });
       });
     };
@@ -75,6 +76,9 @@ export function crearApp(dependencias) {
 // Solo escucha cuando se ejecuta directamente (`npm start`), no al importarla en las pruebas.
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const { crearServicioSesion } = await import('./servicios/sesion.js');
+  const { crearBaseDeDatos } = await import('./persistence/base-de-datos.js');
+  const { crearControlIncapacidades } = await import('./controllers/control-incapacidades.js');
   const puerto = Number(process.env.PORT) || 3000;
-  crearApp({ sesion: crearServicioSesion() }).listen(puerto, () => console.log(`SIGI en http://localhost:${puerto}`));
+  const control = crearControlIncapacidades({ baseDeDatos: crearBaseDeDatos() });
+  crearApp({ sesion: crearServicioSesion(), control }).listen(puerto, () => console.log(`SIGI en http://localhost:${puerto}`));
 }

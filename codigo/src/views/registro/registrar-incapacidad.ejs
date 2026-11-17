@@ -1,0 +1,87 @@
+<%
+  const atributos = (campo) =>
+    (errores[campo] ? ` aria-invalid="true" aria-describedby="error-${campo}"` : '') +
+    (campo === primerError || (!primerError && !registrada && campo === 'colaborador') ? ' autofocus' : '');
+%>
+<h1>Registrar incapacidad</h1>
+<p class="sub">Incapacidad o licencia que entregó el colaborador. Todos los campos son obligatorios.</p>
+
+<% if (registrada) { %>
+  <p class="mensaje mensaje-ok" role="status">
+    Incapacidad n.º <strong><%= registrada %></strong> registrada. Use ese número para registrar sus documentos.
+  </p>
+<% } %>
+<% if (primerError) { %>
+  <p class="mensaje mensaje-error" role="alert">No se registró. Revise los campos marcados.</p>
+<% } %>
+
+<form class="formulario" method="post" action="/incapacidades" novalidate>
+  <fieldset>
+    <legend>Colaborador</legend>
+    <div class="pareja">
+      <div class="campo <%= errores.colaborador ? 'invalido' : '' %>">
+        <label for="colaborador">Nombre completo</label>
+        <input id="colaborador" name="colaborador" type="text" value="<%= valores.colaborador %>" maxlength="200" autocomplete="off" required<%- atributos('colaborador') %>>
+        <% if (errores.colaborador) { %><span class="error" id="error-colaborador"><%= errores.colaborador %></span><% } %>
+      </div>
+      <div class="campo <%= errores.correoColaborador ? 'invalido' : '' %>">
+        <label for="correoColaborador">Correo</label>
+        <input id="correoColaborador" name="correoColaborador" type="email" value="<%= valores.correoColaborador %>" maxlength="200" autocomplete="off" spellcheck="false" required<%- atributos('correoColaborador') %>>
+        <% if (errores.correoColaborador) { %>
+          <span class="error" id="error-correoColaborador"><%= errores.correoColaborador %></span>
+        <% } else { %>
+          <span class="ayuda">Si el colaborador ya está en SIGI, se usa el que tiene este correo.</span>
+        <% } %>
+      </div>
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Incapacidad o licencia</legend>
+    <div class="pareja">
+      <div class="campo <%= errores.tipo ? 'invalido' : '' %>">
+        <label for="tipo">Tipo</label>
+        <select id="tipo" name="tipo" required<%- atributos('tipo') %>>
+          <option value="">Elija…</option>
+          <% for (const [valor, nombre] of Object.entries(tipos)) { %>
+            <option value="<%= valor %>" <%= valores.tipo === valor ? 'selected' : '' %>><%= nombre %></option>
+          <% } %>
+        </select>
+        <% if (errores.tipo) { %><span class="error" id="error-tipo"><%= errores.tipo %></span><% } %>
+      </div>
+      <div class="campo <%= errores.entidad ? 'invalido' : '' %>">
+        <label for="entidad">Entidad (EPS o ARL)</label>
+        <select id="entidad" name="entidad" required<%- atributos('entidad') %>>
+          <option value="">Elija…</option>
+          <% for (const entidad of entidades) { %>
+            <option value="<%= entidad.id %>" <%= String(valores.entidad) === String(entidad.id) ? 'selected' : '' %>><%= entidad.nombre %></option>
+          <% } %>
+        </select>
+        <% if (errores.entidad) { %><span class="error" id="error-entidad"><%= errores.entidad %></span><% } %>
+      </div>
+    </div>
+    <div class="pareja">
+      <div class="campo <%= errores.fechaInicio ? 'invalido' : '' %>">
+        <label for="fechaInicio">Fecha de inicio</label>
+        <input id="fechaInicio" name="fechaInicio" type="date" value="<%= valores.fechaInicio %>" required<%- atributos('fechaInicio') %>>
+        <% if (errores.fechaInicio) { %><span class="error" id="error-fechaInicio"><%= errores.fechaInicio %></span><% } %>
+      </div>
+      <div class="campo <%= errores.diasIncapacidad ? 'invalido' : '' %>">
+        <label for="diasIncapacidad">Días de incapacidad</label>
+        <input id="diasIncapacidad" name="diasIncapacidad" type="number" inputmode="numeric" min="1" max="9999" step="1" value="<%= valores.diasIncapacidad %>" required<%- atributos('diasIncapacidad') %>>
+        <% if (errores.diasIncapacidad) { %><span class="error" id="error-diasIncapacidad"><%= errores.diasIncapacidad %></span><% } %>
+      </div>
+    </div>
+    <div class="pareja">
+      <div class="campo <%= errores.fechaRecepcion ? 'invalido' : '' %>">
+        <label for="fechaRecepcion">Fecha de recepción</label>
+        <input id="fechaRecepcion" name="fechaRecepcion" type="date" value="<%= valores.fechaRecepcion %>" required<%- atributos('fechaRecepcion') %>>
+        <% if (errores.fechaRecepcion) { %><span class="error" id="error-fechaRecepcion"><%= errores.fechaRecepcion %></span><% } %>
+      </div>
+    </div>
+  </fieldset>
+
+  <div class="acciones">
+    <button class="boton">Registrar incapacidad</button>
+  </div>
+</form>
