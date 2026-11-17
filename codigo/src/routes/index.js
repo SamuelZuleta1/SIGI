@@ -2,6 +2,7 @@
 import { Router } from 'express';
 import { exigirSesion } from '../middleware/autenticacion.js';
 import { NOMBRES_DE_ROL } from '../config/permisos.js';
+import { crearRutasReemplazo } from './reemplazo.routes.js';
 import { crearRutasRegistro } from './registro.routes.js';
 import { crearRutasSesion } from './sesion.routes.js';
 
@@ -22,6 +23,7 @@ export function crearRutas(dependencias) {
   // Grupos de operaciones (necesitan el Control de incapacidades).
   if (dependencias.control) {
     rutas.use(crearRutasRegistro(dependencias));
+    rutas.use(crearRutasReemplazo(dependencias));
   }
 
   // Solo para las pruebas: rutas de ensayo detrás de la sesión.

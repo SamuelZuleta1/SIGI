@@ -9,10 +9,12 @@ export function crearBaseDeDatosFalsa() {
   const colaboradores = [];
   const incapacidades = [];
   const documentos = [];
+  const reemplazos = []; // máximo uno por incapacidad, como el índice único de la tabla
   return {
     colaboradores,
     incapacidades,
     documentos,
+    reemplazos,
     async consultarEntidades() {
       return [...ENTIDADES];
     },
@@ -56,6 +58,14 @@ export function crearBaseDeDatosFalsa() {
     },
     async marcarOriginalPendiente(idIncapacidad) {
       incapacidades.find((i) => i.idIncapacidad === idIncapacidad).originalPendiente = true;
+    },
+    async consultarReemplazo(idIncapacidad) {
+      return reemplazos.find((r) => r.idIncapacidad === idIncapacidad)?.reemplazo ?? null;
+    },
+    async guardarReemplazo(idIncapacidad, reemplazo, creadoPor) {
+      const anterior = reemplazos.findIndex((r) => r.idIncapacidad === idIncapacidad);
+      if (anterior >= 0) reemplazos.splice(anterior, 1);
+      reemplazos.push({ idIncapacidad, reemplazo, creadoPor });
     },
   };
 }

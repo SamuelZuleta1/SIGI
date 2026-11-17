@@ -1,0 +1,50 @@
+<h1>Registrar reemplazo</h1>
+<% if (!incapacidad) { %>
+  <p class="sub">Escriba el número de la incapacidad del colaborador que va a ser reemplazado.</p>
+  <form class="formulario" method="get" action="/reemplazo" novalidate>
+    <div class="buscar">
+      <div class="campo <%= errorNumero ? 'invalido' : '' %>">
+        <label for="incapacidad">Incapacidad n.º</label>
+        <input id="incapacidad" name="incapacidad" type="text" inputmode="numeric" pattern="[0-9]*" value="<%= numero %>" maxlength="18" autocomplete="off" required autofocus<%- errorNumero ? ' aria-invalid="true" aria-describedby="error-incapacidad"' : '' %>>
+      </div>
+      <button class="boton">Continuar</button>
+    </div>
+    <% if (errorNumero) { %>
+      <p class="mensaje mensaje-error" id="error-incapacidad" role="alert"><%= errorNumero %> Revise el número que recibió al registrarla.</p>
+    <% } else { %>
+      <p class="ayuda">Es el número que SIGI mostró al registrar la incapacidad.</p>
+    <% } %>
+  </form>
+<% } else { %>
+  <p class="sub">Persona que reemplaza al colaborador mientras dura la incapacidad.</p>
+
+  <% if (registrado) { %>
+    <p class="mensaje mensaje-ok" role="status"><strong><%= actual %></strong> quedó como reemplazo en la incapacidad n.º <strong><%= incapacidad.idIncapacidad %></strong>.</p>
+  <% } %>
+  <% if (error) { %>
+    <p class="mensaje mensaje-error" role="alert">No se registró el reemplazo. Revise el nombre.</p>
+  <% } %>
+
+  <form class="formulario" method="post" action="/incapacidades/<%= incapacidad.idIncapacidad %>/reemplazo" novalidate>
+    <dl class="resumen">
+      <dt>Incapacidad</dt><dd>n.º <%= incapacidad.idIncapacidad %></dd>
+      <dt>Colaborador</dt><dd><%= incapacidad.colaborador %></dd>
+      <dt>Inicio</dt><dd><%= incapacidad.fechaInicio %> · <%= incapacidad.diasIncapacidad %> <%= incapacidad.diasIncapacidad === 1 ? 'día' : 'días' %></dd>
+    </dl>
+
+    <div class="campo <%= error ? 'invalido' : '' %>">
+      <label for="reemplazo">Nombre completo de quien reemplaza</label>
+      <input id="reemplazo" name="reemplazo" type="text" value="<%= valor ?? actual ?? '' %>" maxlength="200" autocomplete="off" required<%- error ? ' aria-invalid="true" aria-describedby="error-reemplazo" autofocus' : registrado ? '' : ' autofocus' %>>
+      <% if (error) { %>
+        <span class="error" id="error-reemplazo"><%= error %></span>
+      <% } else if (actual) { %>
+        <span class="ayuda">Esta incapacidad ya tiene un reemplazo. Si guarda otro nombre, sustituye al anterior.</span>
+      <% } %>
+    </div>
+
+    <div class="acciones">
+      <button class="boton"><%= actual ? 'Cambiar reemplazo' : 'Registrar reemplazo' %></button>
+      <a class="boton secundario" href="/reemplazo">Otra incapacidad</a>
+    </div>
+  </form>
+<% } %>

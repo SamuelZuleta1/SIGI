@@ -36,6 +36,14 @@
         </a>
       </li>
       <% } %>
+      <% if (puede('registrarReemplazo')) { %>
+      <li>
+        <a href="/reemplazo" <%- ruta === '/reemplazo' || /^\/incapacidades\/\d+\/reemplazo$/.test(ruta) ? 'aria-current="page"' : '' %>>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h13M14 5l3 3-3 3M20 16H7M10 13l-3 3 3 3"/></svg>
+          Registrar reemplazo
+        </a>
+      </li>
+      <% } %>
     </ul>
     <div class="cuenta">
       <p class="cuenta-correo"><%= usuario.correo %></p>
