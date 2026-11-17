@@ -1,5 +1,5 @@
 // Grupo `verificacion` de la Base de datos — DS-03 (CU-04).
-// Operaciones: obtenerExpediente, archivarDigital; apoyo para «ver documento» (DA-06):
+// Operaciones: obtenerExpediente, archivarDigital, guardarFaltantes (HU-07); apoyo para «ver documento» (DA-06):
 // consultarDocumento y descargarDocumento.
 import { crearAlmacenDocumentos } from './almacen-documentos.js';
 
@@ -23,7 +23,7 @@ export function crearPersistenciaVerificacion(cliente, almacen = crearAlmacenDoc
           .from('incapacidad')
           .select(
             'id, tipo, fecha_inicio, dias_incapacidad, original_pendiente, documentacion_completa, archivado_digital, ' +
-              'colaborador(nombre), entidad(nombre), documento(id, tipo)',
+              'faltantes, fecha_aviso_faltantes, colaborador(nombre, correo), entidad(nombre), documento(id, tipo)',
           )
           .eq('id', idIncapacidad)
           .order('id', { referencedTable: 'documento' })
@@ -33,6 +33,7 @@ export function crearPersistenciaVerificacion(cliente, almacen = crearAlmacenDoc
       return {
         idIncapacidad: fila.id,
         colaborador: fila.colaborador.nombre,
+        correoColaborador: fila.colaborador.correo,
         tipo: fila.tipo,
         entidad: fila.entidad.nombre,
         fechaInicio: fila.fecha_inicio,
@@ -40,6 +41,8 @@ export function crearPersistenciaVerificacion(cliente, almacen = crearAlmacenDoc
         originalPendiente: fila.original_pendiente,
         documentacionCompleta: fila.documentacion_completa,
         archivadoDigital: fila.archivado_digital,
+        faltantes: fila.faltantes,
+        fechaAvisoFaltantes: fila.fecha_aviso_faltantes,
         documentos: fila.documento.map((d) => ({ idDocumento: d.id, tipo: d.tipo })),
       };
     },
@@ -58,6 +61,25 @@ export function crearPersistenciaVerificacion(cliente, almacen = crearAlmacenDoc
           .select('id'),
       );
       if (filas.length !== 1) throw new Error(`No se pudo archivar la incapacidad ${idIncapacidad}`);
+    },
+
+    /**
+     * DS-03: guardarFaltantes(idIncapacidad, faltantes) — HU-07.CA1. Guarda la lista y la fecha del aviso
+     * (DA-13) y deja la documentación como incompleta (false = faltantes notificados).
+     * Solo si no había un aviso pendiente (DA-31): la condición va en la misma sentencia, así dos avisos
+     * simultáneos no se registran los dos.
+     * @returns {Promise<boolean>} false si ya había un aviso pendiente o la incapacidad no existe.
+     */
+    async guardarFaltantes(idIncapacidad, faltantes, fechaAviso) {
+      const filas = comprobar(
+        await cliente
+          .from('incapacidad')
+          .update({ faltantes, fecha_aviso_faltantes: fechaAviso, documentacion_completa: false })
+          .eq('id', idIncapacidad)
+          .or('documentacion_completa.is.null,documentacion_completa.eq.true')
+          .select('id'),
+      );
+      return filas.length === 1;
     },
 
     /** Datos de un documento (sin el archivo), o null si no existe. */

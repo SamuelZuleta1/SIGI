@@ -26,8 +26,14 @@
     <% } %>
   </form>
 <% } else {
-  const { incapacidad, resultado } = verificacion;
+  const { incapacidad, resultado, aviso } = verificacion;
   const archivada = incapacidad.archivadoDigital;
+  const avisoPendiente = Boolean(aviso?.pendiente);
+  // HU-07 (DA-30): casillas = faltantes calculados + los que añadió el auxiliar; marcadas, las elegidas.
+  const elegidos = (seleccion ?? resultado.faltantes).filter((t) => tiposDocumento.includes(t));
+  const enLista = tiposDocumento.filter((t) => resultado.faltantes.includes(t) || elegidos.includes(t));
+  const libres = tiposDocumento.filter((t) => !enLista.includes(t));
+  const plazo = (dias) => dias > 1 ? `quedan ${dias} días hábiles` : dias === 1 ? 'queda 1 día hábil' : dias === 0 ? 'vence hoy' : 'plazo vencido';
 %>
   <p class="sub">Cruce de los documentos obligatorios para el tipo de caso con el expediente.</p>
 
@@ -87,7 +93,7 @@
       <% } else { %>
         <p class="mensaje mensaje-error" role="status">
           <%= resultado.faltantes.length === 1 ? 'Falta 1 documento' : `Faltan ${resultado.faltantes.length} documentos` %>.
-          La documentación no se archiva: notifique los faltantes al colaborador.
+          <%= avisoPendiente ? 'La documentación no se archiva: ya se notificó al colaborador.' : 'La documentación no se archiva: notifique los faltantes al colaborador.' %>
         </p>
       <% } %>
       <% if (incapacidad.originalPendiente) { %>
@@ -97,6 +103,68 @@
         <p class="mensaje mensaje-info">Esta documentación ya se verificó y está archivada en digital.</p>
       <% } %>
     </div>
+
+    <% if (avisoPendiente) { %>
+      <%# HU-07: aviso registrado. No se vuelve a notificar hasta que lleguen documentos (DA-31). %>
+      <section class="aviso" id="aviso" aria-labelledby="titulo-aviso">
+        <% if (notificada) { %>
+          <p class="mensaje mensaje-ok entra" role="status">Faltantes notificados. Se envió el correo a <strong><%= incapacidad.correoColaborador %></strong>.</p>
+        <% } %>
+        <% if (errorAviso) { %>
+          <p class="mensaje mensaje-error" role="alert"><%= errorAviso %></p>
+        <% } %>
+        <h2 id="titulo-aviso">Aviso registrado el <%= fechaLarga(aviso.fechaAviso) %></h2>
+        <ul class="pedidos-enviados">
+          <% for (const tipo of aviso.faltantes) { %><li><%= nombresDocumento[tipo] ?? tipo %></li><% } %>
+        </ul>
+        <p class="plazo <%= aviso.diasRestantes < 0 ? 'vencido' : '' %>">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg>
+          Vence el <%= fechaLarga(aviso.fechaLimite) %> · <%= plazo(aviso.diasRestantes) %>
+        </p>
+        <p class="ayuda">Podrá notificar de nuevo cuando se registren documentos y sigan faltando.</p>
+      </section>
+    <% } else if (!resultado.completa) { %>
+      <%# HU-07.CA1: lista precargada y editable (DA-30). «Añadir» vuelve por GET y funciona sin JavaScript. %>
+      <form class="aviso" id="aviso" method="post" action="/incapacidades/<%= incapacidad.idIncapacidad %>/faltantes" aria-labelledby="titulo-aviso" data-un-envio>
+        <h2 id="titulo-aviso">Notificar al colaborador</h2>
+        <p class="sub">Desmarque lo que no deba pedir o añada otro documento.</p>
+        <% if (aviso) { %>
+          <p class="mensaje mensaje-info">Último aviso: <%= fechaLarga(aviso.fechaAviso) %>. Después se registraron documentos y todavía <%= resultado.faltantes.length === 1 ? 'falta 1' : `faltan ${resultado.faltantes.length}` %>.</p>
+        <% } %>
+        <% if (errorAviso) { %>
+          <p class="mensaje mensaje-error" role="alert" id="error-aviso"><%= errorAviso %></p>
+        <% } %>
+        <% if (resultado.epsTranscribio) { %><input type="hidden" name="eps" value="si"><% } %>
+        <fieldset<%- errorAviso ? ' aria-describedby="error-aviso"' : '' %>>
+          <legend class="oculto">Documentos que se piden al colaborador</legend>
+          <ul class="pedidos">
+            <% for (const tipo of enLista) { %>
+              <li><label class="casilla">
+                <input type="checkbox" name="faltantes" value="<%= tipo %>" <%= elegidos.includes(tipo) ? 'checked' : '' %>>
+                <span><%= nombresDocumento[tipo] %><% if (!resultado.faltantes.includes(tipo)) { %><small>Añadido por usted</small><% } %></span>
+              </label></li>
+            <% } %>
+          </ul>
+        </fieldset>
+        <% if (libres.length > 0) { %>
+          <div class="agregar">
+            <label class="oculto" for="otro">Otro documento</label>
+            <select id="otro" name="otro">
+              <option value="">Pedir otro documento…</option>
+              <% for (const tipo of libres) { %><option value="<%= tipo %>"><%= nombresDocumento[tipo] %></option><% } %>
+            </select>
+            <button class="boton secundario pequeno" name="accion" value="agregar" formmethod="get" formaction="/incapacidades/<%= incapacidad.idIncapacidad %>/verificacion#aviso">Añadir</button>
+          </div>
+        <% } %>
+        <dl class="datos-envio">
+          <dt>Para</dt><dd><%= incapacidad.correoColaborador %></dd>
+          <dt>Plazo</dt><dd>3 días hábiles: hasta el <%= fechaLarga(verificacion.fechaLimiteSiSeNotifica) %></dd>
+        </dl>
+        <div class="acciones">
+          <button class="boton" data-enviando="Enviando…" data-contar-faltantes><%= elegidos.length === 1 ? 'Notificar 1 faltante' : `Notificar ${elegidos.length} faltantes` %></button>
+        </div>
+      </form>
+    <% } %>
 
     <div class="acciones">
       <% if (resultado.completa && !archivada) { %>

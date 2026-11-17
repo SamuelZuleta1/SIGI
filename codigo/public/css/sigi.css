@@ -329,6 +329,49 @@ input[type='file']::file-selector-button {
   .cruce th, .cruce td { padding: 7px 6px; }
 }
 
+/* ---------- notificar faltantes (HU-07): bloque bajo el resultado ---------- */
+.aviso { display: grid; gap: 12px; padding-top: 18px; border-top: 1px solid var(--borde); scroll-margin-top: 16px; }
+.aviso h2 { margin: 0; font-size: 0.95rem; }
+.aviso .sub { margin: -8px 0 0; }
+.aviso fieldset { margin: 0; padding: 0; border: 0; min-width: 0; }
+.pedidos { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; }
+.pedidos .casilla { padding: 6px 8px; border-radius: var(--radio); transition: background-color 0.15s ease; }
+@media (hover: hover) { .pedidos .casilla:hover { background: var(--raya); } }
+.pedidos-enviados { margin: 0; padding-left: 18px; font-size: 0.84rem; }
+.agregar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.agregar select {
+  height: 30px;
+  max-width: 100%;
+  padding: 0 8px;
+  border: 1px solid var(--borde);
+  border-radius: var(--radio);
+  background: var(--panel);
+  font-size: 0.82rem;
+}
+.agregar select:focus { outline: 0; border-color: var(--acento); box-shadow: 0 0 0 3px color-mix(in srgb, var(--acento) 22%, transparent); }
+.datos-envio { display: grid; grid-template-columns: auto 1fr; gap: 2px 12px; margin: 0; font-size: 0.82rem; }
+.datos-envio dt { color: var(--tenue); }
+.datos-envio dd { margin: 0; font-weight: 500; overflow-wrap: anywhere; }
+.plazo {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  width: max-content;
+  max-width: 100%;
+  margin: 0;
+  padding: 3px 9px;
+  border-radius: 99px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--aviso);
+  background: var(--aviso-f);
+}
+.plazo.vencido { color: var(--mal); background: var(--mal-f); }
+.plazo svg { width: 14px; height: 14px; flex: none; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.aviso .ayuda { margin: 0; font-size: 0.78rem; color: var(--tenue); }
+.entra { animation: entra 0.26s var(--ease); }
+@keyframes entra { from { opacity: 0; transform: translateY(6px); } }
+
 /* ---------- mensajes ---------- */
 .mensaje { margin: 0; padding: 9px 12px; border-radius: var(--radio); font-size: 0.84rem; font-weight: 500; }
 .mensaje-error { color: var(--mal); background: var(--mal-f); }
@@ -338,4 +381,6 @@ input[type='file']::file-selector-button {
 
 @media (prefers-reduced-motion: reduce) {
   .boton:active { transform: none; }
+  .entra { animation: aparece 0.2s ease; }
+  @keyframes aparece { from { opacity: 0; } }
 }

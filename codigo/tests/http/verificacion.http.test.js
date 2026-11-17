@@ -62,7 +62,7 @@ describe('HU-06 — verificar la documentación (rutas)', () => {
     const res = await agente.post('/incapacidades/1/verificacion').type('form').send({});
     expect(res.status).toBe(409);
     expect(res.text).toContain('Faltan documentos obligatorios: la documentación no se archivó.');
-    expect(baseDeDatos.incapacidades[0].archivadoDigital).toBeUndefined();
+    expect(baseDeDatos.incapacidades[0]).toMatchObject({ documentacionCompleta: null, archivadoDigital: false });
   });
 
   it('HU-06.CA2 — completa: confirma, archiva en digital y muestra la confirmación', async () => {
@@ -130,7 +130,7 @@ describe('HU-06 — verificar la documentación (rutas)', () => {
     expect((await agente.get('/verificacion')).status).toBe(403);
     expect((await agente.get('/incapacidades/1/verificacion')).status).toBe(403);
     expect((await agente.post('/incapacidades/1/verificacion').type('form').send({})).status).toBe(403);
-    expect(baseDeDatos.incapacidades[0].archivadoDigital).toBeUndefined();
+    expect(baseDeDatos.incapacidades[0]).toMatchObject({ documentacionCompleta: null, archivadoDigital: false });
   });
 
   it('HU-01 — sin sesión, la verificación pide iniciar sesión', async () => {

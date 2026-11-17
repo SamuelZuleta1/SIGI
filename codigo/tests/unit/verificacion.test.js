@@ -101,7 +101,7 @@ describe('HU-06 — verificar la documentación (Control)', () => {
     const { incapacidad, resultado } = await control.verificarDocumentacion(String(id));
     expect(incapacidad).toMatchObject({ idIncapacidad: id, colaborador: 'Ana María Gómez', tipo: 'enfermedad_general', admiteExencion: true });
     expect(resultado.faltantes).toEqual(['epicrisis']);
-    expect(baseDeDatos.incapacidades[0]).not.toHaveProperty('archivadoDigital');
+    expect(baseDeDatos.incapacidades[0]).toMatchObject({ documentacionCompleta: null, archivadoDigital: false });
   });
 
   it('HU-06.CA1 — un número que no corresponde a ninguna incapacidad devuelve null', async () => {
@@ -127,7 +127,7 @@ describe('HU-06 — verificar la documentación (Control)', () => {
     const error = await control.registrarVerificacion(id).catch((e) => e);
     expect(error).toBeInstanceOf(ErrorDeValidacion);
     expect(error.errores.documentos).toMatch(/Faltan documentos/);
-    expect(baseDeDatos.incapacidades[0]).not.toHaveProperty('archivadoDigital');
+    expect(baseDeDatos.incapacidades[0]).toMatchObject({ documentacionCompleta: null, archivadoDigital: false });
   });
 
   it('HU-06.CA3 — sin ningún documento registrado, todo falta', async () => {

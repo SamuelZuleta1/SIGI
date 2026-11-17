@@ -46,3 +46,27 @@ for (const lista of document.querySelectorAll('[data-soltar-archivos]')) {
     marcar(fila);
   });
 }
+
+// Notificar faltantes (HU-07): el botón cuenta las casillas marcadas y se desactiva si no hay ninguna.
+for (const boton of document.querySelectorAll('[data-contar-faltantes]')) {
+  const formulario = boton.form;
+  const contar = () => {
+    const n = formulario.querySelectorAll('input[name=faltantes]:checked').length;
+    boton.textContent = n === 1 ? 'Notificar 1 faltante' : `Notificar ${n} faltantes`;
+    boton.disabled = n === 0;
+  };
+  formulario.addEventListener('change', contar);
+}
+
+// Formularios que envían un correo: tras el primer envío el botón se bloquea para no mandarlo dos veces.
+// Solo el botón que envía (no «Añadir», que recarga la página por GET).
+for (const formulario of document.querySelectorAll('form[data-un-envio]')) {
+  formulario.addEventListener('submit', (evento) => {
+    const boton = evento.submitter;
+    if (!boton?.dataset.enviando) return;
+    boton.textContent = boton.dataset.enviando;
+    boton.setAttribute('aria-disabled', 'true');
+    // Se desactiva después de que el navegador tome los datos del envío.
+    setTimeout(() => { boton.disabled = true; });
+  });
+}

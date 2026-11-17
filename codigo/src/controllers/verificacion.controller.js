@@ -1,8 +1,13 @@
 // Grupo `verificacion` del Control de incapacidades — DS-03 (CU-04).
-// Operaciones: verificarDocumentacion (con compararConRequisitos), registrarVerificacion
-// y «ver documento» (DA-06). notificarFaltantes y registrarSegundoLlamado llegan con HU-07 y HU-08.
+// Operaciones: verificarDocumentacion (con compararConRequisitos), registrarVerificacion,
+// notificarFaltantes (HU-07) y «ver documento» (DA-06). registrarSegundoLlamado llega con HU-08.
+import { NOMBRES_TIPO_DOCUMENTO, TIPOS_DOCUMENTO } from '../models/documento.model.js';
+import { diasHabilesRestantes, fechaLarga, hoyEnColombia, sumarDiasHabiles } from '../servicios/dias-habiles.js';
 import { ErrorDeValidacion } from './error-de-validacion.js';
 import { esIdentificador } from './identificador.js';
+
+// Plazo para entregar los faltantes (CU-05, DA-13): 3 días hábiles desde el aviso.
+export const DIAS_PARA_ENTREGAR = 3;
 
 
 // La epicrisis se exime si la EPS ya transcribió (F1 §2.8; DA-26).
@@ -60,9 +65,36 @@ export function compararConRequisitos(incapacidad, documentos, { epsTranscribio 
   };
 }
 
-export function crearControlVerificacion({ baseDeDatos }) {
+/**
+ * Lista de faltantes que envía el auxiliar (DA-30): tipos del catálogo, sin repetir, al menos uno.
+ * @returns {string[]} los tipos en el orden del catálogo.
+ */
+export function validarFaltantes(tipos) {
+  const lista = (Array.isArray(tipos) ? tipos : [tipos]).filter((t) => t != null && t !== '');
+  if (lista.length === 0) throw new ErrorDeValidacion({ faltantes: 'Marque al menos un documento.' });
+  if (lista.some((t) => !TIPOS_DOCUMENTO.includes(t))) {
+    throw new ErrorDeValidacion({ faltantes: 'Hay un documento que no está en la lista de tipos.' });
+  }
+  return TIPOS_DOCUMENTO.filter((t) => lista.includes(t));
+}
+
+export function crearControlVerificacion({ baseDeDatos, correo, hoy = hoyEnColombia }) {
   const expediente = async (idIncapacidad) =>
     esIdentificador(idIncapacidad) ? baseDeDatos.obtenerExpediente(Number(idIncapacidad)) : null;
+
+  // Último aviso de faltantes (DA-29: se conserva aunque lleguen documentos), con su plazo.
+  const ultimoAviso = ({ fechaAvisoFaltantes, faltantes, documentacionCompleta }) => {
+    if (!fechaAvisoFaltantes) return null;
+    const fechaLimite = sumarDiasHabiles(fechaAvisoFaltantes, DIAS_PARA_ENTREGAR);
+    return {
+      faltantes: faltantes ?? [],
+      fechaAviso: fechaAvisoFaltantes,
+      fechaLimite,
+      diasRestantes: diasHabilesRestantes(hoy(), fechaLimite),
+      // false = el aviso sigue pendiente: no se puede volver a notificar hasta que lleguen documentos (DA-31).
+      pendiente: documentacionCompleta === false,
+    };
+  };
 
   return {
     /**
@@ -77,7 +109,54 @@ export function crearControlVerificacion({ baseDeDatos }) {
       return {
         incapacidad: { ...incapacidad, admiteExencion: admiteExencion(incapacidad) },
         resultado: compararConRequisitos(incapacidad, documentos, { epsTranscribio }),
+        aviso: ultimoAviso(incapacidad),
+        // Hasta cuándo tendría el colaborador si se le notifica hoy (se muestra antes de enviar).
+        fechaLimiteSiSeNotifica: sumarDiasHabiles(hoy(), DIAS_PARA_ENTREGAR),
       };
+    },
+
+    /**
+     * DS-03: notificarFaltantes(idIncapacidad, faltantes) → guardarFaltantes → notificarFaltantes(Colaborador).
+     * HU-07.CA1: envía al colaborador el correo con los documentos y el plazo de 3 días hábiles y guarda
+     * la lista con la fecha del aviso (DA-13).
+     * - La lista la edita el auxiliar a partir de los faltantes calculados (DA-30).
+     * - Con un aviso pendiente no se notifica de nuevo hasta que se registren documentos (DA-31).
+     * - Primero el correo y después el registro: si el correo falla no queda un aviso que nadie recibió
+     *   ni corre un plazo; el auxiliar puede reintentar.
+     */
+    async notificarFaltantes(idIncapacidad, tipos, { epsTranscribio = false } = {}) {
+      const verificacion = await this.verificarDocumentacion(idIncapacidad, { epsTranscribio });
+      if (!verificacion) throw new ErrorDeValidacion({ incapacidad: 'No hay una incapacidad con ese número.' });
+      const { incapacidad, resultado, aviso } = verificacion;
+      if (aviso?.pendiente) {
+        throw new ErrorDeValidacion({
+          faltantes: 'Ya se notificaron los faltantes. Podrá notificar de nuevo cuando se registren documentos y sigan faltando.',
+        });
+      }
+      if (resultado.completa) {
+        throw new ErrorDeValidacion({ faltantes: 'La documentación está completa: no hay faltantes que notificar.' });
+      }
+      const faltantes = validarFaltantes(tipos);
+
+      const fechaAviso = hoy();
+      const fechaLimite = sumarDiasHabiles(fechaAviso, DIAS_PARA_ENTREGAR);
+      try {
+        await correo.notificarFaltantes(
+          incapacidad,
+          faltantes.map((t) => NOMBRES_TIPO_DOCUMENTO[t]),
+          fechaLarga(fechaLimite),
+        );
+      } catch (error) {
+        console.error('No se pudo enviar notificarFaltantes:', error);
+        throw new ErrorDeValidacion({
+          correo: 'No se pudo enviar el correo al colaborador, así que el aviso no se registró. Intente de nuevo.',
+        });
+      }
+      const guardado = await baseDeDatos.guardarFaltantes(incapacidad.idIncapacidad, faltantes, fechaAviso);
+      if (!guardado) {
+        throw new ErrorDeValidacion({ faltantes: 'Otro usuario registró el aviso al mismo tiempo. Revise el resultado.' });
+      }
+      return { idIncapacidad: incapacidad.idIncapacidad, faltantes, fechaAviso, fechaLimite };
     },
 
     /**

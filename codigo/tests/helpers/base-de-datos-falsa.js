@@ -58,23 +58,33 @@ export function crearBaseDeDatosFalsa() {
         creadoPor,
       }));
       documentos.push(...guardados);
-      if (originalPendiente) incapacidades.find((i) => i.idIncapacidad === idIncapacidad).originalPendiente = true;
+      const incapacidad = incapacidades.find((i) => i.idIncapacidad === idIncapacidad);
+      if (originalPendiente) incapacidad.originalPendiente = true;
+      // Como registrar_documentos: vuelve a quedar lista para verificarse (HU-07.CA2, DA-29).
+      Object.assign(incapacidad, { documentacionCompleta: null, archivadoDigital: false });
       return guardados.map(({ tipo, archivo }) => ({ tipo, archivo }));
     },
     async obtenerExpediente(idIncapacidad) {
       const datos = await this.consultarIncapacidad(idIncapacidad);
       if (!datos) return null;
       const guardada = incapacidades.find((i) => i.idIncapacidad === idIncapacidad);
-      const { correoColaborador, ...expediente } = datos;
       return {
-        ...expediente,
+        ...datos,
         documentacionCompleta: guardada.documentacionCompleta ?? null,
         archivadoDigital: guardada.archivadoDigital ?? false,
+        faltantes: guardada.faltantes ?? [],
+        fechaAvisoFaltantes: guardada.fechaAvisoFaltantes ?? null,
         documentos: documentos.filter((d) => d.idIncapacidad === idIncapacidad).map(({ idDocumento, tipo }) => ({ idDocumento, tipo })),
       };
     },
     async archivarDigital(idIncapacidad) {
       Object.assign(incapacidades.find((i) => i.idIncapacidad === idIncapacidad), { documentacionCompleta: true, archivadoDigital: true });
+    },
+    async guardarFaltantes(idIncapacidad, faltantes, fechaAviso) {
+      const incapacidad = incapacidades.find((i) => i.idIncapacidad === idIncapacidad);
+      if (!incapacidad || incapacidad.documentacionCompleta === false) return false;
+      Object.assign(incapacidad, { faltantes, fechaAvisoFaltantes: fechaAviso, documentacionCompleta: false });
+      return true;
     },
     async consultarDocumento(idDocumento) {
       const documento = documentos.find((d) => d.idDocumento === idDocumento);
