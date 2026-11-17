@@ -78,6 +78,19 @@ describe('HU-04 — registrar la documentación recibida (Control)', () => {
     silencio.mockRestore();
   });
 
+  it.each([
+    ['receptor', false],
+    ['auxiliar', true],
+  ])('HU-04 — si guardar falla (%s), el error llega a quien registra y no se avisa a nadie', async (rol, originalPendiente) => {
+    const falla = new Error('Base de datos no disponible');
+    const llamadas = [];
+    baseDeDatos.guardarDocumentos = async (...args) => { llamadas.push(args); throw falla; };
+    await expect(control.registrarDocumentos(id, [documentoDePrueba()], USUARIOS[rol])).rejects.toBe(falla);
+    expect(llamadas[0][3]).toEqual({ originalPendiente });
+    expect(baseDeDatos.incapacidades[0].originalPendiente ?? false).toBe(false);
+    expect(enviados).toHaveLength(0);
+  });
+
   it.each(TIPOS_DOCUMENTO)('DA-06 — acepta el tipo de documento %s', async (tipo) => {
     await control.registrarDocumentos(id, [documentoDePrueba({ tipo })], USUARIOS.auxiliar);
     expect(baseDeDatos.documentos[0].tipo).toBe(tipo);

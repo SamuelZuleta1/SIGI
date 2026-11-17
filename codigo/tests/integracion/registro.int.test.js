@@ -80,6 +80,26 @@ describe('HU-03 — registrar incapacidad o licencia (base de datos)', () => {
     expect(count).toBe(1);
   });
 
+  it('HU-03 — si la incapacidad no se puede guardar, tampoco queda el colaborador nuevo', async () => {
+    const nuevo = `prueba.atomico.${Date.now()}@sigi.test`;
+    const error = await baseDeDatos
+      .guardarIncapacidad(
+        {
+          colaborador: { nombre: 'Colaborador Sin Incapacidad', correo: nuevo },
+          tipo: 'enfermedad_general',
+          entidad: 2 ** 40, // no existe: viola la clave foránea
+          fechaInicio: '2026-11-03',
+          diasIncapacidad: 5,
+          fechaRecepcion: '2026-11-04',
+        },
+        receptor.id,
+      )
+      .catch((e) => e);
+    expect(error.code).toBe('23503');
+    const { count } = await servidor.from('colaborador').select('*', { head: true, count: 'exact' }).eq('correo', nuevo);
+    expect(count).toBe(0);
+  });
+
   it('HU-03.CA3 — la base de datos rechaza un tipo fuera de los 6', async () => {
     const error = await baseDeDatos
       .guardarIncapacidad(

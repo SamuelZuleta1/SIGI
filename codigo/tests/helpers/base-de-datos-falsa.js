@@ -44,7 +44,7 @@ export function crearBaseDeDatosFalsa() {
         originalPendiente: guardada.originalPendiente ?? false,
       };
     },
-    async guardarDocumentos(idIncapacidad, nuevos, creadoPor) {
+    async guardarDocumentos(idIncapacidad, nuevos, creadoPor, { originalPendiente = false } = {}) {
       const guardados = nuevos.map(({ tipo, contenido, tipoMime }, i) => ({
         idIncapacidad,
         tipo,
@@ -54,10 +54,8 @@ export function crearBaseDeDatosFalsa() {
         creadoPor,
       }));
       documentos.push(...guardados);
+      if (originalPendiente) incapacidades.find((i) => i.idIncapacidad === idIncapacidad).originalPendiente = true;
       return guardados.map(({ tipo, archivo }) => ({ tipo, archivo }));
-    },
-    async marcarOriginalPendiente(idIncapacidad) {
-      incapacidades.find((i) => i.idIncapacidad === idIncapacidad).originalPendiente = true;
     },
     async consultarReemplazo(idIncapacidad) {
       return reemplazos.find((r) => r.idIncapacidad === idIncapacidad)?.reemplazo ?? null;

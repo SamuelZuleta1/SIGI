@@ -120,13 +120,12 @@ export function crearControlRegistro({ baseDeDatos, correo }) {
       });
       if (Object.keys(errores).length > 0) throw new ErrorDeValidacion(errores);
 
-      await baseDeDatos.guardarDocumentos(incapacidad.idIncapacidad, validos, usuario.id);
-
+      // Por correo, los documentos y la marca de original pendiente se guardan juntos o no se guarda nada.
       const porCorreo = usuario.rol === 'auxiliar';
+      await baseDeDatos.guardarDocumentos(incapacidad.idIncapacidad, validos, usuario.id, { originalPendiente: porCorreo });
+
       let avisoEnviado = false;
-      if (porCorreo) {
-        await baseDeDatos.marcarOriginalPendiente(incapacidad.idIncapacidad);
-      } else {
+      if (!porCorreo) {
         // Los documentos ya quedaron guardados: si el correo falla, se advierte y no se pierde el registro.
         try {
           await correo.notificarRecepcion(incapacidad);

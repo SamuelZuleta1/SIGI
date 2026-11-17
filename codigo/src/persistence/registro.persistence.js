@@ -1,10 +1,11 @@
 // Grupo `registro` de la Base de datos — DS-01 (CU-01, CU-02).
-// Operaciones: guardarIncapacidad, guardarDocumentos, marcarOriginalPendiente.
+// Operaciones: guardarIncapacidad, guardarDocumentos (incluye marcarOriginalPendiente).
+// Las escrituras de cada operación van en una sola transacción, con las funciones
+// registrar_incapacidad y registrar_documentos (migración registro_atomico).
 // Apoyo: consultarEntidades, para el formulario de registro (DA-03), y consultarIncapacidad,
 // para mostrar a qué incapacidad se le registran los documentos y armar el aviso al auxiliar.
 import { randomUUID } from 'node:crypto';
 import { crearAlmacenDocumentos } from './almacen-documentos.js';
-import { aFila } from './conversion.js';
 
 const EXTENSIONES = { 'application/pdf': 'pdf', 'image/jpeg': 'jpg', 'image/png': 'png' };
 
@@ -26,25 +27,22 @@ export function crearPersistenciaRegistro(cliente, almacen = crearAlmacenDocumen
      * DS-01: guardarIncapacidad(colaborador, tipo, entidad, fechaInicio, dias, fechaRecepcion) → idIncapacidad.
      * `colaborador` es { nombre, correo }: si no existe uno con ese correo, se crea (DA-03, DA-04);
      * si ya existe, se usa el que está guardado. `creadoPor` es el usuario que registra (DA-23).
+     * Todo en una transacción: si la incapacidad no se puede guardar, tampoco queda el colaborador.
      */
     async guardarIncapacidad({ colaborador, tipo, entidad, fechaInicio, diasIncapacidad, fechaRecepcion }, creadoPor) {
-      // «Insertar si no existe» en una sola sentencia: dos registros simultáneos no chocan.
-      comprobar(
-        await cliente
-          .from('colaborador')
-          .upsert({ ...colaborador, creado_por: creadoPor }, { onConflict: 'correo', ignoreDuplicates: true }),
+      const id = comprobar(
+        await cliente.rpc('registrar_incapacidad', {
+          p_nombre: colaborador.nombre,
+          p_correo: colaborador.correo,
+          p_entidad_id: entidad,
+          p_tipo: tipo,
+          p_fecha_inicio: fechaInicio,
+          p_dias: diasIncapacidad,
+          p_fecha_recepcion: fechaRecepcion,
+          p_creado_por: creadoPor,
+        }),
       );
-      const { id: colaboradorId } = comprobar(
-        await cliente.from('colaborador').select('id').eq('correo', colaborador.correo).single(),
-      );
-      const { id } = comprobar(
-        await cliente
-          .from('incapacidad')
-          .insert(aFila({ colaboradorId, entidadId: entidad, tipo, fechaInicio, diasIncapacidad, fechaRecepcion, creadoPor }))
-          .select('id')
-          .single(),
-      );
-      return id;
+      return Number(id);
     },
 
     /**
@@ -77,10 +75,12 @@ export function crearPersistenciaRegistro(cliente, almacen = crearAlmacenDocumen
      * el archivo se sube al bucket privado y en la tabla queda su tipo y su ruta (CL-01).
      * Ruta: incapacidades/{idIncapacidad}/{tipo}-{uuid}.{ext}. El nombre original no se usa:
      * puede traer datos personales o caracteres que Storage no acepta.
+     * Con `originalPendiente`, en la misma transacción marca el original en físico como pendiente
+     * (DS-01 alt. correo, HU-04.CA2): o quedan los documentos y la marca, o no queda ninguno.
      * Si algo falla, se borran los archivos que ya se habían subido.
      * @returns {Promise<Array<{ tipo: string, archivo: string }>>}
      */
-    async guardarDocumentos(idIncapacidad, documentos, creadoPor) {
+    async guardarDocumentos(idIncapacidad, documentos, creadoPor, { originalPendiente = false } = {}) {
       const guardados = [];
       try {
         for (const { tipo, contenido, tipoMime } of documentos) {
@@ -89,20 +89,18 @@ export function crearPersistenciaRegistro(cliente, almacen = crearAlmacenDocumen
           guardados.push({ tipo, archivo });
         }
         comprobar(
-          await cliente
-            .from('documento')
-            .insert(guardados.map((documento) => aFila({ incapacidadId: idIncapacidad, ...documento, creadoPor }))),
+          await cliente.rpc('registrar_documentos', {
+            p_incapacidad_id: idIncapacidad,
+            p_documentos: guardados,
+            p_original_pendiente: originalPendiente,
+            p_creado_por: creadoPor,
+          }),
         );
         return guardados;
       } catch (error) {
         await almacen.eliminar(guardados.map((documento) => documento.archivo)).catch(() => {});
         throw error;
       }
-    },
-
-    /** DS-01 (alt: correo): el original en físico queda pendiente (HU-04.CA2). */
-    async marcarOriginalPendiente(idIncapacidad) {
-      comprobar(await cliente.from('incapacidad').update({ original_pendiente: true }).eq('id', idIncapacidad));
     },
   };
 }

@@ -80,6 +80,12 @@ describe('HU-03 — registrar incapacidad o licencia (Control)', () => {
     expect(baseDeDatos.incapacidades.map((i) => i.colaboradorId)).toEqual([1, 1]);
   });
 
+  it('HU-03 — si guardar falla, el error llega a quien registra', async () => {
+    const falla = new Error('Base de datos no disponible');
+    baseDeDatos.guardarIncapacidad = async () => { throw falla; };
+    await expect(control.registrarIncapacidad(formularioDeRegistro(), USUARIOS.receptor)).rejects.toBe(falla);
+  });
+
   it('DA-23 — guarda el usuario que registró', async () => {
     await control.registrarIncapacidad(formularioDeRegistro(), USUARIOS.auxiliar);
     expect(baseDeDatos.incapacidades[0].creadoPor).toBe(USUARIOS.auxiliar.id);

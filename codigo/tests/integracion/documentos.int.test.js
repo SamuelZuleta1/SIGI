@@ -128,6 +128,38 @@ describe('HU-04 — registrar la documentación recibida (base de datos y Storag
     expect(await archivosDe(id)).toHaveLength(0);
   });
 
+  it('HU-04.CA2 — si un documento no se puede guardar, no queda ninguno ni la marca de original pendiente', async () => {
+    const id = await nueva();
+    const error = await baseDeDatos
+      .guardarDocumentos(
+        id,
+        [
+          { tipo: 'soporte_incapacidad', contenido: PDF, tipoMime: 'application/pdf' },
+          { tipo: 'cedula', contenido: PDF, tipoMime: 'application/pdf' },
+        ],
+        auxiliar.id,
+        { originalPendiente: true },
+      )
+      .catch((e) => e);
+    expect(error.code).toBe('23514');
+    expect(await filas(id)).toHaveLength(0);
+    expect(await archivosDe(id)).toHaveLength(0);
+    const { data } = await servidor.from('incapacidad').select('original_pendiente').eq('id', id).single();
+    expect(data.original_pendiente).toBe(false);
+  });
+
+  it('las funciones de registro no se pueden llamar con la clave pública', async () => {
+    const publico = crearClientePublico();
+    const { error } = await publico.rpc('registrar_documentos', {
+      p_incapacidad_id: ids[0],
+      p_documentos: [{ tipo: 'soporte_incapacidad', archivo: 'x' }],
+      p_original_pendiente: true,
+      p_creado_por: auxiliar.id,
+    });
+    expect(error).not.toBeNull();
+    expect(await filas(ids[0])).not.toContainEqual(expect.objectContaining({ archivo: 'x' }));
+  });
+
   it('si una subida falla, se borran las anteriores y no se guarda ninguna fila', async () => {
     const id = await nueva();
     const real = crearAlmacenDocumentos(servidor);
