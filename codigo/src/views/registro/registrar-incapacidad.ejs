@@ -8,7 +8,8 @@
 
 <% if (registrada) { %>
   <p class="mensaje mensaje-ok" role="status">
-    Incapacidad n.º <strong><%= registrada %></strong> registrada. Use ese número para registrar sus documentos.
+    Incapacidad n.º <strong><%= registrada %></strong> registrada.
+    <a href="/incapacidades/<%= registrada %>/documentos">Registrar sus documentos</a>
   </p>
 <% } %>
 <% if (primerError) { %>

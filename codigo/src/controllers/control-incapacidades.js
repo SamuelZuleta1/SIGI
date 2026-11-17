@@ -2,7 +2,7 @@
 // Los grupos se agregan módulo por módulo.
 import { crearControlRegistro } from './registro.controller.js';
 
-/** @param {{ baseDeDatos: object }} dependencias */
+/** @param {{ baseDeDatos: object, correo: object }} dependencias */
 export function crearControlIncapacidades(dependencias) {
   return {
     ...crearControlRegistro(dependencias),

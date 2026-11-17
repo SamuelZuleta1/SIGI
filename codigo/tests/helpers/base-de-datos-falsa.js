@@ -8,9 +8,11 @@ export const ENTIDADES = Object.freeze([
 export function crearBaseDeDatosFalsa() {
   const colaboradores = [];
   const incapacidades = [];
+  const documentos = [];
   return {
     colaboradores,
     incapacidades,
+    documentos,
     async consultarEntidades() {
       return [...ENTIDADES];
     },
@@ -24,6 +26,36 @@ export function crearBaseDeDatosFalsa() {
       // estado: null, como el valor por defecto de la tabla (EST-01).
       incapacidades.push({ idIncapacidad, colaboradorId: guardado.id, ...datos, estado: null, creadoPor });
       return idIncapacidad;
+    },
+    async consultarIncapacidad(idIncapacidad) {
+      const guardada = incapacidades.find((i) => i.idIncapacidad === idIncapacidad);
+      if (!guardada) return null;
+      const colaborador = colaboradores.find((c) => c.id === guardada.colaboradorId);
+      return {
+        idIncapacidad,
+        colaborador: colaborador.nombre,
+        correoColaborador: colaborador.correo,
+        tipo: guardada.tipo,
+        entidad: ENTIDADES.find((e) => e.id === guardada.entidad).nombre,
+        fechaInicio: guardada.fechaInicio,
+        diasIncapacidad: guardada.diasIncapacidad,
+        originalPendiente: guardada.originalPendiente ?? false,
+      };
+    },
+    async guardarDocumentos(idIncapacidad, nuevos, creadoPor) {
+      const guardados = nuevos.map(({ tipo, contenido, tipoMime }, i) => ({
+        idIncapacidad,
+        tipo,
+        archivo: `incapacidades/${idIncapacidad}/${tipo}-${documentos.length + i + 1}`,
+        tipoMime,
+        tamano: contenido.length,
+        creadoPor,
+      }));
+      documentos.push(...guardados);
+      return guardados.map(({ tipo, archivo }) => ({ tipo, archivo }));
+    },
+    async marcarOriginalPendiente(idIncapacidad) {
+      incapacidades.find((i) => i.idIncapacidad === idIncapacidad).originalPendiente = true;
     },
   };
 }

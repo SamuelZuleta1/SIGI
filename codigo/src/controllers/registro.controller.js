@@ -1,7 +1,9 @@
 // Grupo `registro` del Control de incapacidades — DS-01 (CU-01, CU-02).
-// Operaciones: registrarIncapacidad. (registrarDocumentos llega con HU-04.)
-// Apoyo: obtenerEntidades, para que el formulario ofrezca las entidades del seed (DA-03).
+// Operaciones: registrarIncapacidad, registrarDocumentos.
+// Apoyo: obtenerEntidades, para que el formulario ofrezca las entidades del seed (DA-03),
+// y obtenerIncapacidad, para mostrar a cuál se le van a registrar los documentos.
 import { z } from 'zod';
+import { TIPOS_DOCUMENTO } from '../models/documento.model.js';
 import { TIPOS_INCAPACIDAD } from '../models/incapacidad.model.js';
 import { ErrorDeValidacion } from './error-de-validacion.js';
 
@@ -36,7 +38,22 @@ const datosDeIncapacidad = z.object({
   fechaRecepcion: fecha('Escriba la fecha de recepción.'),
 });
 
-export function crearControlRegistro({ baseDeDatos }) {
+// Límites de la subida: los mismos del bucket `documentos` (migración inicial).
+export const TAMANO_MAXIMO_ARCHIVO = 10 * 1024 * 1024;
+export const MAXIMO_DOCUMENTOS = 10;
+
+// El tipo de archivo se decide por su contenido, no por lo que diga el navegador.
+const FIRMAS = [
+  ['application/pdf', [0x25, 0x50, 0x44, 0x46, 0x2d]], // %PDF-
+  ['image/jpeg', [0xff, 0xd8, 0xff]],
+  ['image/png', [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]],
+];
+const tipoDeArchivo = (contenido) =>
+  FIRMAS.find(([, firma]) => firma.every((byte, i) => contenido[i] === byte))?.[0] ?? null;
+
+const esIdentificador = (valor) => /^[1-9]\d{0,17}$/.test(String(valor ?? ''));
+
+export function crearControlRegistro({ baseDeDatos, correo }) {
   return {
     /** Entidades (EPS y ARL) entre las que se elige al registrar (DA-03). */
     obtenerEntidades() {
@@ -66,6 +83,59 @@ export function crearControlRegistro({ baseDeDatos }) {
         usuario.id,
       );
       return { idIncapacidad };
+    },
+
+    /** Datos que identifican la incapacidad, o null si el número no corresponde a ninguna. */
+    async obtenerIncapacidad(idIncapacidad) {
+      return esIdentificador(idIncapacidad) ? baseDeDatos.consultarIncapacidad(Number(idIncapacidad)) : null;
+    },
+
+    /**
+     * DS-01: registrarDocumentos(idIncapacidad, documentos).
+     * `documentos` es una lista de { tipo, contenido: Buffer }.
+     * - Recepción (personal receptor): guarda y avisa al auxiliar por correo (HU-04.CA1).
+     * - Correo (auxiliar): guarda y marca el original en físico como pendiente, sin aviso (HU-04.CA2).
+     * El canal sale del rol: en DA-02 el auxiliar solo registra documentos cuando llegan por correo.
+     * @returns {Promise<{ idIncapacidad: number, cantidad: number, originalPendiente: boolean, avisoEnviado: boolean }>}
+     */
+    async registrarDocumentos(idIncapacidad, documentos, usuario) {
+      const incapacidad = await this.obtenerIncapacidad(idIncapacidad);
+      if (!incapacidad) throw new ErrorDeValidacion({ incapacidad: 'No hay una incapacidad con ese número.' });
+
+      const lista = Array.isArray(documentos) ? documentos : [];
+      const errores = {};
+      if (lista.length === 0) errores.documentos = 'Adjunte al menos un documento.';
+      else if (lista.length > MAXIMO_DOCUMENTOS) errores.documentos = `Adjunte máximo ${MAXIMO_DOCUMENTOS} documentos a la vez.`;
+
+      const validos = [];
+      lista.forEach((documento, posicion) => {
+        const contenido = documento?.contenido;
+        const tipoMime = Buffer.isBuffer(contenido) ? tipoDeArchivo(contenido) : null;
+        const clave = `documento${posicion}`;
+        if (!TIPOS_DOCUMENTO.includes(documento?.tipo)) errores[clave] = 'Elija el tipo de documento.';
+        else if (!Buffer.isBuffer(contenido) || contenido.length === 0) errores[clave] = 'Adjunte el archivo.';
+        else if (contenido.length > TAMANO_MAXIMO_ARCHIVO) errores[clave] = 'El archivo pesa más de 10 MB.';
+        else if (!tipoMime) errores[clave] = 'El archivo debe ser PDF, JPG o PNG.';
+        else validos.push({ tipo: documento.tipo, contenido, tipoMime });
+      });
+      if (Object.keys(errores).length > 0) throw new ErrorDeValidacion(errores);
+
+      await baseDeDatos.guardarDocumentos(incapacidad.idIncapacidad, validos, usuario.id);
+
+      const porCorreo = usuario.rol === 'auxiliar';
+      let avisoEnviado = false;
+      if (porCorreo) {
+        await baseDeDatos.marcarOriginalPendiente(incapacidad.idIncapacidad);
+      } else {
+        // Los documentos ya quedaron guardados: si el correo falla, se advierte y no se pierde el registro.
+        try {
+          await correo.notificarRecepcion(incapacidad);
+          avisoEnviado = true;
+        } catch (error) {
+          console.error('No se pudo enviar notificarRecepcion:', error);
+        }
+      }
+      return { idIncapacidad: incapacidad.idIncapacidad, cantidad: validos.length, originalPendiente: porCorreo, avisoEnviado };
     },
   };
 }

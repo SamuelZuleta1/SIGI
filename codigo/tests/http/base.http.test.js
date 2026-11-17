@@ -46,7 +46,7 @@ describe('T-00a — base del proyecto', () => {
   it('las páginas no usan estilos ni scripts en línea (los bloquearía la CSP)', async () => {
     const agente = await agenteCon(request, app, 'auxiliar');
     for (const res of [await agente.get('/'), await request(app).get('/iniciar-sesion')]) {
-      expect(res.text).not.toMatch(/<script|<style|\sstyle=|\son[a-z]+=/i);
+      expect(res.text).not.toMatch(/<script(?![^>]*\ssrc="\/)|<style|\sstyle=|\son[a-z]+=/i);
     }
   });
 });

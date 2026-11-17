@@ -1,0 +1,62 @@
+<h1>Registrar documentos</h1>
+<% if (!incapacidad) { %>
+  <p class="sub">Escriba el número de la incapacidad a la que pertenecen los documentos.</p>
+  <form class="formulario" method="get" action="/documentos" novalidate>
+    <div class="buscar">
+      <div class="campo <%= errorNumero ? 'invalido' : '' %>">
+        <label for="incapacidad">Incapacidad n.º</label>
+        <input id="incapacidad" name="incapacidad" type="text" inputmode="numeric" pattern="[0-9]*" value="<%= numero %>" maxlength="18" autocomplete="off" required autofocus<%- errorNumero ? ' aria-invalid="true" aria-describedby="error-incapacidad"' : '' %>>
+      </div>
+      <button class="boton">Continuar</button>
+    </div>
+    <% if (errorNumero) { %>
+      <p class="mensaje mensaje-error" id="error-incapacidad" role="alert"><%= errorNumero %> Revise el número que recibió al registrarla.</p>
+    <% } else { %>
+      <p class="ayuda">Es el número que SIGI mostró al registrar la incapacidad.</p>
+    <% } %>
+  </form>
+<% } else { %>
+  <p class="sub">Documentos que entregó el colaborador. PDF, JPG o PNG, máximo 10 MB cada uno.</p>
+
+  <% if (registrados) { %>
+    <p class="mensaje mensaje-ok" role="status">
+      <%= registrados === 1 ? 'Se registró 1 documento' : `Se registraron ${registrados} documentos` %> en la incapacidad n.º <strong><%= incapacidad.idIncapacidad %></strong>.
+      <% if (usuario.rol === 'auxiliar') { %>El original en físico quedó como pendiente.<% } else if (avisoEnviado) { %>Se avisó al auxiliar por correo.<% } %>
+    </p>
+    <% if (usuario.rol !== 'auxiliar' && !avisoEnviado) { %>
+      <p class="mensaje mensaje-aviso" role="alert">No se pudo enviar el correo de aviso al auxiliar. Los documentos sí quedaron guardados: avísele por otro medio.</p>
+    <% } %>
+  <% } %>
+  <% if (Object.keys(errores).length > 0) { %>
+    <p class="mensaje mensaje-error" role="alert">No se registró ningún documento. <%= errores.documentos ?? 'Revise las filas marcadas y adjunte de nuevo los archivos.' %></p>
+  <% } %>
+
+  <form class="formulario" method="post" action="/incapacidades/<%= incapacidad.idIncapacidad %>/documentos" enctype="multipart/form-data" novalidate>
+    <dl class="resumen">
+      <dt>Incapacidad</dt><dd>n.º <%= incapacidad.idIncapacidad %></dd>
+      <dt>Colaborador</dt><dd><%= incapacidad.colaborador %></dd>
+      <dt>Tipo</dt><dd><%= nombresTipo[incapacidad.tipo] %> · <%= incapacidad.entidad %></dd>
+      <dt>Inicio</dt><dd><%= incapacidad.fechaInicio %> · <%= incapacidad.diasIncapacidad %> <%= incapacidad.diasIncapacidad === 1 ? 'día' : 'días' %></dd>
+      <% if (incapacidad.originalPendiente) { %><dt>Original</dt><dd>Pendiente en físico</dd><% } %>
+    </dl>
+
+    <fieldset>
+      <legend>Documentos</legend>
+      <div class="lista-tipos" data-soltar-archivos>
+        <% for (const [tipo, nombre] of Object.entries(tipos)) { %>
+          <div class="fila <%= errores[tipo] ? 'invalido' : '' %>">
+            <label for="doc-<%= tipo %>"><%= nombre %></label>
+            <input id="doc-<%= tipo %>" name="<%= tipo %>" type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"<%- errores[tipo] ? ` aria-invalid="true" aria-describedby="error-${tipo}"` : '' %>>
+            <% if (errores[tipo]) { %><span class="error" id="error-<%= tipo %>"><%= errores[tipo] %></span><% } %>
+          </div>
+        <% } %>
+      </div>
+      <p class="ayuda">Elija el archivo o arrástrelo a la fila de su tipo. Adjunte solo los que recibió.</p>
+    </fieldset>
+
+    <div class="acciones">
+      <button class="boton">Registrar documentos</button>
+      <a class="boton secundario" href="/documentos">Otra incapacidad</a>
+    </div>
+  </form>
+<% } %>

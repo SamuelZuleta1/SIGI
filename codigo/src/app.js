@@ -79,6 +79,9 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const { crearBaseDeDatos } = await import('./persistence/base-de-datos.js');
   const { crearControlIncapacidades } = await import('./controllers/control-incapacidades.js');
   const puerto = Number(process.env.PORT) || 3000;
-  const control = crearControlIncapacidades({ baseDeDatos: crearBaseDeDatos() });
+  const { crearServicioCorreo } = await import('./servicios/correo.js');
+  const { crearTransporte, destinatariosPorArea, remitente } = await import('./config/correo.js');
+  const correo = crearServicioCorreo({ transporte: crearTransporte(), remitente: remitente(), destinatarios: destinatariosPorArea() });
+  const control = crearControlIncapacidades({ baseDeDatos: crearBaseDeDatos(), correo });
   crearApp({ sesion: crearServicioSesion(), control }).listen(puerto, () => console.log(`SIGI en http://localhost:${puerto}`));
 }

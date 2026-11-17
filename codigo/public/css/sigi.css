@@ -240,9 +240,64 @@ p { margin: 0 0 12px; max-width: 70ch; }
 .pareja { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; align-items: start; }
 .acciones { display: flex; gap: 8px; }
 .contenido > .mensaje { max-width: 640px; }
+.contenido > .mensaje + .mensaje { margin-top: 8px; }
 @media (max-width: 560px) {
   .pareja { grid-template-columns: 1fr; }
   .formulario { padding: 16px; }
+}
+
+/* ---------- datos de una incapacidad ---------- */
+.resumen {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 2px 14px;
+  margin: 0;
+  padding: 10px 12px;
+  background: var(--neutro-f);
+  border-radius: var(--radio);
+  font-size: 0.84rem;
+}
+.resumen dt { color: var(--tenue); }
+.resumen dd { margin: 0; font-weight: 500; overflow-wrap: anywhere; }
+
+.buscar { display: flex; gap: 8px; align-items: end; }
+.buscar .campo { flex: 1; max-width: 220px; }
+
+/* ---------- lista de documentos por tipo: cada fila recibe un archivo (clic o arrastre) ---------- */
+.lista-tipos { border: 1px solid var(--borde); border-radius: var(--radio); overflow: hidden; }
+.lista-tipos .fila {
+  display: grid;
+  grid-template-columns: minmax(0, 13rem) minmax(0, 1fr);
+  gap: 4px 12px;
+  align-items: center;
+  padding: 8px 12px;
+  border-top: 1px solid var(--raya);
+  transition: background-color 0.15s ease, box-shadow 0.15s ease;
+}
+.lista-tipos .fila:first-child { border-top: 0; }
+.lista-tipos label { font-weight: 500; font-size: 0.84rem; }
+.lista-tipos .fila.lleno { background: var(--info-f); }
+.lista-tipos .fila.sobre { background: var(--info-f); box-shadow: inset 0 0 0 2px var(--acento); }
+.lista-tipos .fila.invalido { background: var(--mal-f); }
+.lista-tipos .error { grid-column: 1 / -1; font-size: 0.78rem; color: var(--mal); }
+.lista-tipos input[type='file'] { width: 100%; min-width: 0; font-size: 0.82rem; color: var(--tenue); }
+.lista-tipos .lleno input[type='file'] { color: var(--texto); }
+input[type='file']::file-selector-button {
+  font: inherit;
+  height: 30px;
+  margin-right: 10px;
+  padding: 0 10px;
+  border: 1px solid var(--borde);
+  border-radius: var(--radio);
+  background: var(--panel);
+  color: var(--texto);
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+@media (hover: hover) { input[type='file']::file-selector-button:hover { background: var(--raya); } }
+.formulario .ayuda { margin: 0; font-size: 0.78rem; color: var(--tenue); }
+@media (max-width: 560px) {
+  .lista-tipos .fila { grid-template-columns: 1fr; }
 }
 
 /* ---------- mensajes ---------- */

@@ -78,6 +78,6 @@ describe('HU-03 — registrar incapacidad o licencia (rutas)', () => {
     const agente = await agenteCon(request, app, 'receptor');
     const res = await agente.get('/incapacidades/nueva?registrada=%3Cscript%3E');
     expect(res.text).not.toContain('registrada.');
-    expect(res.text).not.toMatch(/<script/i);
+    expect(res.text).not.toMatch(/<script>/i);
   });
 });

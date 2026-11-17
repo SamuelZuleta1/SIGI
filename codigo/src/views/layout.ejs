@@ -6,6 +6,7 @@
   <title><%= titulo %> · SIGI</title>
   <link rel="preload" href="/fonts/inter-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="/css/sigi.css">
+  <script src="/js/sigi.js" defer></script>
 </head>
 <% if (usuario) { %>
 <body class="con-marco">
@@ -24,6 +25,14 @@
         <a href="/incapacidades/nueva" <%- ruta === '/incapacidades/nueva' ? 'aria-current="page"' : '' %>>
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3H6v18h12V7zM14 3v4h4M12 11v6M9 14h6"/></svg>
           Registrar incapacidad
+        </a>
+      </li>
+      <% } %>
+      <% if (puede('registrarDocumentos')) { %>
+      <li>
+        <a href="/documentos" <%- ruta === '/documentos' || /^\/incapacidades\/\d+\/documentos$/.test(ruta) ? 'aria-current="page"' : '' %>>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V5M8 9l4-4 4 4M5 15v4h14v-4"/></svg>
+          Registrar documentos
         </a>
       </li>
       <% } %>
