@@ -128,6 +128,11 @@ export function crearControlVerificacion({ baseDeDatos, correo, hoy = hoyEnColom
       const verificacion = await this.verificarDocumentacion(idIncapacidad, { epsTranscribio });
       if (!verificacion) throw new ErrorDeValidacion({ incapacidad: 'No hay una incapacidad con ese número.' });
       const { incapacidad, resultado, aviso } = verificacion;
+      // Ya verificada y archivada: no se piden faltantes. Puede pasar si se archivó con la casilla
+      // «La EPS ya transcribió» (DA-26, no se guarda) y luego se consulta sin marcarla.
+      if (incapacidad.archivadoDigital) {
+        throw new ErrorDeValidacion({ faltantes: 'La documentación ya se verificó y está archivada: no se notifican faltantes.' });
+      }
       if (aviso?.pendiente) {
         throw new ErrorDeValidacion({
           faltantes: 'Ya se notificaron los faltantes. Podrá notificar de nuevo cuando se registren documentos y sigan faltando.',

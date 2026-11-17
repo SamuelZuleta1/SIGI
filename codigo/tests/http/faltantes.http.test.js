@@ -124,6 +124,22 @@ describe('HU-07 — notificar los faltantes (rutas)', () => {
     expect(res.text).not.toContain('Notificar al colaborador');
   });
 
+  it('una incapacidad archivada con la exención de la EPS no ofrece notificar ni acepta el envío', async () => {
+    await control.registrarIncapacidad(formularioDeRegistro({ tipo: 'enfermedad_laboral', correoColaborador: 'otro@sigi.test' }), USUARIOS.receptor);
+    await control.registrarDocumentos(2, [documentoDePrueba()], USUARIOS.receptor);
+    await control.registrarVerificacion(2, { epsTranscribio: true });
+    enviados.length = 0;
+    const agente = await agenteCon(request, app, 'auxiliar');
+    const pagina = await agente.get('/incapacidades/2/verificacion');
+    expect(pagina.text).toContain('Esta documentación ya se verificó y está archivada en digital.');
+    expect(pagina.text).not.toContain('Notificar al colaborador');
+    expect(pagina.text).not.toContain('notifique los faltantes');
+    const res = await agente.post('/incapacidades/2/faltantes').type('form').send({ faltantes: 'epicrisis' });
+    expect(res.status).toBe(409);
+    expect(enviados).toHaveLength(0);
+    expect(baseDeDatos.incapacidades[1]).toMatchObject({ documentacionCompleta: true, archivadoDigital: true });
+  });
+
   it('una incapacidad inexistente responde 404', async () => {
     const agente = await agenteCon(request, app, 'auxiliar');
     expect((await agente.post('/incapacidades/99/faltantes').type('form').send({ faltantes: 'furips' })).status).toBe(404);

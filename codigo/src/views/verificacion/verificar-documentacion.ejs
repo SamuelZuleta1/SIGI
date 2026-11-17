@@ -93,7 +93,7 @@
       <% } else { %>
         <p class="mensaje mensaje-error" role="status">
           <%= resultado.faltantes.length === 1 ? 'Falta 1 documento' : `Faltan ${resultado.faltantes.length} documentos` %>.
-          <%= avisoPendiente ? 'La documentación no se archiva: ya se notificó al colaborador.' : 'La documentación no se archiva: notifique los faltantes al colaborador.' %>
+          <% if (avisoPendiente) { %>La documentación no se archiva: ya se notificó al colaborador.<% } else if (!archivada) { %>La documentación no se archiva: notifique los faltantes al colaborador.<% } %>
         </p>
       <% } %>
       <% if (incapacidad.originalPendiente) { %>
@@ -123,7 +123,7 @@
         </p>
         <p class="ayuda">Podrá notificar de nuevo cuando se registren documentos y sigan faltando.</p>
       </section>
-    <% } else if (!resultado.completa) { %>
+    <% } else if (!resultado.completa && !archivada) { %>
       <%# HU-07.CA1: lista precargada y editable (DA-30). «Añadir» vuelve por GET y funciona sin JavaScript. %>
       <form class="aviso" id="aviso" method="post" action="/incapacidades/<%= incapacidad.idIncapacidad %>/faltantes" aria-labelledby="titulo-aviso" data-un-envio>
         <h2 id="titulo-aviso">Notificar al colaborador</h2>

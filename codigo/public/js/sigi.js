@@ -70,3 +70,13 @@ for (const formulario of document.querySelectorAll('form[data-un-envio]')) {
     setTimeout(() => { boton.disabled = true; });
   });
 }
+
+// Al volver atrás, el navegador puede restaurar la página desde su caché con el botón aún en «Enviando…».
+window.addEventListener('pageshow', (evento) => {
+  if (!evento.persisted) return;
+  for (const boton of document.querySelectorAll('form[data-un-envio] [data-enviando]')) {
+    boton.disabled = false;
+    boton.removeAttribute('aria-disabled');
+    boton.closest('form').dispatchEvent(new Event('change')); // el contador rehace el texto y el estado
+  }
+});

@@ -102,6 +102,18 @@ describe('HU-07.CA1 — registrar y notificar los faltantes', () => {
     expect(enviados).toHaveLength(0);
   });
 
+  it('una incapacidad ya archivada no se notifica aunque hoy aparezcan faltantes (DA-26 no se guarda)', async () => {
+    // Enfermedad laboral archivada con «La EPS ya transcribió»: sin la casilla, la epicrisis aparece como faltante.
+    await control.registrarIncapacidad(formularioDeRegistro({ tipo: 'enfermedad_laboral', correoColaborador: 'otro@sigi.test' }), USUARIOS.receptor);
+    await control.registrarDocumentos(2, [documentoDePrueba()], USUARIOS.receptor);
+    await control.registrarVerificacion(2, { epsTranscribio: true });
+    enviados.length = 0;
+    const error = await fallo(control.notificarFaltantes(2, ['epicrisis']));
+    expect(error.errores.faltantes).toMatch(/ya se verificó y está archivada/);
+    expect(enviados).toHaveLength(0);
+    expect(baseDeDatos.incapacidades[1]).toMatchObject({ documentacionCompleta: true, archivadoDigital: true });
+  });
+
   it('una incapacidad que no existe no se notifica', async () => {
     const error = await fallo(control.notificarFaltantes('99', ['epicrisis']));
     expect(error.errores.incapacidad).toBe('No hay una incapacidad con ese número.');
