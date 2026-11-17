@@ -122,6 +122,19 @@ describe('HU-06 — verificar la documentación (Control)', () => {
     expect(baseDeDatos.incapacidades[0].archivadoDigital).toBe(true);
   });
 
+  it('DA-26 — archivada con la exención de la EPS, se muestra completa aunque se consulte sin la casilla', async () => {
+    const id = await registrar({ tipo: 'enfermedad_laboral', diasIncapacidad: '8' }, ['soporte_incapacidad']);
+    await control.registrarVerificacion(id, { epsTranscribio: true });
+    const { resultado } = await control.verificarDocumentacion(id);
+    expect(resultado).toMatchObject({ completa: true, epsTranscribio: true, faltantes: [] });
+  });
+
+  it('DA-26 — sin archivar, no se deduce la exención', async () => {
+    const id = await registrar({ tipo: 'enfermedad_laboral', diasIncapacidad: '8' }, ['soporte_incapacidad']);
+    const { resultado } = await control.verificarDocumentacion(id);
+    expect(resultado).toMatchObject({ completa: false, epsTranscribio: false, faltantes: ['epicrisis'] });
+  });
+
   it('HU-06.CA3 — faltan documentos: no registra ni archiva', async () => {
     const id = await registrar({ tipo: 'accidente_transito', diasIncapacidad: '3' }, ['soporte_incapacidad', 'epicrisis']);
     const error = await control.registrarVerificacion(id).catch((e) => e);

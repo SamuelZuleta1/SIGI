@@ -134,6 +134,11 @@ describe('HU-07 — notificar los faltantes (rutas)', () => {
     expect(pagina.text).toContain('Esta documentación ya se verificó y está archivada en digital.');
     expect(pagina.text).not.toContain('Notificar al colaborador');
     expect(pagina.text).not.toContain('notifique los faltantes');
+    // Se muestra con la exención con la que se archivó, no como «Falta 1 documento» en rojo.
+    expect(pagina.text).toContain('La documentación está completa.');
+    expect(pagina.text).not.toContain('Falta 1 documento');
+    expect(pagina.text).toContain('No se exige');
+    expect(pagina.text).toMatch(/name="eps" value="si" checked/);
     const res = await agente.post('/incapacidades/2/faltantes').type('form').send({ faltantes: 'epicrisis' });
     expect(res.status).toBe(409);
     expect(enviados).toHaveLength(0);

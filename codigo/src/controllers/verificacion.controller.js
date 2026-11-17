@@ -106,9 +106,16 @@ export function crearControlVerificacion({ baseDeDatos, correo, hoy = hoyEnColom
       const datos = await expediente(idIncapacidad);
       if (!datos) return null;
       const { documentos, ...incapacidad } = datos;
+      let resultado = compararConRequisitos(incapacidad, documentos, { epsTranscribio });
+      // Archivada pero hoy «incompleta»: solo pudo archivarse con «La EPS ya transcribió» (DA-26 no se guarda;
+      // los documentos no se borran y uno nuevo la reabre, DA-29). Se muestra con esa exención.
+      if (incapacidad.archivadoDigital && !resultado.completa && admiteExencion(incapacidad)) {
+        const conExencion = compararConRequisitos(incapacidad, documentos, { epsTranscribio: true });
+        if (conExencion.completa) resultado = conExencion;
+      }
       return {
         incapacidad: { ...incapacidad, admiteExencion: admiteExencion(incapacidad) },
-        resultado: compararConRequisitos(incapacidad, documentos, { epsTranscribio }),
+        resultado,
         aviso: ultimoAviso(incapacidad),
         // Hasta cuándo tendría el colaborador si se le notifica hoy (se muestra antes de enviar).
         fechaLimiteSiSeNotifica: sumarDiasHabiles(hoy(), DIAS_PARA_ENTREGAR),
