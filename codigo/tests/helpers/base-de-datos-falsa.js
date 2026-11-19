@@ -16,6 +16,15 @@ const PLAZOS = Object.freeze({
 
 const EXTENSIONES = { 'application/pdf': 'pdf', 'image/jpeg': 'jpg', 'image/png': 'png' };
 
+function cumpleFiltros(i, { estado, entidad, colaboradores, desde, hasta }) {
+  if (estado === 'registrada' ? i.estado != null : estado && i.estado !== estado) return false;
+  if (entidad && i.entidad !== entidad) return false;
+  if (colaboradores && !colaboradores.includes(i.colaboradorId)) return false;
+  if (desde && i.fechaInicio < desde) return false;
+  if (hasta && i.fechaInicio > hasta) return false;
+  return true;
+}
+
 export function crearBaseDeDatosFalsa() {
   const colaboradores = [];
   const incapacidades = [];
@@ -160,6 +169,33 @@ export function crearBaseDeDatosFalsa() {
     async descargarDocumento(archivo) {
       const documento = documentos.find((d) => d.archivo === archivo);
       return { contenido: documento.contenido, tipoMime: documento.tipoMime };
+    },
+    // HU-11 (DS-05): como estados.persistence.js, con los mismos filtros (DA-20).
+    async consultarColaboradores() {
+      return colaboradores.map(({ id, nombre }) => ({ id, nombre }));
+    },
+    async consultarIncapacidades(filtros, limite) {
+      const filas = incapacidades
+        .filter((i) => cumpleFiltros(i, filtros))
+        .sort((a, b) => b.fechaInicio.localeCompare(a.fechaInicio) || b.idIncapacidad - a.idIncapacidad)
+        .map((i) => ({
+          idIncapacidad: i.idIncapacidad,
+          colaborador: colaboradores.find((c) => c.id === i.colaboradorId).nombre,
+          tipo: i.tipo,
+          entidad: ENTIDADES.find((e) => e.id === i.entidad).nombre,
+          fechaInicio: i.fechaInicio,
+          diasIncapacidad: i.diasIncapacidad,
+          estado: i.estado,
+        }));
+      return { total: filas.length, filas: filas.slice(0, limite) };
+    },
+    async contarPorEstado(filtros) {
+      return Object.fromEntries(
+        ['registrada', 'transcrita', 'cobrada', 'rechazada', 'pagada'].map((estado) => [
+          estado,
+          incapacidades.filter((i) => cumpleFiltros(i, { ...filtros, estado })).length,
+        ]),
+      );
     },
     async consultarReemplazo(idIncapacidad) {
       return reemplazos.find((r) => r.idIncapacidad === idIncapacidad)?.reemplazo ?? null;

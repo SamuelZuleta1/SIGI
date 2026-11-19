@@ -1,0 +1,110 @@
+<%
+  // Opción B «pestañas por estado con conteo» (HU-11, DA-20). El estado sin valor se muestra como «Registrada».
+  const actual = estadosDeFiltro.includes(filtros.estado) ? filtros.estado : '';
+  const todas = conteos ? Object.values(conteos).reduce((a, b) => a + b, 0) : null;
+  const pestanas = [['', 'Todos', todas], ...estadosDeFiltro.map((e) => [e, nombresEstado[e], conteos?.[e] ?? null])];
+  const hayFiltros = Boolean(filtros.estado || filtros.entidad || filtros.colaborador || filtros.desde || filtros.hasta);
+  const error = (campo) => errores[campo];
+  const atributosError = (campo) => (errores[campo] ? ` aria-invalid="true" aria-describedby="error-${campo}"` : '');
+%>
+<h1>Consultar estados</h1>
+<p class="sub">Filtre las incapacidades para ver en qué estado está cada una. La consulta no cambia ningún dato.</p>
+
+<nav aria-label="Estado">
+  <ul class="pestanas">
+    <% for (const [valor, nombre, cantidad] of pestanas) { %>
+    <li>
+      <a href="<%= enlaceConsulta({ ...filtros, estado: valor }) %>"<%- valor === actual ? ' aria-current="page"' : '' %>>
+        <%= nombre %><% if (cantidad !== null) { %><span class="n"><span class="oculto">: </span><%= cantidad %></span><% } %>
+      </a>
+    </li>
+    <% } %>
+  </ul>
+</nav>
+
+<form class="filtros" method="get" action="/estados" novalidate>
+  <% if (actual) { %><input type="hidden" name="estado" value="<%= actual %>"><% } %>
+  <div class="campos">
+    <div class="campo <%= error('entidad') ? 'invalido' : '' %>">
+      <label for="entidad">Entidad</label>
+      <select id="entidad" name="entidad"<%- atributosError('entidad') %>>
+        <option value="">Todas</option>
+        <% for (const e of entidades) { %>
+        <option value="<%= e.id %>"<%- String(e.id) === filtros.entidad ? ' selected' : '' %>><%= e.nombre %></option>
+        <% } %>
+      </select>
+      <% if (error('entidad')) { %><span class="error" id="error-entidad"><%= error('entidad') %></span><% } %>
+    </div>
+    <div class="campo <%= error('colaborador') ? 'invalido' : '' %>">
+      <label for="colaborador">Colaborador</label>
+      <input id="colaborador" name="colaborador" type="search" value="<%= filtros.colaborador %>" maxlength="<%= largoColaborador %>" placeholder="Parte del nombre" autocomplete="off"<%- atributosError('colaborador') %>>
+      <% if (error('colaborador')) { %><span class="error" id="error-colaborador"><%= error('colaborador') %></span><% } %>
+    </div>
+    <div class="campo <%= error('desde') ? 'invalido' : '' %>">
+      <label for="desde">Inicio desde</label>
+      <input id="desde" name="desde" type="date" value="<%= filtros.desde %>"<%- atributosError('desde') %>>
+      <% if (error('desde')) { %><span class="error" id="error-desde"><%= error('desde') %></span><% } %>
+    </div>
+    <div class="campo <%= error('hasta') ? 'invalido' : '' %>">
+      <label for="hasta">Inicio hasta</label>
+      <input id="hasta" name="hasta" type="date" value="<%= filtros.hasta %>"<%- atributosError('hasta') %>>
+      <% if (error('hasta')) { %><span class="error" id="error-hasta"><%= error('hasta') %></span><% } %>
+    </div>
+    <div class="acciones">
+      <button class="boton">Consultar</button>
+      <a class="boton secundario" href="/estados">Limpiar</a>
+    </div>
+  </div>
+</form>
+
+<section class="resultado" aria-labelledby="titulo-resultado">
+  <h2 class="oculto" id="titulo-resultado">Resultado</h2>
+  <% if (error('estado')) { %>
+    <p class="mensaje mensaje-error" role="alert"><%= error('estado') %></p>
+  <% } %>
+  <% if (Object.keys(errores).some((c) => c !== 'estado')) { %>
+    <p class="mensaje mensaje-error" role="alert">Corrija los filtros marcados y vuelva a consultar.</p>
+  <% } else if (error('estado')) { %>
+  <% } else if (incapacidades.length === 0) { %>
+    <p class="cuenta-resultado"><span><b>0</b> incapacidades</span></p>
+    <div class="tabla-envuelta">
+      <div class="vacio">
+        <% if (hayFiltros) { %>
+          <b>Ninguna incapacidad cumple estos filtros.</b>
+          <p>Quite algún filtro o amplíe el rango de fechas.</p>
+        <% } else { %>
+          <b>Todavía no hay incapacidades registradas.</b>
+          <p>Aparecerán aquí cuando el personal receptor las registre.</p>
+        <% } %>
+      </div>
+    </div>
+  <% } else { %>
+    <p class="cuenta-resultado">
+      <span><b><%= total %></b> <%= total === 1 ? 'incapacidad' : 'incapacidades' %><%= hayFiltros ? ' con estos filtros' : '' %></span>
+      <span>De la más reciente a la más antigua por fecha de inicio</span>
+    </p>
+    <% if (limitado) { %>
+      <p class="mensaje mensaje-aviso">Se muestran las <%= limite %> más recientes de <%= total %>. Use los filtros para encontrar las demás.</p>
+    <% } %>
+    <div class="tabla-envuelta">
+      <table class="estados">
+        <thead>
+          <tr><th scope="col">N.º</th><th scope="col">Colaborador</th><th scope="col">Tipo</th><th scope="col">Entidad</th><th scope="col">Inicio</th><th scope="col" class="num">Días</th><th scope="col">Estado</th></tr>
+        </thead>
+        <tbody>
+          <% for (const i of incapacidades) { const estado = i.estado ?? 'registrada'; %>
+          <tr>
+            <td><a href="/incapacidades/<%= i.idIncapacidad %>/radicacion" aria-label="Abrir la incapacidad <%= i.idIncapacidad %>"><%= i.idIncapacidad %></a></td>
+            <td><%= i.colaborador %></td>
+            <td><%= nombresTipo[i.tipo] ?? i.tipo %></td>
+            <td><%= i.entidad %></td>
+            <td><%= fechaBreve(i.fechaInicio) %></td>
+            <td class="num"><%= i.diasIncapacidad %></td>
+            <td><span class="chip <%= estado %>"><%= nombresEstado[estado] %></span></td>
+          </tr>
+          <% } %>
+        </tbody>
+      </table>
+    </div>
+  <% } %>
+</section>

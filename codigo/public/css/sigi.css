@@ -433,6 +433,40 @@ input[type='file']::file-selector-button {
 .campo input[type='file'] { max-width: 100%; height: auto; padding: 6px; font-size: 0.82rem; }
 
 
+/* ---------- consultar estados (HU-11): pestañas por estado con conteo (opción B) ---------- */
+.pestanas { display: flex; flex-wrap: wrap; gap: 4px; width: fit-content; max-width: 100%; margin: 0; padding: 4px; list-style: none; background: var(--neutro-f); border-radius: calc(var(--radio) + 2px); }
+.pestanas a {
+  display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 10px;
+  border-radius: var(--radio); color: var(--tenue); font-size: 0.82rem; font-weight: 500; text-decoration: none;
+  transition: background-color 0.15s ease, color 0.15s ease, transform 0.14s var(--ease);
+}
+.pestanas a:active { transform: scale(0.97); }
+@media (hover: hover) { .pestanas a:hover { color: var(--texto); } }
+.pestanas a[aria-current='page'] { background: var(--panel); color: var(--texto); font-weight: 600; box-shadow: 0 1px 2px rgb(0 0 0 / 0.08); }
+.pestanas .n { min-width: 20px; padding: 0 6px; border-radius: 99px; background: var(--panel); color: var(--tenue); font-size: 0.72rem; font-weight: 600; text-align: center; }
+.pestanas a[aria-current='page'] .n { background: var(--info-f); color: var(--info); }
+.filtros { display: grid; margin-top: 12px; padding: 14px 16px; background: var(--panel); border: 1px solid var(--borde); border-radius: calc(var(--radio) + 2px); container-type: inline-size; }
+.filtros .campos { grid-template-columns: repeat(4, minmax(0, 1fr)) auto; align-items: start; }
+/* Los botones se alinean con los campos aunque un campo muestre su error debajo (alto de la etiqueta + espacio). */
+.filtros .campos > .acciones { padding-top: calc(0.84rem * 1.45 + 5px); }
+@container (max-width: 720px) { .filtros .campos { grid-template-columns: 1fr 1fr; } .filtros .campos > .acciones { grid-column: 1 / -1; padding-top: 0; } }
+@container (max-width: 400px) { .filtros .campos { grid-template-columns: 1fr; } }
+.resultado { display: grid; gap: 8px; margin-top: 16px; }
+.cuenta-resultado { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline; margin: 0; font-size: 0.84rem; color: var(--tenue); }
+.cuenta-resultado b { color: var(--texto); font-weight: 600; }
+.tabla-envuelta { overflow-x: auto; background: var(--panel); border: 1px solid var(--borde); border-radius: calc(var(--radio) + 2px); }
+.estados { width: 100%; border-collapse: collapse; font-size: 0.84rem; }
+.estados th { text-align: left; font-weight: 500; font-size: 0.76rem; color: var(--tenue); padding: 8px 12px; border-bottom: 1px solid var(--borde); white-space: nowrap; }
+.estados td { padding: 9px 12px; border-bottom: 1px solid var(--raya); vertical-align: middle; }
+.estados tr:last-child td { border-bottom: 0; }
+.estados .num { text-align: right; }
+.estados td a { font-weight: 600; text-decoration: none; }
+.estados td a:hover { text-decoration: underline; }
+@media (hover: hover) { .estados tbody tr:hover td { background: color-mix(in srgb, var(--raya) 60%, transparent); } }
+.vacio { display: grid; gap: 4px; justify-items: start; padding: 22px 16px; font-size: 0.86rem; }
+.vacio p { margin: 0; color: var(--tenue); }
+@media (max-width: 560px) { .estados th, .estados td { padding: 8px; } }
+
 .mensaje { margin: 0; padding: 9px 12px; border-radius: var(--radio); font-size: 0.84rem; font-weight: 500; }
 .mensaje-error { color: var(--mal); background: var(--mal-f); }
 .mensaje-aviso { color: var(--aviso); background: var(--aviso-f); }

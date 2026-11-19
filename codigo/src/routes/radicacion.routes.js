@@ -6,7 +6,7 @@ import { TAMANO_MAXIMO_ARCHIVO } from '../controllers/archivo.js';
 import { ErrorDeValidacion } from '../controllers/error-de-validacion.js';
 import { LARGO_MAXIMO_RADICADO } from '../controllers/radicacion.controller.js';
 import { permitir } from '../middleware/autenticacion.js';
-import { NOMBRES_TIPO_INCAPACIDAD } from '../models/incapacidad.model.js';
+import { NOMBRES_ESTADO_INCAPACIDAD, NOMBRES_TIPO_INCAPACIDAD } from '../models/incapacidad.model.js';
 import { fechaBreve, fechaEnColombia, fechaLarga } from '../servicios/dias-habiles.js';
 
 // La evidencia (P-D) se recibe en memoria y el Control la pasa al bucket privado: nunca toca el disco.
@@ -32,6 +32,7 @@ export function crearRutasRadicacion({ control }) {
       fechaBreve,
       fechaEnColombia,
       nombresTipo: NOMBRES_TIPO_INCAPACIDAD,
+      nombresEstado: NOMBRES_ESTADO_INCAPACIDAD,
       ...datos,
     });
 

@@ -10,7 +10,6 @@
     nueva: '<path d="M12 6v12M6 12h12"/>',
     espera: '<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>',
   };
-  const ESTADOS_INCAPACIDAD = { transcrita: 'Transcrita', rechazada: 'Rechazada', cobrada: 'Cobrada', pagada: 'Pagada' };
   const ESTADOS = { al_dia: 'Al día', por_vencer: 'Por vencer', vencido: 'Vencido' };
   const dias = (n) => (n === 1 ? '1 día' : `${n} días`);
   const cuanto = (n) => (n === 0 ? 'vence hoy' : n > 0 ? (n === 1 ? 'queda 1 día' : `quedan ${n} días`) : `hace ${dias(-n)}`);
@@ -110,7 +109,7 @@
       const ultimoRechazo = estado === 'rechazada' ? radicaciones.length - 1 : radicaciones.length - 2;
     %>
     <section class="radicaciones" aria-labelledby="titulo-radicaciones">
-      <h2 id="titulo-radicaciones">Radicación <span class="chip <%= estado %>"><%= ESTADOS_INCAPACIDAD[estado] ?? 'Registrada' %></span></h2>
+      <h2 id="titulo-radicaciones">Radicación <span class="chip <%= estado %>"><%= nombresEstado[estado] %></span></h2>
       <ol class="linea-tiempo">
         <li>
           <span class="punto hecho"><svg viewBox="0 0 24 24" aria-hidden="true"><%- ICONOS.hecho %></svg></span>
@@ -165,7 +164,7 @@
                 <p class="titulo"><b>Esperando respuesta de la entidad</b></p>
                 <p class="tenue">Si la rechaza, aquí se registra la nueva radicación.</p>
               <% } else { %>
-                <p class="titulo"><b><%= ESTADOS_INCAPACIDAD[estado] %></b></p>
+                <p class="titulo"><b><%= nombresEstado[estado] %></b></p>
                 <p class="tenue">Ya no admite una nueva radicación.</p>
               <% } %>
               <% if (errores.estado) { %><p class="mensaje mensaje-error" role="alert"><%= errores.estado %></p><% } %>

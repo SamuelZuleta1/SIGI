@@ -20,6 +20,15 @@ export const NOMBRES_TIPO_INCAPACIDAD = Object.freeze({
 // EST-01. El estado inicial («registrada») no tiene valor: null.
 export const ESTADOS_INCAPACIDAD = Object.freeze(['transcrita', 'cobrada', 'rechazada', 'pagada']);
 
+// Nombres para mostrar; «registrada» es el estado sin valor (null).
+export const NOMBRES_ESTADO_INCAPACIDAD = Object.freeze({
+  registrada: 'Registrada',
+  transcrita: 'Transcrita',
+  cobrada: 'Cobrada',
+  rechazada: 'Rechazada',
+  pagada: 'Pagada',
+});
+
 export const DECISIONES = Object.freeze(['recuperar', 'dar_de_baja']);
 
 export class Incapacidad {
