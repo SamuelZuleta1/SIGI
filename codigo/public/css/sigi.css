@@ -467,6 +467,40 @@ input[type='file']::file-selector-button {
 .vacio p { margin: 0; color: var(--tenue); }
 @media (max-width: 560px) { .estados th, .estados td { padding: 8px; } }
 
+/* ---------- alertas de plazos (HU-12): filtro por tipo + vencidos y por vencer (opción B) ---------- */
+.calculo { margin: -8px 0 14px; font-size: 0.8rem; color: var(--tenue); }
+.tipos-plazo { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.tipos-plazo a, .tipos-plazo .sin-alertas {
+  display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 10px;
+  border: 1px solid var(--borde); border-radius: 99px; background: var(--panel); color: var(--tenue);
+  font-size: 0.8rem; text-decoration: none;
+  transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease, transform 0.14s var(--ease);
+}
+.tipos-plazo a:active { transform: scale(0.97); }
+@media (hover: hover) { .tipos-plazo a:hover { color: var(--texto); border-color: var(--tenue); } }
+.tipos-plazo a[aria-current='page'] { color: var(--info); background: var(--info-f); border-color: transparent; font-weight: 600; }
+.tipos-plazo .sin-alertas { opacity: 0.55; }
+.tipos-plazo .n { font-size: 0.72rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+.grupo-alertas { margin-top: 18px; }
+.titulo-alertas { display: flex; align-items: center; gap: 8px; margin: 0 0 8px; font-size: 0.95rem; font-weight: 650; }
+.titulo-alertas .punto { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+.titulo-alertas .n { min-width: 22px; padding: 1px 7px; border-radius: 99px; font-size: 0.74rem; text-align: center; font-variant-numeric: tabular-nums; }
+.titulo-alertas.vencido .punto { background: var(--mal); }
+.titulo-alertas.vencido .n { color: var(--mal); background: var(--mal-f); }
+.titulo-alertas.por_vencer .punto { background: var(--aviso); }
+.titulo-alertas.por_vencer .n { color: var(--aviso); background: var(--aviso-f); }
+/* Mismos anchos en las dos tablas para que las columnas queden alineadas. */
+.alertas { table-layout: fixed; min-width: 760px; }
+.alertas th:nth-child(1) { width: 25%; }
+.alertas th:nth-child(2) { width: 7%; }
+.alertas th:nth-child(3) { width: 19%; }
+.alertas th:nth-child(4) { width: 14%; }
+.alertas th:nth-child(5) { width: 13%; }
+.alertas td { overflow-wrap: anywhere; }
+.alertas .plazo-tipo { font-weight: 550; }
+.alertas small { display: block; font-weight: 400; color: var(--tenue); font-size: 0.76rem; }
+.alertas .fecha, .alertas .situacion { font-variant-numeric: tabular-nums; }
+
 .mensaje { margin: 0; padding: 9px 12px; border-radius: var(--radio); font-size: 0.84rem; font-weight: 500; }
 .mensaje-error { color: var(--mal); background: var(--mal-f); }
 .mensaje-aviso { color: var(--aviso); background: var(--aviso-f); }

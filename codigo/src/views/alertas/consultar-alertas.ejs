@@ -1,0 +1,84 @@
+<%
+  // Opción B «filtro por tipo de plazo + dos tablas apiladas» (HU-12, DA-37): primero vencidos, luego por vencer.
+  const plural = (n, uno, varios) => `${n} ${n === 1 ? uno : varios}`;
+  const dias = (n) => plural(n, 'día', 'días');
+  const esHito = (a) => a.tipo.startsWith('hito');
+
+  // Regla de cada plazo, bajo su nombre.
+  const regla = (a) => {
+    if (a.tipo === 'envio') return '2 días desde el inicio';
+    if (a.tipo === 'subsanacion') return '3 días hábiles desde el aviso';
+    if (a.tipo === 'transcripcion') return `${a.duracion} desde el inicio`;
+    if (a.tipo === 'paternidad') return a.base === 'nacimiento' ? '30 días desde el nacimiento' : '30 días desde el inicio (sin fecha de nacimiento)';
+    return `Día ${a.tipo.slice(4)} de incapacidad`;
+  };
+
+  // Situación: cuánto falta o cuánto pasó, y un detalle para actuar.
+  const situacion = (a) => {
+    if (a.estado === 'vencido') {
+      if (a.tipo === 'envio') return [`Llegó ${dias(a.diasTarde)} tarde`, `Recibida el ${fechaBreve(a.fechaRecepcion)}`];
+      if (esHito(a)) return [`Se cumplió hace ${dias(-a.dias)}`, `Inicio ${fechaBreve(a.fechaInicio)} · ${dias(a.diasIncapacidad)}`];
+      if (a.tipo === 'subsanacion') return [`Venció hace ${dias(-a.dias)}`, 'Ya se puede registrar el segundo llamado'];
+      return [`Venció hace ${dias(-a.dias)}`, a.rechazada ? 'Rechazada, sin nueva radicación' : 'Sin radicar'];
+    }
+    if (esHito(a)) return [a.dias === 0 ? 'Se cumple hoy' : `Se cumple en ${dias(a.dias)}`, `Inicio ${fechaBreve(a.fechaInicio)} · ${dias(a.diasIncapacidad)}`];
+    if (a.tipo === 'subsanacion') {
+      return [a.dias === 0 ? 'Vence hoy' : `${a.diasHabiles === 1 ? 'Queda' : 'Quedan'} ${plural(a.diasHabiles, 'día hábil', 'días hábiles')}`, `Aviso del ${fechaBreve(a.fechaAviso)}`];
+    }
+    return [a.dias === 0 ? 'Vence hoy' : `${a.dias === 1 ? 'Queda' : 'Quedan'} ${dias(a.dias)}`, a.rechazada ? 'Rechazada, sin nueva radicación' : 'Sin radicar'];
+  };
+
+  const enlaceTipo = (t) => (t ? `/alertas?tipo=${t}` : '/alertas');
+  const nombreCorto = (t) => (t.startsWith('hito') ? `${t.slice(4)} días` : nombresPlazo[t]);
+  const secciones = [
+    ['vencido', 'Vencidos', vencidas, 'Ningún plazo vencido'],
+    ['por_vencer', 'Por vencer', porVencer, 'Ningún plazo por vencer'],
+  ];
+%>
+<h1>Alertas de plazos</h1>
+<p class="sub">Plazos por vencer (5 días o menos) y vencidos. Las alertas solo informan: no bloquean ninguna operación.</p>
+<p class="calculo">Calculadas hoy, <%= fechaLarga(hoy) %>.</p>
+
+<nav aria-label="Tipo de plazo">
+  <ul class="tipos-plazo">
+    <li><a href="/alertas"<%- tipo === '' ? ' aria-current="page"' : '' %>>Todos <span class="n"><span class="oculto">: </span><%= total %></span></a></li>
+    <% for (const t of tiposPlazo) { %>
+    <li>
+      <% if (conteos[t] === 0 && tipo !== t) { %>
+      <span class="sin-alertas"><%= nombreCorto(t) %> <span class="n"><span class="oculto">: </span>0</span></span>
+      <% } else { %>
+      <a href="<%= enlaceTipo(t) %>"<%- tipo === t ? ' aria-current="page"' : '' %>><%= nombreCorto(t) %> <span class="n"><span class="oculto">: </span><%= conteos[t] %></span></a>
+      <% } %>
+    </li>
+    <% } %>
+  </ul>
+</nav>
+
+<% for (const [estado, titulo, lista, vacio] of secciones) { %>
+<section class="grupo-alertas" aria-labelledby="titulo-<%= estado %>">
+  <h2 class="titulo-alertas <%= estado %>" id="titulo-<%= estado %>"><span class="punto" aria-hidden="true"></span><%= titulo %><span class="n"><span class="oculto">: </span><%= lista.length %></span></h2>
+  <div class="tabla-envuelta">
+    <% if (lista.length === 0) { %>
+    <div class="vacio"><b><%= vacio %><%= tipo ? ' de este tipo' : '' %>.</b></div>
+    <% } else { %>
+    <table class="estados alertas">
+      <thead>
+        <tr><th scope="col">Plazo</th><th scope="col">N.º</th><th scope="col">Colaborador</th><th scope="col">Entidad</th><th scope="col">Fecha límite</th><th scope="col">Situación</th></tr>
+      </thead>
+      <tbody>
+        <% for (const a of lista) { const [texto, detalle] = situacion(a); %>
+        <tr>
+          <td class="plazo-tipo"><%= nombresPlazo[a.tipo] %><small><%= regla(a) %></small></td>
+          <td><a href="<%= enlaceAlerta(a) %>" aria-label="Abrir la incapacidad <%= a.idIncapacidad %>"><%= a.idIncapacidad %></a></td>
+          <td><%= a.colaborador %></td>
+          <td><%= a.entidad %></td>
+          <td class="fecha"><%= fechaBreve(a.fechaLimite) %></td>
+          <td class="situacion"><%= texto %><small><%= detalle %></small></td>
+        </tr>
+        <% } %>
+      </tbody>
+    </table>
+    <% } %>
+  </div>
+</section>
+<% } %>

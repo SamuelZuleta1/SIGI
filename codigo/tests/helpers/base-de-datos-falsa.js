@@ -197,6 +197,29 @@ export function crearBaseDeDatosFalsa() {
         ]),
       );
     },
+    // HU-12 (DS-14): como alertas.persistence.js (sin radicar, aviso pendiente o 90 días o más).
+    async consultarPlazos() {
+      return incapacidades
+        .filter((i) => i.estado == null || i.estado === 'rechazada' || i.documentacionCompleta === false || i.diasIncapacidad >= 90)
+        .map((i) => {
+          const { id, nombre } = ENTIDADES.find((e) => e.id === i.entidad);
+          const { plazoTranscripcion, plazoTranscripcionTransito } = PLAZOS[id];
+          return {
+            idIncapacidad: i.idIncapacidad,
+            colaborador: colaboradores.find((c) => c.id === i.colaboradorId).nombre,
+            tipo: i.tipo,
+            fechaInicio: i.fechaInicio,
+            diasIncapacidad: i.diasIncapacidad,
+            fechaRecepcion: i.fechaRecepcion,
+            fechaNacimiento: i.fechaNacimiento ?? null,
+            estado: i.estado,
+            documentacionCompleta: i.documentacionCompleta ?? null,
+            fechaAvisoFaltantes: i.fechaAvisoFaltantes ?? null,
+            segundoLlamado: i.segundoLlamado ?? false,
+            entidad: { nombre, plazoTranscripcion, plazoTranscripcionTransito },
+          };
+        });
+    },
     async consultarReemplazo(idIncapacidad) {
       return reemplazos.find((r) => r.idIncapacidad === idIncapacidad)?.reemplazo ?? null;
     },

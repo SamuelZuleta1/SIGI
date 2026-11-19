@@ -60,6 +60,14 @@
         </a>
       </li>
       <% } %>
+      <% if (puede('consultarAlertas')) { %>
+      <li>
+        <a href="/alertas" <%- ruta === '/alertas' ? 'aria-current="page"' : '' %>>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 16V11a6 6 0 0 1 12 0v5l2 2H4zM10 21h4"/></svg>
+          Alertas de plazos
+        </a>
+      </li>
+      <% } %>
       <% if (puede('registrarReemplazo')) { %>
       <li>
         <a href="/reemplazo" <%- ruta === '/reemplazo' || /^\/incapacidades\/\d+\/reemplazo$/.test(ruta) ? 'aria-current="page"' : '' %>>
