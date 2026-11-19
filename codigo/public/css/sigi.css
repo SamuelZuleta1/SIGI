@@ -388,6 +388,27 @@ input[type='file']::file-selector-button {
 .entra { animation: entra 0.26s var(--ease); }
 @keyframes entra { from { opacity: 0; transform: translateY(6px); } }
 
+/* ---------- preparar radicación (HU-09): bloque del plazo con barra (opción B) ---------- */
+.plazo { display: grid; gap: 10px; max-width: 720px; padding: 14px 16px; border: 1px solid var(--borde); border-radius: var(--radio); }
+.plazo .linea { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; }
+.plazo h2 { margin: 0; font-size: 1.15rem; font-weight: 650; letter-spacing: -0.015em; }
+.plazo .regla { margin: 0; font-size: 0.8rem; color: var(--tenue); }
+.chip { display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 8px; border-radius: 99px; font-size: 0.76rem; font-weight: 600; white-space: nowrap; }
+.chip svg { width: 13px; height: 13px; flex: none; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+.chip.al_dia { color: var(--ok); background: var(--ok-f); }
+.chip.por_vencer { color: var(--aviso); background: var(--aviso-f); }
+.chip.vencido { color: var(--mal); background: var(--mal-f); }
+/* La barra es un SVG: su ancho va en atributos, que la CSP permite (los style="" en línea no). */
+.barra { display: block; width: 100%; height: 6px; overflow: visible; }
+.barra .fondo { fill: var(--raya); }
+.barra .usado { fill: var(--ok); transform-box: fill-box; transform-origin: left; animation: crece 0.7s var(--ease) both; }
+.barra.por_vencer .usado { fill: var(--aviso); }
+.barra.vencido .usado { fill: var(--mal); }
+@keyframes crece { from { transform: scaleX(0); } }
+.extremos { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 2px 12px; font-size: 0.74rem; color: var(--tenue); }
+.canal { display: flex; gap: 6px; align-items: center; }
+.canal svg { width: 15px; height: 15px; flex: none; fill: none; stroke: var(--tenue); stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+
 /* ---------- mensajes ---------- */
 .mensaje { margin: 0; padding: 9px 12px; border-radius: var(--radio); font-size: 0.84rem; font-weight: 500; }
 .mensaje-error { color: var(--mal); background: var(--mal-f); }
@@ -398,5 +419,6 @@ input[type='file']::file-selector-button {
 @media (prefers-reduced-motion: reduce) {
   .boton:active { transform: none; }
   .entra { animation: aparece 0.2s ease; }
+  .barra .usado { animation: none; }
   @keyframes aparece { from { opacity: 0; } }
 }

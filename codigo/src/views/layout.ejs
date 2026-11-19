@@ -44,6 +44,14 @@
         </a>
       </li>
       <% } %>
+      <% if (puede('prepararRadicacion')) { %>
+      <li>
+        <a href="/radicacion" <%- ruta === '/radicacion' || /^\/incapacidades\/\d+\/radicacion$/.test(ruta) ? 'aria-current="page"' : '' %>>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12l16-8-6 16-2.5-6.5zM11.5 13.5L20 4"/></svg>
+          Radicación
+        </a>
+      </li>
+      <% } %>
       <% if (puede('registrarReemplazo')) { %>
       <li>
         <a href="/reemplazo" <%- ruta === '/reemplazo' || /^\/incapacidades\/\d+\/reemplazo$/.test(ruta) ? 'aria-current="page"' : '' %>>

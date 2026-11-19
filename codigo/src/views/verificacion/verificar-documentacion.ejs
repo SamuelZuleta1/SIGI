@@ -223,6 +223,10 @@
           <button class="boton">Confirmar y archivar en digital</button>
         </form>
       <% } %>
+      <% if (archivada) { %>
+        <%# Siguiente paso del trámite: preparar la radicación (HU-09). Los dos son del auxiliar (DA-02). %>
+        <a class="boton" href="/incapacidades/<%= incapacidad.idIncapacidad %>/radicacion">Preparar radicación</a>
+      <% } %>
       <a class="boton secundario" href="/verificacion">Otra incapacidad</a>
     </div>
   </div>

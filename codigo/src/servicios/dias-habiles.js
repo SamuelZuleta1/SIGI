@@ -69,3 +69,31 @@ export const fechaLarga = (texto) =>
   new Intl.DateTimeFormat('es-CO', { timeZone: 'UTC', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
     .format(aFecha(texto))
     .replace(',', '');
+
+// Plazos en días calendario (HU-09, DA-13): los de transcripción de cada entidad y el de la paternidad.
+
+/**
+ * Suma un intervalo { anios, meses, dias } a una fecha, como Postgres: si el día no existe en el mes
+ * de llegada se toma el último (31 de enero + 1 mes = 28 o 29 de febrero; 29 de febrero + 1 año = 28).
+ */
+export function sumarIntervalo(texto, { anios = 0, meses = 0, dias = 0 }) {
+  const fecha = aFecha(texto);
+  const totalMeses = fecha.getUTCMonth() + anios * 12 + meses;
+  const anio = fecha.getUTCFullYear() + Math.floor(totalMeses / 12);
+  const mes = ((totalMeses % 12) + 12) % 12;
+  const ultimoDia = new Date(Date.UTC(anio, mes + 1, 0)).getUTCDate();
+  const resultado = new Date(Date.UTC(anio, mes, Math.min(fecha.getUTCDate(), ultimoDia)));
+  resultado.setUTCDate(resultado.getUTCDate() + dias);
+  return aTexto(resultado);
+}
+
+/** Días calendario de `desde` a `hasta` (negativo si `hasta` es anterior). */
+export const diasCalendario = (desde, hasta) => Math.round((aFecha(hasta) - aFecha(desde)) / 86_400_000);
+
+const MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sept', 'oct', 'nov', 'dic'];
+
+/** «9 nov 2026»: para los extremos de un plazo largo, donde el año sí importa. */
+export const fechaBreve = (texto) => {
+  const fecha = aFecha(texto);
+  return `${fecha.getUTCDate()} ${MESES[fecha.getUTCMonth()]} ${fecha.getUTCFullYear()}`;
+};

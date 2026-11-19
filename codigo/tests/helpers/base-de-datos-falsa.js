@@ -3,7 +3,16 @@ export const ENTIDADES = Object.freeze([
   { id: 1, nombre: 'ARL SURA', tipo: 'ARL' },
   { id: 2, nombre: 'Nueva EPS', tipo: 'EPS' },
   { id: 3, nombre: 'Sanitas', tipo: 'EPS' },
+  { id: 4, nombre: 'Salud Total', tipo: 'EPS' },
 ]);
+
+// Plazos de transcripción como los entrega Supabase (seed, §5.2.1): `interval` en texto.
+const PLAZOS = Object.freeze({
+  1: { plazoTranscripcion: '1 year', plazoTranscripcionTransito: null, permiteTranscripcionDigital: true },
+  2: { plazoTranscripcion: '1 year', plazoTranscripcionTransito: null, permiteTranscripcionDigital: true },
+  3: { plazoTranscripcion: '3 years', plazoTranscripcionTransito: null, permiteTranscripcionDigital: false },
+  4: { plazoTranscripcion: '1 year', plazoTranscripcionTransito: '15 days', permiteTranscripcionDigital: true },
+});
 
 const EXTENSIONES = { 'application/pdf': 'pdf', 'image/jpeg': 'jpg', 'image/png': 'png' };
 
@@ -93,6 +102,23 @@ export function crearBaseDeDatosFalsa() {
       if (!pendiente || incapacidad.segundoLlamado) return false;
       incapacidad.segundoLlamado = true;
       return true;
+    },
+    async obtenerDatosRadicacion(idIncapacidad) {
+      const guardada = incapacidades.find((i) => i.idIncapacidad === idIncapacidad);
+      if (!guardada) return null;
+      const { id, ...entidad } = ENTIDADES.find((e) => e.id === guardada.entidad);
+      return {
+        idIncapacidad,
+        colaborador: colaboradores.find((c) => c.id === guardada.colaboradorId).nombre,
+        tipo: guardada.tipo,
+        fechaInicio: guardada.fechaInicio,
+        diasIncapacidad: guardada.diasIncapacidad,
+        fechaNacimiento: guardada.fechaNacimiento ?? null,
+        estado: guardada.estado,
+        documentacionCompleta: guardada.documentacionCompleta ?? null,
+        archivadoDigital: guardada.archivadoDigital ?? false,
+        entidad: { ...entidad, ...PLAZOS[id] },
+      };
     },
     async consultarDocumento(idDocumento) {
       const documento = documentos.find((d) => d.idDocumento === idDocumento);
