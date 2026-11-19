@@ -43,6 +43,9 @@
   <% if (error) { %>
     <p class="mensaje mensaje-error" role="alert"><%= error %> Revise el resultado.</p>
   <% } %>
+  <% if (errorLlamado && !avisoPendiente) { %>
+    <p class="mensaje mensaje-error" role="alert"><%= errorLlamado %></p>
+  <% } %>
 
   <div class="formulario">
     <dl class="resumen">
@@ -125,12 +128,51 @@
         <ul class="pedidos-enviados">
           <% for (const tipo of aviso.faltantes) { %><li><%= nombresDocumento[tipo] ?? tipo %></li><% } %>
         </ul>
-        <p class="plazo <%= aviso.diasRestantes < 0 ? 'vencido' : '' %>">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg>
-          Vence el <%= fechaLarga(aviso.fechaLimite) %> · <%= plazo(aviso.diasRestantes) %>
-        </p>
+        <%# Línea de tiempo del aviso (HU-07 y HU-08): aviso → plazo de 3 días hábiles → segundo llamado. %>
+        <ol class="pasos" aria-label="Seguimiento del aviso">
+          <li class="hecho"><b>Aviso</b><span><%= fechaCorta(aviso.fechaAviso) %></span></li>
+          <% if (!aviso.vencido) { %>
+            <li class="actual" aria-current="step"><b>Plazo</b><span>Vence el <%= fechaCorta(aviso.fechaLimite) %> · <%= plazo(aviso.diasRestantes) %></span></li>
+            <li><b>Segundo llamado</b><span>Desde el <%= fechaCorta(aviso.fechaSegundoLlamado) %>, si no entrega</span></li>
+          <% } else if (aviso.segundoLlamado) { %>
+            <li class="hecho"><b>Plazo</b><span>Venció el <%= fechaCorta(aviso.fechaLimite) %></span></li>
+            <li class="hecho"><b>Segundo llamado</b><span>Coordinación avisada</span></li>
+          <% } else { %>
+            <li class="alerta"><b>Plazo</b><span>Venció el <%= fechaCorta(aviso.fechaLimite) %></span></li>
+            <li class="actual" aria-current="step"><b>Segundo llamado</b><span>Por registrar</span></li>
+          <% } %>
+        </ol>
         <p class="ayuda">Podrá notificar de nuevo cuando se registren documentos y sigan faltando.</p>
       </section>
+
+      <% if (aviso.segundoLlamado) { %>
+        <section class="aviso" id="segundo-llamado" aria-labelledby="titulo-llamado">
+          <h2 id="titulo-llamado">Segundo llamado</h2>
+          <% if (llamada) { %>
+            <p class="mensaje mensaje-ok entra" role="status">Segundo llamado registrado. Se avisó a la Coordinación para que cite a <strong><%= incapacidad.colaborador %></strong>.</p>
+          <% } else { %>
+            <p class="mensaje mensaje-ok">Segundo llamado registrado. La Coordinación ya recibió el aviso de citación.</p>
+          <% } %>
+        </section>
+      <% } else if (aviso.vencido) { %>
+        <%# HU-08.CA1 (opción D): el auxiliar ya llamó al colaborador y lo registra; SIGI avisa a la Coordinación. %>
+        <form class="aviso" id="segundo-llamado" method="post" action="/incapacidades/<%= incapacidad.idIncapacidad %>/segundo-llamado" aria-labelledby="titulo-llamado" data-un-envio>
+          <h2 id="titulo-llamado">Segundo llamado</h2>
+          <p class="sub">El plazo venció sin los documentos. Llame al colaborador y regístrelo: SIGI avisa a la Coordinación para que lo cite.</p>
+          <% if (errorLlamado) { %>
+            <p class="mensaje mensaje-error" role="alert"><%= errorLlamado %></p>
+          <% } %>
+          <dl class="datos-envio">
+            <dt>Para</dt><dd>Coordinación de Administración de Personal</dd>
+            <dt>Pendientes</dt><dd><%= aviso.faltantes.map((tipo) => nombresDocumento[tipo] ?? tipo).join(', ') %></dd>
+          </dl>
+          <div class="acciones">
+            <button class="boton" data-enviando="Enviando…">Registrar segundo llamado</button>
+          </div>
+        </form>
+      <% } else if (errorLlamado) { %>
+        <p class="mensaje mensaje-error" role="alert" id="segundo-llamado"><%= errorLlamado %></p>
+      <% } %>
     <% } else if (!resultado.completa && !archivada) { %>
       <%# HU-07.CA1: lista precargada y editable (DA-30). «Añadir» vuelve por GET y funciona sin JavaScript. %>
       <form class="aviso" id="aviso" method="post" action="/incapacidades/<%= incapacidad.idIncapacidad %>/faltantes" aria-labelledby="titulo-aviso" data-un-envio>

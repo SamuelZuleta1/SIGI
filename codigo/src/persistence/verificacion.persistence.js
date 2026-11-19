@@ -1,5 +1,6 @@
 // Grupo `verificacion` de la Base de datos — DS-03 (CU-04).
-// Operaciones: obtenerExpediente, archivarDigital, guardarFaltantes (HU-07); apoyo para «ver documento» (DA-06):
+// Operaciones: obtenerExpediente, archivarDigital, guardarFaltantes (HU-07), guardarSegundoLlamado (HU-08);
+// apoyo para «ver documento» (DA-06):
 // consultarDocumento y descargarDocumento.
 import { crearAlmacenDocumentos } from './almacen-documentos.js';
 
@@ -23,7 +24,7 @@ export function crearPersistenciaVerificacion(cliente, almacen = crearAlmacenDoc
           .from('incapacidad')
           .select(
             'id, tipo, fecha_inicio, dias_incapacidad, original_pendiente, documentacion_completa, archivado_digital, ' +
-              'faltantes, fecha_aviso_faltantes, colaborador(nombre, correo), entidad(nombre), documento(id, tipo)',
+              'faltantes, fecha_aviso_faltantes, segundo_llamado, colaborador(nombre, correo), entidad(nombre), documento(id, tipo)',
           )
           .eq('id', idIncapacidad)
           .order('id', { referencedTable: 'documento' })
@@ -43,6 +44,7 @@ export function crearPersistenciaVerificacion(cliente, almacen = crearAlmacenDoc
         archivadoDigital: fila.archivado_digital,
         faltantes: fila.faltantes,
         fechaAvisoFaltantes: fila.fecha_aviso_faltantes,
+        segundoLlamado: fila.segundo_llamado,
         documentos: fila.documento.map((d) => ({ idDocumento: d.id, tipo: d.tipo })),
       };
     },
@@ -66,6 +68,7 @@ export function crearPersistenciaVerificacion(cliente, almacen = crearAlmacenDoc
     /**
      * DS-03: guardarFaltantes(idIncapacidad, faltantes) — HU-07.CA1. Guarda la lista y la fecha del aviso
      * (DA-13) y deja la documentación como incompleta (false = faltantes notificados).
+     * Un aviso nuevo tiene su propio segundo llamado (DA-33): segundo_llamado vuelve a false.
      * Solo si no había un aviso pendiente (DA-31): la condición va en la misma sentencia, así dos avisos
      * simultáneos no se registran los dos.
      * @returns {Promise<boolean>} false si ya había un aviso pendiente o la incapacidad no existe.
@@ -74,9 +77,30 @@ export function crearPersistenciaVerificacion(cliente, almacen = crearAlmacenDoc
       const filas = comprobar(
         await cliente
           .from('incapacidad')
-          .update({ faltantes, fecha_aviso_faltantes: fechaAviso, documentacion_completa: false })
+          .update({ faltantes, fecha_aviso_faltantes: fechaAviso, documentacion_completa: false, segundo_llamado: false })
           .eq('id', idIncapacidad)
           .or('documentacion_completa.is.null,documentacion_completa.eq.true')
+          .select('id'),
+      );
+      return filas.length === 1;
+    },
+
+    /**
+     * DS-03: guardarSegundoLlamado(idIncapacidad) — HU-08.CA1. Marca segundo_llamado = true.
+     * Solo sobre el aviso que se vio en pantalla: sigue pendiente (documentacion_completa = false), es el
+     * mismo (fecha_aviso_faltantes) y no tiene ya su segundo llamado (DA-33). La condición va en la misma
+     * sentencia, así dos registros simultáneos no se guardan los dos.
+     * @returns {Promise<boolean>} false si el aviso cambió, ya no está pendiente o ya tenía el llamado.
+     */
+    async guardarSegundoLlamado(idIncapacidad, fechaAviso) {
+      const filas = comprobar(
+        await cliente
+          .from('incapacidad')
+          .update({ segundo_llamado: true })
+          .eq('id', idIncapacidad)
+          .eq('documentacion_completa', false)
+          .eq('fecha_aviso_faltantes', fechaAviso)
+          .eq('segundo_llamado', false)
           .select('id'),
       );
       return filas.length === 1;

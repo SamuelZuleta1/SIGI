@@ -54,7 +54,7 @@ describe('HU-07 — notificar los faltantes (rutas)', () => {
     const pagina = await agente.get('/incapacidades/1/verificacion?notificada=1');
     expect(pagina.text).toContain('Faltantes notificados. Se envió el correo a <strong>ana.gomez@sigi.test</strong>.');
     expect(pagina.text).toContain('Aviso registrado el martes 17 de noviembre de 2026');
-    expect(pagina.text).toContain('Vence el viernes 20 de noviembre de 2026 · quedan 3 días hábiles');
+    expect(pagina.text).toContain('Vence el viernes 20 de noviembre · quedan 3 días hábiles');
     expect(pagina.text).toContain('ya se notificó al colaborador');
     expect(pagina.text).not.toContain('action="/incapacidades/1/faltantes"');
   });

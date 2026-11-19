@@ -68,12 +68,14 @@ export function crearServicioCorreo({ transporte, remitente, destinatarios }) {
       ]),
 
     // DS-03 → Coordinación (segundo llamado)
-    notificarCitacion: (incapacidad) =>
+    notificarCitacion: (incapacidad, { fechaAviso, fechaLimite } = {}) =>
       enviar(destinatarios.coordinacion, `Citación por documentos pendientes — incapacidad n.º ${incapacidad.idIncapacidad}`, [
         'Se registró el segundo llamado: el colaborador no entregó los documentos faltantes en el plazo.',
         'Se solicita citar al colaborador.',
+        ...(fechaAviso ? [`Aviso de faltantes: ${fechaAviso} · plazo vencido el ${fechaLimite}.`] : []),
         '',
         ...resumen(incapacidad),
+        `Correo del colaborador: ${incapacidad.correoColaborador ?? 'sin dato'}`,
         'Documentos pendientes:',
         ...lista(incapacidad.faltantes ?? []),
       ]),

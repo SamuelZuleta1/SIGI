@@ -58,6 +58,12 @@ export function diasHabilesRestantes(hoy, limite) {
 export const hoyEnColombia = () =>
   new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Bogota' }).format(new Date());
 
+/** «viernes 20 de noviembre»: para plazos de pocos días, donde el año sobra. */
+export const fechaCorta = (texto) =>
+  new Intl.DateTimeFormat('es-CO', { timeZone: 'UTC', weekday: 'long', day: 'numeric', month: 'long' })
+    .format(aFecha(texto))
+    .replace(',', '');
+
 /** «viernes 20 de noviembre de 2026» */
 export const fechaLarga = (texto) =>
   new Intl.DateTimeFormat('es-CO', { timeZone: 'UTC', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })

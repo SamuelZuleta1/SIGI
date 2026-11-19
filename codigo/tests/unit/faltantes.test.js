@@ -68,7 +68,10 @@ describe('HU-07.CA1 — registrar y notificar los faltantes', () => {
       fechaAviso: '2026-11-17',
       fechaLimite: '2026-11-20',
       diasRestantes: 1,
+      vencido: false,
       pendiente: true,
+      segundoLlamado: false,
+      fechaSegundoLlamado: '2026-11-23',
     });
   });
 

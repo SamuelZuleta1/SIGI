@@ -74,6 +74,7 @@ export function crearBaseDeDatosFalsa() {
         archivadoDigital: guardada.archivadoDigital ?? false,
         faltantes: guardada.faltantes ?? [],
         fechaAvisoFaltantes: guardada.fechaAvisoFaltantes ?? null,
+        segundoLlamado: guardada.segundoLlamado ?? false,
         documentos: documentos.filter((d) => d.idIncapacidad === idIncapacidad).map(({ idDocumento, tipo }) => ({ idDocumento, tipo })),
       };
     },
@@ -83,7 +84,14 @@ export function crearBaseDeDatosFalsa() {
     async guardarFaltantes(idIncapacidad, faltantes, fechaAviso) {
       const incapacidad = incapacidades.find((i) => i.idIncapacidad === idIncapacidad);
       if (!incapacidad || incapacidad.documentacionCompleta === false) return false;
-      Object.assign(incapacidad, { faltantes, fechaAvisoFaltantes: fechaAviso, documentacionCompleta: false });
+      Object.assign(incapacidad, { faltantes, fechaAvisoFaltantes: fechaAviso, documentacionCompleta: false, segundoLlamado: false });
+      return true;
+    },
+    async guardarSegundoLlamado(idIncapacidad, fechaAviso) {
+      const incapacidad = incapacidades.find((i) => i.idIncapacidad === idIncapacidad);
+      const pendiente = incapacidad?.documentacionCompleta === false && incapacidad.fechaAvisoFaltantes === fechaAviso;
+      if (!pendiente || incapacidad.segundoLlamado) return false;
+      incapacidad.segundoLlamado = true;
       return true;
     },
     async consultarDocumento(idDocumento) {

@@ -64,6 +64,7 @@ for (const formulario of document.querySelectorAll('form[data-un-envio]')) {
   formulario.addEventListener('submit', (evento) => {
     const boton = evento.submitter;
     if (!boton?.dataset.enviando) return;
+    boton.dataset.texto = boton.textContent;
     boton.textContent = boton.dataset.enviando;
     boton.setAttribute('aria-disabled', 'true');
     // Se desactiva después de que el navegador tome los datos del envío.
@@ -77,6 +78,7 @@ window.addEventListener('pageshow', (evento) => {
   for (const boton of document.querySelectorAll('form[data-un-envio] [data-enviando]')) {
     boton.disabled = false;
     boton.removeAttribute('aria-disabled');
+    if (boton.dataset.texto) boton.textContent = boton.dataset.texto;
     boton.closest('form').dispatchEvent(new Event('change')); // el contador rehace el texto y el estado
   }
 });

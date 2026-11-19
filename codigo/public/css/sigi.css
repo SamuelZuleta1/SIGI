@@ -362,22 +362,28 @@ input[type='file']::file-selector-button {
 .datos-envio { display: grid; grid-template-columns: auto 1fr; gap: 2px 12px; margin: 0; font-size: 0.82rem; }
 .datos-envio dt { color: var(--tenue); }
 .datos-envio dd { margin: 0; font-weight: 500; overflow-wrap: anywhere; }
-.plazo {
-  display: inline-flex;
-  gap: 6px;
-  align-items: center;
-  width: max-content;
-  max-width: 100%;
-  margin: 0;
-  padding: 3px 9px;
-  border-radius: 99px;
-  font-size: 0.8rem;
-  font-weight: 600;
-  color: var(--aviso);
-  background: var(--aviso-f);
+/* Línea de tiempo del aviso (HU-07, HU-08): aviso → plazo → segundo llamado. */
+.pasos { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); max-width: 720px; margin: 0; padding: 0; list-style: none; font-size: 0.8rem; }
+.pasos li { position: relative; display: grid; align-content: start; gap: 2px; padding: 22px 10px 0 0; }
+.pasos li::before { content: ""; position: absolute; top: 6px; left: 0; right: 0; height: 2px; background: var(--borde); }
+.pasos li:last-child::before { display: none; }
+.pasos li::after {
+  content: ""; position: absolute; top: 0; left: 0; width: 14px; height: 14px;
+  border: 2px solid var(--borde); border-radius: 50%; background: var(--panel);
 }
-.plazo.vencido { color: var(--mal); background: var(--mal-f); }
-.plazo svg { width: 14px; height: 14px; flex: none; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.pasos b { font-weight: 600; }
+.pasos span { color: var(--tenue); }
+.pasos li.hecho::before { background: var(--ok); }
+.pasos li.hecho::after { border-color: var(--ok); background: var(--ok); }
+.pasos li.alerta::after { border-color: var(--mal); background: var(--mal-f); }
+.pasos li.alerta span { color: var(--mal); font-weight: 500; }
+.pasos li.actual::after { border-color: var(--acento); box-shadow: 0 0 0 3px color-mix(in srgb, var(--acento) 22%, transparent); }
+/* En un panel estrecho los pasos van uno debajo de otro, con la línea a la izquierda. */
+@container (max-width: 440px) {
+  .pasos { grid-template-columns: 1fr; }
+  .pasos li { padding: 0 0 12px 24px; }
+  .pasos li::before { top: 14px; bottom: 0; left: 6px; right: auto; width: 2px; height: auto; }
+}
 .aviso .ayuda { margin: 0; font-size: 0.78rem; color: var(--tenue); }
 .entra { animation: entra 0.26s var(--ease); }
 @keyframes entra { from { opacity: 0; transform: translateY(6px); } }

@@ -1,6 +1,6 @@
 // Grupo `verificacion` del Control de incapacidades — DS-03 (CU-04).
 // Operaciones: verificarDocumentacion (con compararConRequisitos), registrarVerificacion,
-// notificarFaltantes (HU-07) y «ver documento» (DA-06). registrarSegundoLlamado llega con HU-08.
+// notificarFaltantes (HU-07), registrarSegundoLlamado (HU-08) y «ver documento» (DA-06).
 import { NOMBRES_TIPO_DOCUMENTO, TIPOS_DOCUMENTO } from '../models/documento.model.js';
 import { diasHabilesRestantes, fechaLarga, hoyEnColombia, sumarDiasHabiles } from '../servicios/dias-habiles.js';
 import { ErrorDeValidacion } from './error-de-validacion.js';
@@ -82,8 +82,9 @@ export function crearControlVerificacion({ baseDeDatos, correo, hoy = hoyEnColom
   const expediente = async (idIncapacidad) =>
     esIdentificador(idIncapacidad) ? baseDeDatos.obtenerExpediente(Number(idIncapacidad)) : null;
 
-  // Último aviso de faltantes (DA-29: se conserva aunque lleguen documentos), con su plazo.
-  const ultimoAviso = ({ fechaAvisoFaltantes, faltantes, documentacionCompleta }) => {
+  // Último aviso de faltantes (DA-29: se conserva aunque lleguen documentos), con su plazo
+  // y el estado de su segundo llamado (HU-08).
+  const ultimoAviso = ({ fechaAvisoFaltantes, faltantes, documentacionCompleta, segundoLlamado }) => {
     if (!fechaAvisoFaltantes) return null;
     const fechaLimite = sumarDiasHabiles(fechaAvisoFaltantes, DIAS_PARA_ENTREGAR);
     return {
@@ -91,8 +92,13 @@ export function crearControlVerificacion({ baseDeDatos, correo, hoy = hoyEnColom
       fechaAviso: fechaAvisoFaltantes,
       fechaLimite,
       diasRestantes: diasHabilesRestantes(hoy(), fechaLimite),
+      // El colaborador tiene todo el día límite; desde el día siguiente el plazo está vencido (DA-32).
+      vencido: hoy() > fechaLimite,
       // false = el aviso sigue pendiente: no se puede volver a notificar hasta que lleguen documentos (DA-31).
       pendiente: documentacionCompleta === false,
+      segundoLlamado: Boolean(segundoLlamado),
+      // Primer día hábil en que se puede registrar el segundo llamado (se muestra mientras corre el plazo).
+      fechaSegundoLlamado: sumarDiasHabiles(fechaLimite, 1),
     };
   };
 
@@ -169,6 +175,50 @@ export function crearControlVerificacion({ baseDeDatos, correo, hoy = hoyEnColom
         throw new ErrorDeValidacion({ faltantes: 'Otro usuario registró el aviso al mismo tiempo. Revise el resultado.' });
       }
       return { idIncapacidad: incapacidad.idIncapacidad, faltantes, fechaAviso, fechaLimite };
+    },
+
+    /**
+     * DS-03: registrarSegundoLlamado(idIncapacidad) → guardarSegundoLlamado → notificarCitacion(Coordinación).
+     * HU-08.CA1: el auxiliar ya llamó al colaborador fuera del sistema (DA-07) y lo registra; SIGI avisa por
+     * correo a la Coordinación para que lo cite.
+     * - Solo con un aviso pendiente cuyo plazo de 3 días hábiles ya venció (DA-32).
+     * - Un segundo llamado por aviso (DA-33): un aviso nuevo (HU-07) permite otro.
+     * - Primero el correo y después el registro, como en HU-07: si el correo falla no queda nada guardado.
+     */
+    async registrarSegundoLlamado(idIncapacidad) {
+      const verificacion = await this.verificarDocumentacion(idIncapacidad);
+      if (!verificacion) throw new ErrorDeValidacion({ incapacidad: 'No hay una incapacidad con ese número.' });
+      const { incapacidad, aviso } = verificacion;
+      if (!aviso?.pendiente) {
+        throw new ErrorDeValidacion({
+          llamado: 'No hay un aviso de faltantes pendiente: el segundo llamado se registra cuando el colaborador no entregó lo que se le pidió.',
+        });
+      }
+      if (aviso.segundoLlamado) {
+        throw new ErrorDeValidacion({ llamado: 'El segundo llamado de este aviso ya se registró y la Coordinación ya fue avisada.' });
+      }
+      if (!aviso.vencido) {
+        throw new ErrorDeValidacion({
+          llamado: `El colaborador tiene plazo hasta el ${fechaLarga(aviso.fechaLimite)}. Podrá registrar el segundo llamado desde el ${fechaLarga(aviso.fechaSegundoLlamado)}.`,
+        });
+      }
+
+      try {
+        await correo.notificarCitacion(
+          { ...incapacidad, faltantes: aviso.faltantes.map((t) => NOMBRES_TIPO_DOCUMENTO[t] ?? t) },
+          { fechaAviso: fechaLarga(aviso.fechaAviso), fechaLimite: fechaLarga(aviso.fechaLimite) },
+        );
+      } catch (error) {
+        console.error('No se pudo enviar notificarCitacion:', error);
+        throw new ErrorDeValidacion({
+          correo: 'No se pudo enviar el correo a la Coordinación, así que el segundo llamado no se registró. Intente de nuevo.',
+        });
+      }
+      const guardado = await baseDeDatos.guardarSegundoLlamado(incapacidad.idIncapacidad, aviso.fechaAviso);
+      if (!guardado) {
+        throw new ErrorDeValidacion({ llamado: 'Otro usuario registró el segundo llamado o el aviso cambió al mismo tiempo. Revise el resultado.' });
+      }
+      return { idIncapacidad: incapacidad.idIncapacidad };
     },
 
     /**

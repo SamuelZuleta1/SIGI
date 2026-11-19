@@ -1,12 +1,12 @@
 // Grupo `verificacion` de la Interfaz de incapacidades — DS-03 (CU-04).
-// Operaciones de la Vista: verificarDocumentacion, confirmarVerificacion, notificarFaltantes (HU-07)
-// y «ver documento» (DA-06).
+// Operaciones de la Vista: verificarDocumentacion, confirmarVerificacion, notificarFaltantes (HU-07),
+// registrarSegundoLlamado (HU-08) y «ver documento» (DA-06).
 import { Router } from 'express';
 import { ErrorDeValidacion } from '../controllers/error-de-validacion.js';
 import { permitir, restringirDocumento } from '../middleware/autenticacion.js';
 import { NOMBRES_TIPO_DOCUMENTO, TIPOS_DOCUMENTO } from '../models/documento.model.js';
 import { NOMBRES_TIPO_INCAPACIDAD } from '../models/incapacidad.model.js';
-import { fechaLarga } from '../servicios/dias-habiles.js';
+import { fechaCorta, fechaLarga } from '../servicios/dias-habiles.js';
 
 // La casilla «La EPS ya transcribió» (DA-26) llega como eps=si.
 const conEps = (valor) => ({ epsTranscribio: valor === 'si' });
@@ -15,7 +15,7 @@ const sufijoEps = ({ epsTranscribio }) => (epsTranscribio ? '&eps=si' : '');
 // Casillas de faltantes (HU-07): una o varias, como texto o lista. Se acota el tamaño.
 const comoLista = (valor) => (Array.isArray(valor) ? valor : valor == null ? [] : [valor]).map(String).slice(0, 20);
 
-// Errores de notificarFaltantes: el correo que no salió es un fallo temporal; lo demás, un conflicto.
+// Errores de notificarFaltantes y registrarSegundoLlamado: el correo que no salió es un fallo temporal; lo demás, un conflicto.
 const estadoDeError = (errores) => (errores.correo ? 503 : 409);
 
 export function crearRutasVerificacion({ control }) {
@@ -31,9 +31,12 @@ export function crearRutasVerificacion({ control }) {
       verificada: false,
       notificada: false,
       errorAviso: null,
+      llamada: false,
+      errorLlamado: null,
       seleccion: null,
       tiposDocumento: TIPOS_DOCUMENTO,
       fechaLarga,
+      fechaCorta,
       nombresDocumento: NOMBRES_TIPO_DOCUMENTO,
       nombresTipo: NOMBRES_TIPO_INCAPACIDAD,
       ...datos,
@@ -52,7 +55,7 @@ export function crearRutasVerificacion({ control }) {
   });
 
   // verificarDocumentacion → mostrarResultado (HU-06.CA1). Tras confirmar se vuelve con ?verificada=1
-  // y tras notificar los faltantes, con ?notificada=1 (HU-07).
+  // tras notificar los faltantes, con ?notificada=1 (HU-07), y tras el segundo llamado, con ?llamada=1 (HU-08).
   // «Añadir» otro documento a la lista de faltantes funciona sin JavaScript: el formulario vuelve aquí
   // por GET con accion=agregar, las casillas marcadas y el tipo elegido en `otro` (DA-30).
   rutas.get('/incapacidades/:id/verificacion', permitir('verificarDocumentacion'), async (req, res) => {
@@ -61,9 +64,10 @@ export function crearRutasVerificacion({ control }) {
     // Las confirmaciones solo se muestran si de verdad ocurrió lo que dicen (no basta con la URL).
     const verificada = req.query.verificada === '1' && verificacion.incapacidad.archivadoDigital;
     const notificada = req.query.notificada === '1' && Boolean(verificacion.aviso?.pendiente);
+    const llamada = req.query.llamada === '1' && Boolean(verificacion.aviso?.pendiente && verificacion.aviso.segundoLlamado);
     const seleccion =
       req.query.accion === 'agregar' ? [...comoLista(req.query.faltantes), ...comoLista(req.query.otro)] : null;
-    await pagina(res, 200, { verificacion, verificada, notificada, seleccion });
+    await pagina(res, 200, { verificacion, verificada, notificada, llamada, seleccion });
   });
 
   // notificarFaltantes → guardarFaltantes → correo al colaborador (HU-07.CA1).
@@ -83,6 +87,20 @@ export function crearRutasVerificacion({ control }) {
         seleccion,
         errorAviso: errores.correo ?? errores.faltantes ?? errores.incapacidad,
       });
+    }
+  });
+
+  // registrarSegundoLlamado → guardarSegundoLlamado → correo a la Coordinación (HU-08.CA1).
+  rutas.post('/incapacidades/:id/segundo-llamado', permitir('registrarSegundoLlamado'), async (req, res) => {
+    try {
+      const { idIncapacidad } = await control.registrarSegundoLlamado(req.params.id);
+      res.redirect(303, `/incapacidades/${idIncapacidad}/verificacion?llamada=1#segundo-llamado`);
+    } catch (error) {
+      if (!(error instanceof ErrorDeValidacion)) throw error;
+      const verificacion = await control.verificarDocumentacion(req.params.id);
+      if (!verificacion) return noExiste(res, req.params.id);
+      const { errores } = error;
+      await pagina(res, estadoDeError(errores), { verificacion, errorLlamado: errores.correo ?? errores.llamado ?? errores.incapacidad });
     }
   });
 
