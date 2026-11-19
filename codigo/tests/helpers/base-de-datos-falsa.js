@@ -21,7 +21,9 @@ export function crearBaseDeDatosFalsa() {
   const incapacidades = [];
   const documentos = [];
   const reemplazos = []; // máximo uno por incapacidad, como el índice único de la tabla
+  const radicaciones = [];
   return {
+    radicaciones,
     colaboradores,
     incapacidades,
     documentos,
@@ -113,12 +115,43 @@ export function crearBaseDeDatosFalsa() {
         tipo: guardada.tipo,
         fechaInicio: guardada.fechaInicio,
         diasIncapacidad: guardada.diasIncapacidad,
+        fechaRecepcion: guardada.fechaRecepcion,
         fechaNacimiento: guardada.fechaNacimiento ?? null,
         estado: guardada.estado,
+        causalRechazo: guardada.causalRechazo ?? null,
         documentacionCompleta: guardada.documentacionCompleta ?? null,
         archivadoDigital: guardada.archivadoDigital ?? false,
         entidad: { ...entidad, ...PLAZOS[id] },
+        radicaciones: radicaciones
+          .filter((r) => r.idIncapacidad === idIncapacidad)
+          .map(({ idRadicacion, radicado, evidencia, fecha }) => ({ idRadicacion, radicado, conEvidencia: Boolean(evidencia), fecha })),
       };
+    },
+    // Como registrar_radicacion: solo desde registrada (null) o rechazada; guarda y pone transcrita.
+    async guardarRadicacion(idIncapacidad, { radicado, contenido, tipoMime }, creadoPor) {
+      const incapacidad = incapacidades.find((i) => i.idIncapacidad === idIncapacidad);
+      if (!incapacidad || !(incapacidad.estado == null || incapacidad.estado === 'rechazada')) return null;
+      const idRadicacion = radicaciones.length + 1;
+      radicaciones.push({
+        idRadicacion,
+        idIncapacidad,
+        radicado,
+        evidencia: `incapacidades/${idIncapacidad}/radicacion-${idRadicacion}.${EXTENSIONES[tipoMime]}`,
+        contenido,
+        tipoMime,
+        creadoPor,
+        fecha: new Date(Date.UTC(2026, 10, 19, 15, idRadicacion)).toISOString(),
+      });
+      incapacidad.estado = 'transcrita';
+      return idRadicacion;
+    },
+    async consultarRadicacion(idRadicacion) {
+      const r = radicaciones.find((x) => x.idRadicacion === idRadicacion);
+      return r ? { idRadicacion, idIncapacidad: r.idIncapacidad, radicado: r.radicado, evidencia: r.evidencia ?? null } : null;
+    },
+    async descargarEvidencia(evidencia) {
+      const r = radicaciones.find((x) => x.evidencia === evidencia);
+      return { contenido: r.contenido, tipoMime: r.tipoMime };
     },
     async consultarDocumento(idDocumento) {
       const documento = documentos.find((d) => d.idDocumento === idDocumento);

@@ -1,6 +1,10 @@
 // Grupo `radicacion` del Control de incapacidades — DS-04 (CU-06).
-// Operaciones: prepararRadicacion (HU-09) con calcularPlazoRadicacion. registrarRadicacion llega con HU-10.
+// Operaciones: prepararRadicacion (HU-09) con calcularPlazoRadicacion, registrarRadicacion (HU-10)
+// y «ver evidencia».
+import { z } from 'zod';
 import { diasCalendario, hoyEnColombia, sumarIntervalo } from '../servicios/dias-habiles.js';
+import { TAMANO_MAXIMO_ARCHIVO, tipoDeArchivo } from './archivo.js';
+import { ErrorDeValidacion } from './error-de-validacion.js';
 import { esIdentificador } from './identificador.js';
 
 // «Por vencer» = 5 días calendario antes del vencimiento (DA-13).
@@ -80,6 +84,20 @@ export function calcularPlazoRadicacion(incapacidad, entidad, hoy) {
   };
 }
 
+// EST-01 (DA-01, DA-36): se radica desde «registrada» (sin estado) o, tras un rechazo, desde «rechazada».
+export const puedeRadicar = (estado) => estado == null || estado === 'rechazada';
+
+const NOMBRES_ESTADO = { transcrita: 'ya está radicada (transcrita)', cobrada: 'ya está cobrada', pagada: 'ya está pagada' };
+const mensajeEstado = (estado) =>
+  `La incapacidad ${NOMBRES_ESTADO[estado] ?? 'no admite una radicación'}: solo se radica una nueva tras un rechazo.`;
+
+export const LARGO_MAXIMO_RADICADO = 100;
+const numeroDeRadicado = z
+  .string({ error: 'Escriba el número de radicado.' })
+  .trim()
+  .min(1, 'Escriba el número de radicado.')
+  .max(LARGO_MAXIMO_RADICADO, `El número de radicado admite máximo ${LARGO_MAXIMO_RADICADO} caracteres.`);
+
 export function crearControlRadicacion({ baseDeDatos, hoy = hoyEnColombia }) {
   return {
     /**
@@ -101,7 +119,56 @@ export function crearControlRadicacion({ baseDeDatos, hoy = hoyEnColombia }) {
         hoy: fechaHoy,
         // DA-14: radicar sin la documentación verificada se advierte y se permite.
         sinVerificar: !incapacidad.archivadoDigital,
+        puedeRadicar: puedeRadicar(incapacidad.estado),
       };
+    },
+
+    /**
+     * DS-04: registrarRadicacion(radicado, evidencia) → guardarRadicacion — HU-10.
+     * Guarda el número de radicado y la evidencia (archivo PDF, JPG o PNG; P-D) y pone la incapacidad
+     * en «transcrita» (DA-01). Tras un rechazo se registra una nueva y vuelve a «transcrita» (HU-10.CA2).
+     * Las advertencias del plazo no bloquean (DA-14); el estado sí (DA-36).
+     * @param {{ radicado?: string, evidencia?: Buffer }} datos
+     * @returns {Promise<null | { idIncapacidad: number, idRadicacion: number }>} null si la incapacidad no existe.
+     * @throws {ErrorDeValidacion} datos no válidos, o el estado no admite radicar (`estado`).
+     */
+    async registrarRadicacion(idIncapacidad, datos, usuario) {
+      const actual = esIdentificador(idIncapacidad) ? await baseDeDatos.obtenerDatosRadicacion(Number(idIncapacidad)) : null;
+      if (!actual) return null;
+      if (!puedeRadicar(actual.estado)) throw new ErrorDeValidacion({ estado: mensajeEstado(actual.estado) });
+
+      const errores = {};
+      const radicado = numeroDeRadicado.safeParse(datos?.radicado);
+      if (!radicado.success) errores.radicado = radicado.error.issues[0].message;
+      const contenido = datos?.evidencia;
+      const tipoMime = Buffer.isBuffer(contenido) ? tipoDeArchivo(contenido) : null;
+      if (!Buffer.isBuffer(contenido) || contenido.length === 0) errores.evidencia = 'Adjunte la evidencia de la radicación.';
+      else if (contenido.length > TAMANO_MAXIMO_ARCHIVO) errores.evidencia = 'El archivo pesa más de 10 MB.';
+      else if (!tipoMime) errores.evidencia = 'La evidencia debe ser PDF, JPG o PNG.';
+      if (Object.keys(errores).length > 0) throw new ErrorDeValidacion(errores);
+
+      const idRadicacion = await baseDeDatos.guardarRadicacion(
+        actual.idIncapacidad,
+        { radicado: radicado.data, contenido, tipoMime },
+        usuario.id,
+      );
+      // Otro usuario la radicó entre la consulta y el registro: la transacción no la repitió.
+      if (idRadicacion == null) throw new ErrorDeValidacion({ estado: mensajeEstado('transcrita') });
+      return { idIncapacidad: actual.idIncapacidad, idRadicacion };
+    },
+
+    /** Datos de una radicación (sin el archivo), o null si no existe o no tiene evidencia. */
+    async obtenerRadicacion(idRadicacion) {
+      if (!esIdentificador(idRadicacion)) return null;
+      const radicacion = await baseDeDatos.consultarRadicacion(Number(idRadicacion));
+      return radicacion?.evidencia ? radicacion : null;
+    },
+
+    /** «Ver evidencia»: el archivo lo entrega el servidor, nunca el bucket al navegador (como DA-06). */
+    async verEvidencia(radicacion) {
+      const { contenido, tipoMime } = await baseDeDatos.descargarEvidencia(radicacion.evidencia);
+      const extension = radicacion.evidencia.split('.').pop();
+      return { contenido, tipoMime, nombre: `radicacion-${radicacion.idRadicacion}.${extension}` };
     },
   };
 }
