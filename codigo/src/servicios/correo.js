@@ -80,11 +80,15 @@ export function crearServicioCorreo({ transporte, remitente, destinatarios }) {
         ...lista(incapacidad.faltantes ?? []),
       ]),
 
-    // DS-07 → Coordinación
+    // DS-07 → Coordinación (HU-17.CA1). Con la fecha prometida y los días de demora cuando se conocen (DA-42),
+    // para que la Coordinación negocie el acuerdo de pago con la entidad.
     notificarRetraso: (incapacidad) =>
       enviar(destinatarios.coordinacion, `Retraso en el pago — incapacidad n.º ${incapacidad.idIncapacidad}`, [
         'El pago de esta incapacidad superó el tiempo informado por la entidad.',
         `Tiempo de pago informado: ${incapacidad.tiempoPago == null ? 'sin dato' : incapacidad.tiempoPago === 1 ? '1 día' : `${incapacidad.tiempoPago} días`}`,
+        ...(incapacidad.fechaPrometida ? [`Debía pagar a más tardar: ${incapacidad.fechaPrometida}`] : []),
+        ...(incapacidad.diasDemora ? [`Días de demora: ${incapacidad.diasDemora}`] : []),
+        'Si acuerdan con la entidad una fecha y un valor de pago, comuníquelos al auxiliar para registrarlos en SIGI.',
         '',
         ...resumen(incapacidad),
       ]),

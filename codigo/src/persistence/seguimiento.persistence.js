@@ -1,5 +1,6 @@
 // Grupo `seguimiento` de la Base de datos — DS-07 (CU-11).
-// Operaciones: consultarCobradas (HU-16.CA1), obtenerDatosSeguimiento (apoyo de la Vista), guardarSeguimiento (HU-16.CA3).
+// Operaciones: consultarCobradas (HU-16.CA1), obtenerDatosSeguimiento (apoyo de la Vista), guardarSeguimiento (HU-16.CA3)
+// y guardarAcuerdo (HU-17.CA2).
 import { randomUUID } from 'node:crypto';
 import { crearAlmacenDocumentos } from './almacen-documentos.js';
 import { BLOQUE } from './alertas.persistence.js';
@@ -15,7 +16,7 @@ export function crearPersistenciaSeguimiento(cliente, almacen = crearAlmacenDocu
   return {
     /**
      * DS-07: consultarCobradas() → las incapacidades cobradas que no se dieron de baja (DA-18), con la fecha de su
-     * último seguimiento. Se leen en bloques por el máximo de filas de la API (como consultarPlazos).
+     * último seguimiento y su último acuerdo de pago (HU-17). Se leen en bloques por el máximo de filas de la API (como consultarPlazos).
      */
     async consultarCobradas() {
       const filas = [];
@@ -26,13 +27,15 @@ export function crearPersistenciaSeguimiento(cliente, almacen = crearAlmacenDocu
             .from('incapacidad')
             .select(
               'id, tipo, fecha_inicio, dias_incapacidad, estado, decision, tiempo_pago, fecha_cobrada, ' +
-                'colaborador(nombre), entidad(nombre), seguimiento(creado_en)',
+                'colaborador(nombre), entidad(nombre), seguimiento(creado_en), acuerdo_pago(fecha, valor)',
             )
             .eq('estado', 'cobrada')
             .or('decision.is.null,decision.neq.dar_de_baja')
             .order('id')
             .order('creado_en', { referencedTable: 'seguimiento', ascending: false })
             .limit(1, { referencedTable: 'seguimiento' })
+            .order('id', { referencedTable: 'acuerdo_pago', ascending: false })
+            .limit(1, { referencedTable: 'acuerdo_pago' })
             .range(desde, desde + BLOQUE - 1),
         );
         if (bloque.length === 0) break;
@@ -50,6 +53,7 @@ export function crearPersistenciaSeguimiento(cliente, almacen = crearAlmacenDocu
         tiempoPago: f.tiempo_pago,
         fechaCobrada: f.fecha_cobrada,
         ultimoSeguimiento: f.seguimiento[0]?.creado_en ?? null,
+        ultimoAcuerdo: f.acuerdo_pago[0] ? { fecha: f.acuerdo_pago[0].fecha, valor: Number(f.acuerdo_pago[0].valor).toFixed(2) } : null,
       }));
     },
 
@@ -115,6 +119,23 @@ export function crearPersistenciaSeguimiento(cliente, almacen = crearAlmacenDocu
         await almacen.eliminar([evidencia]).catch(() => {});
         throw error;
       }
+    },
+
+    /**
+     * DS-07: guardarAcuerdo(acuerdo) — HU-17.CA2. Con `registrar_acuerdo`, solo si la incapacidad sigue cobrada y
+     * sin dar de baja (DA-42). `valor` como texto «1234567.50».
+     * @returns {Promise<number | null>} id del acuerdo; null si ya no estaba pendiente de pago.
+     */
+    async guardarAcuerdo(idIncapacidad, { fecha, valor }, creadoPor) {
+      const id = comprobar(
+        await cliente.rpc('registrar_acuerdo', {
+          p_incapacidad_id: idIncapacidad,
+          p_fecha: fecha,
+          p_valor: valor,
+          p_creado_por: creadoPor,
+        }),
+      );
+      return id == null ? null : Number(id);
     },
 
     /** Un seguimiento (sin el archivo), o null si no existe. */

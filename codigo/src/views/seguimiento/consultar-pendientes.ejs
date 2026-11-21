@@ -54,7 +54,10 @@
             <td><%= p.colaborador %><small><%= nombresTipo[p.tipo] ?? p.tipo %></small></td>
             <td><%= p.entidad %></td>
             <td class="fecha"><%= fechaBreve(p.fechaPrometida) %><small>Cobrada el <%= fechaBreve(p.fechaCobrada) %> · <%= dias(p.tiempoPago) %></small></td>
-            <td><span class="chip <%= clase %>"><%= texto %></span></td>
+            <td>
+              <span class="chip <%= clase %>"><%= texto %></span>
+              <% if (p.ultimoAcuerdo) { %><small>Acuerdo: <%= pesos(p.ultimoAcuerdo.valor) %> el <%= fechaBreve(p.ultimoAcuerdo.fecha) %></small><% } %>
+            </td>
             <td class="fecha">
               <% if (p.ultimoSeguimiento) { %><%= fechaBreve(p.ultimoSeguimiento) %><% } else { %><span class="tenue">Sin seguimiento</span><% } %>
               <% if (p.tocaSeguimiento) { %><small class="toca">Toca esta semana</small><% } %>

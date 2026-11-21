@@ -6,12 +6,19 @@
     seguimiento: '<path d="M4 6h16v10H8l-4 4zM8 10h8M8 13h5"/>',
     espera: '<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>',
     nueva: '<path d="M12 6v12M6 12h12"/>',
+    acuerdo: '<path d="M4 12.5l3.5-3.5 3 1.5 3-3 3.5 2.5L20 8M4 16h16"/>',
     pago: '<path d="M14.5 8.5c-.6-.9-1.6-1.4-2.7-1.4-1.6 0-2.8.9-2.8 2.2 0 3 5.8 1.6 5.8 4.6 0 1.3-1.3 2.3-3 2.3-1.2 0-2.3-.6-2.9-1.5M12 5v2M12 17v2"/>',
   };
   const dias = (n) => (n === 1 ? '1 día' : `${n} días`);
   const { incapacidad, demora } = seguimiento;
   const enlace = `/incapacidades/${incapacidad.idIncapacidad}/seguimiento`;
   const ultimo = incapacidad.seguimientos.at(-1);
+  // Seguimientos y acuerdos en el orden en que se registraron (HU-16, HU-17).
+  const eventos = [
+    ...incapacidad.seguimientos.map((s, i) => ({ tipo: 'seguimiento', instante: s.fecha, dato: s, ultimo: i === incapacidad.seguimientos.length - 1 })),
+    ...incapacidad.acuerdos.map((a, i) => ({ tipo: 'acuerdo', instante: a.registrado, dato: a, ultimo: i === incapacidad.acuerdos.length - 1 })),
+  ].sort((a, b) => a.instante.localeCompare(b.instante));
+  const ultimoAcuerdo = incapacidad.acuerdos.at(-1);
   const situacion = !demora
     ? null
     : demora.conDemora
@@ -26,10 +33,13 @@
 <div class="formulario">
   <% if (registrado && demora) { %>
     <% if (ultimo.diasDemora > 0) { %>
-      <p class="mensaje mensaje-aviso entra" role="status">Seguimiento registrado. <%= incapacidad.entidad %> lleva <%= dias(ultimo.diasDemora) %> de demora: prometió pagar a más tardar el <%= fechaLarga(demora.fechaPrometida) %>.</p>
+      <p class="mensaje mensaje-aviso entra" role="status">Seguimiento registrado. <%= incapacidad.entidad %> lleva <%= dias(ultimo.diasDemora) %> de demora: prometió pagar a más tardar el <%= fechaLarga(demora.fechaPrometida) %>. Se avisó del retraso por correo a la Coordinación de Administración de Personal.</p>
     <% } else { %>
       <p class="mensaje mensaje-ok entra" role="status">Seguimiento registrado. <%= incapacidad.entidad %> está dentro del plazo: pagaría a más tardar el <%= fechaLarga(demora.fechaPrometida) %>.</p>
     <% } %>
+  <% } %>
+  <% if (acuerdoRegistrado) { %>
+    <p class="mensaje mensaje-ok entra" role="status">Acuerdo registrado: <%= incapacidad.entidad %> pagará <%= pesos(ultimoAcuerdo.valor) %> el <%= fechaLarga(ultimoAcuerdo.fecha) %>.</p>
   <% } %>
   <% if (pagoRegistrado) { %>
     <p class="mensaje mensaje-ok entra" role="status">Pago registrado. La incapacidad quedó pagada y sale de los pendientes de pago.</p>
@@ -54,15 +64,25 @@
           </div>
         </li>
       <% } %>
-      <% incapacidad.seguimientos.forEach((s, i) => { %>
-        <li class="<%= registrado && i === incapacidad.seguimientos.length - 1 ? 'entra' : '' %>">
-          <span class="punto <%= s.diasDemora > 0 ? 'rechazo' : 'hecho' %>"><svg viewBox="0 0 24 24" aria-hidden="true"><%- ICONOS.seguimiento %></svg></span>
-          <div class="paso">
-            <p class="titulo"><b>Seguimiento</b> <span class="tenue"><%= fechaBreve(s.dia) %></span></p>
-            <p class="tenue"><%= s.diasDemora > 0 ? `Con ${dias(s.diasDemora)} de demora` : 'Dentro del plazo' %> · <a href="/seguimientos/<%= s.idSeguimiento %>/evidencia" target="_blank" rel="noopener">ver evidencia</a></p>
-          </div>
-        </li>
-      <% }) %>
+      <% for (const e of eventos) { %>
+        <% if (e.tipo === 'seguimiento') { const s = e.dato; %>
+          <li class="<%= registrado && e.ultimo ? 'entra' : '' %>">
+            <span class="punto <%= s.diasDemora > 0 ? 'rechazo' : 'hecho' %>"><svg viewBox="0 0 24 24" aria-hidden="true"><%- ICONOS.seguimiento %></svg></span>
+            <div class="paso">
+              <p class="titulo"><b>Seguimiento</b> <span class="tenue"><%= fechaBreve(s.dia) %></span></p>
+              <p class="tenue"><%= s.diasDemora > 0 ? `Con ${dias(s.diasDemora)} de demora · aviso a la Coordinación` : 'Dentro del plazo' %> · <a href="/seguimientos/<%= s.idSeguimiento %>/evidencia" target="_blank" rel="noopener">ver evidencia</a></p>
+            </div>
+          </li>
+        <% } else { const a = e.dato; %>
+          <li class="<%= acuerdoRegistrado && e.ultimo ? 'entra' : '' %>">
+            <span class="punto hecho"><svg viewBox="0 0 24 24" aria-hidden="true"><%- ICONOS.acuerdo %></svg></span>
+            <div class="paso">
+              <p class="titulo"><b>Acuerdo de pago · <span class="cifra"><%= pesos(a.valor) %></span></b> <span class="tenue"><%= fechaBreve(fechaEnColombia(a.registrado)) %></span></p>
+              <p class="tenue">La entidad se comprometió a pagar el <%= fechaBreve(a.fecha) %></p>
+            </div>
+          </li>
+        <% } %>
+      <% } %>
 
       <% if (seguimiento.pendiente) { %>
         <li>
@@ -74,6 +94,9 @@
             <nav class="segmento" aria-label="Respuesta de la entidad">
               <a href="<%= enlace %>" data-respuesta="seguimiento"<%- accion === 'seguimiento' ? ' aria-current="true"' : '' %>><svg viewBox="0 0 24 24" aria-hidden="true"><%- ICONOS.espera %></svg>Sigue pendiente</a>
               <a href="<%= enlace %>?accion=pago" data-respuesta="pago"<%- accion === 'pago' ? ' aria-current="true"' : '' %>><svg viewBox="0 0 24 24" aria-hidden="true"><%- ICONOS.pago %></svg>Ya pagó</a>
+              <% if (seguimiento.puedeRegistrarAcuerdo) { %>
+                <a href="<%= enlace %>?accion=acuerdo" data-respuesta="acuerdo"<%- accion === 'acuerdo' ? ' aria-current="true"' : '' %>><svg viewBox="0 0 24 24" aria-hidden="true"><%- ICONOS.acuerdo %></svg>Acuerdo de pago</a>
+              <% } %>
             </nav>
 
             <form class="radicar" method="post" action="<%= enlace %>" enctype="multipart/form-data" novalidate data-un-envio data-panel-respuesta="seguimiento"<%- accion === 'seguimiento' ? '' : ' hidden' %>>
@@ -85,6 +108,29 @@
               <p class="ayuda">Al registrarlo, SIGI compara hoy con la fecha prometida y le dice si hay demora.</p>
               <div class="acciones"><button class="boton" data-enviando="Registrando…">Registrar seguimiento</button></div>
             </form>
+
+            <% if (seguimiento.puedeRegistrarAcuerdo) { %>
+              <%# HU-17.CA2 (DA-42): la fecha y el valor que la Coordinación acordó con la entidad. %>
+              <form class="radicar pago" method="post" action="/incapacidades/<%= incapacidad.idIncapacidad %>/acuerdo" novalidate data-un-envio data-panel-respuesta="acuerdo"<%- accion === 'acuerdo' ? '' : ' hidden' %>>
+                <p class="ayuda">Lo que la Coordinación acordó con <%= incapacidad.entidad %> tras el aviso de retraso.</p>
+                <div class="campos dos">
+                  <div class="campo <%= errores.fechaAcuerdo ? 'invalido' : '' %>">
+                    <label for="fechaAcuerdo">Pagará el</label>
+                    <input id="fechaAcuerdo" name="fecha" type="date" value="<%= valores.fechaAcuerdo ?? '' %>" min="<%= incapacidad.fechaCobrada %>" max="<%= sumarIntervalo(seguimiento.hoy, { dias: acuerdoDiasMaximo }) %>" required aria-describedby="<%= errores.fechaAcuerdo ? 'error-fecha-acuerdo' : 'ayuda-fecha-acuerdo' %>"<%- errores.fechaAcuerdo ? ' aria-invalid="true" autofocus' : '' %>>
+                    <% if (errores.fechaAcuerdo) { %><span class="error" id="error-fecha-acuerdo"><%= errores.fechaAcuerdo %></span><% } else { %><span class="ayuda" id="ayuda-fecha-acuerdo">La fecha que prometió la entidad en el acuerdo.</span><% } %>
+                  </div>
+                  <div class="campo <%= errores.valorAcuerdo ? 'invalido' : '' %>">
+                    <label for="valorAcuerdo">Valor acordado (pesos)</label>
+                    <div class="con-prefijo">
+                      <span aria-hidden="true">$</span>
+                      <input id="valorAcuerdo" name="valor" type="text" inputmode="decimal" maxlength="20" value="<%= valores.valorAcuerdo ?? '' %>" autocomplete="off" required data-pesos aria-describedby="<%= errores.valorAcuerdo ? 'error-valor-acuerdo' : 'ayuda-valor-acuerdo' %>"<%- errores.valorAcuerdo && !errores.fechaAcuerdo ? ' aria-invalid="true" autofocus' : (errores.valorAcuerdo ? ' aria-invalid="true"' : '') %>>
+                    </div>
+                    <% if (errores.valorAcuerdo) { %><span class="error" id="error-valor-acuerdo"><%= errores.valorAcuerdo %></span><% } else { %><span class="ayuda" id="ayuda-valor-acuerdo">Por ejemplo 1.250.000.</span><% } %>
+                  </div>
+                </div>
+                <div class="acciones"><button class="boton" data-enviando="Registrando…">Registrar el acuerdo</button></div>
+              </form>
+            <% } %>
 
             <div data-panel-respuesta="pago"<%- accion === 'pago' ? '' : ' hidden' %>>
               <%- include('../cobro/_formulario-pago', { idIncapacidad: incapacidad.idIncapacidad, hoy: seguimiento.hoy, fechaInicio: incapacidad.fechaInicio, origen: 'seguimiento', errores: {}, valores: {} }) %>

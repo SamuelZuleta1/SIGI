@@ -223,6 +223,7 @@ export function crearBaseDeDatosFalsa() {
           tiempoPago: i.tiempoPago,
           fechaCobrada: i.fechaCobrada,
           ultimoSeguimiento: seguimientos.filter((s) => s.idIncapacidad === i.idIncapacidad).at(-1)?.fecha ?? null,
+          ultimoAcuerdo: (({ fecha, valor } = {}) => (fecha ? { fecha, valor } : null))(acuerdos.filter((a) => a.idIncapacidad === i.idIncapacidad).at(-1)),
         }));
     },
     async obtenerDatosSeguimiento(idIncapacidad) {
@@ -262,6 +263,14 @@ export function crearBaseDeDatosFalsa() {
         fecha: this.fechaSeguimiento ?? '2026-11-21T15:00:00.000Z',
       });
       return idSeguimiento;
+    },
+    // Como registrar_acuerdo: solo cobrada y sin dar de baja.
+    async guardarAcuerdo(idIncapacidad, { fecha, valor }, creadoPor) {
+      const incapacidad = incapacidades.find((i) => i.idIncapacidad === idIncapacidad);
+      if (incapacidad?.estado !== 'cobrada' || incapacidad.decision === 'dar_de_baja') return null;
+      const idAcuerdo = acuerdos.length + 1;
+      acuerdos.push({ idAcuerdo, idIncapacidad, fecha, valor, creadoPor, registrado: this.fechaSeguimiento ?? '2026-11-21T16:00:00.000Z' });
+      return idAcuerdo;
     },
     async consultarSeguimiento(idSeguimiento) {
       const s = seguimientos.find((x) => x.idSeguimiento === idSeguimiento);

@@ -1,10 +1,10 @@
 // Grupo `seguimiento` del Control de incapacidades — DS-07 (CU-11).
 // Operaciones: consultarPendientesDePago → obtenerPendientes (HU-16.CA1), prepararSeguimiento (apoyo de la Vista),
-// registrarSeguimiento con evaluarDemora (HU-16.CA3). El pago que se conoce en el seguimiento usa
-// cobro.registrarPago (HU-16.CA2, HU-15.CA2).
-import { diasCalendario, fechaEnColombia, hoyEnColombia } from '../servicios/dias-habiles.js';
+// registrarSeguimiento con evaluarDemora (HU-16.CA3) y notificarRetraso (HU-17.CA1), registrarAcuerdo (HU-17.CA2).
+// El pago que se conoce en el seguimiento usa cobro.registrarPago (HU-16.CA2, HU-15.CA2).
+import { diasCalendario, fechaBreve, fechaEnColombia, hoyEnColombia, sumarIntervalo } from '../servicios/dias-habiles.js';
 import { leerEvidencia } from './archivo.js';
-import { fechaPrometida } from './cobro.controller.js';
+import { fechaPrometida, leerValor } from './cobro.controller.js';
 import { ErrorDeValidacion } from './error-de-validacion.js';
 import { esIdentificador } from './identificador.js';
 
@@ -46,6 +46,28 @@ export const FILTROS_PENDIENTES = Object.freeze({
   semana: (p) => p.tocaSeguimiento,
 });
 
+// DA-42: el acuerdo es una fecha de pago futura o reciente; hasta un año desde hoy.
+export const ACUERDO_DIAS_MAXIMO = 365;
+
+const esFechaValida = (valor) => {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(valor) || valor < '0001-01-01') return false;
+  const fecha = new Date(`${valor}T00:00:00Z`);
+  return !Number.isNaN(fecha.getTime()) && fecha.toISOString().startsWith(valor);
+};
+
+/**
+ * Valida la fecha del acuerdo de pago (DA-42): no anterior a la fecha en que quedó cobrada ni más de un año después de hoy.
+ * @returns {{ valor?: string, error?: string }}
+ */
+export function leerFechaAcuerdo(texto, { hoy, fechaCobrada }) {
+  const limpio = typeof texto === 'string' ? texto.trim() : '';
+  if (limpio === '') return { error: 'Escriba la fecha en que la entidad se comprometió a pagar.' };
+  if (!esFechaValida(limpio)) return { error: 'Escriba una fecha válida (día, mes y año).' };
+  if (limpio < fechaCobrada) return { error: `La fecha no puede ser anterior a la aprobación del cobro (${fechaBreve(fechaCobrada)}).` };
+  if (limpio > sumarIntervalo(hoy, { dias: ACUERDO_DIAS_MAXIMO })) return { error: 'La fecha no puede ser más de un año después de hoy.' };
+  return { valor: limpio };
+}
+
 const MENSAJES_ESTADO = {
   null: 'La incapacidad aún no se ha radicado: no tiene cobro que seguir.',
   transcrita: 'La entidad aún no ha aprobado la incapacidad: regístrela como cobrada antes del seguimiento.',
@@ -57,7 +79,7 @@ const mensajeEstado = (incapacidad) =>
     ? 'Cartera y Jurídica dio de baja esta acreencia: ya no tiene seguimiento.'
     : (MENSAJES_ESTADO[incapacidad?.estado ?? 'null'] ?? 'La incapacidad no admite seguimiento.');
 
-export function crearControlSeguimiento({ baseDeDatos, hoy = hoyEnColombia }) {
+export function crearControlSeguimiento({ baseDeDatos, correo, hoy = hoyEnColombia }) {
   return {
     /**
      * DS-07: consultarPendientesDePago → obtenerPendientes → consultarCobradas — HU-16.CA1. Las cobradas sin las
@@ -105,6 +127,8 @@ export function crearControlSeguimiento({ baseDeDatos, hoy = hoyEnColombia }) {
         hoy: fecha,
         pendiente,
         demora: cobrada ? evaluarDemora(incapacidad, fecha) : null,
+        // DS-07 (opt): el acuerdo se registra cuando el pago supera el tiempo prometido (DA-42).
+        puedeRegistrarAcuerdo: pendiente && cobrada && evaluarDemora(incapacidad, fecha).conDemora,
         tocaSeguimiento: pendiente && tocaSeguimiento(seguimientos.at(-1)?.dia ?? null, incapacidad.fechaCobrada, fecha),
         mensajeEstado: pendiente ? null : mensajeEstado(incapacidad),
       };
@@ -127,6 +151,12 @@ export function crearControlSeguimiento({ baseDeDatos, hoy = hoyEnColombia }) {
       const evidencia = leerEvidencia(datos?.evidencia, 'Adjunte la evidencia de la gestión (correo, pantallazo o respuesta de la entidad).');
       if (evidencia.error) throw new ErrorDeValidacion({ evidencia: evidencia.error });
 
+      // DS-07 evaluarDemora → opt [el pago supera el tiempo prometido] → notificarRetraso (HU-17.CA1). Como los demás
+      // avisos (DA-31, HU-08), primero el correo y después el registro: si el correo falla, no queda un seguimiento
+      // «con demora» sin aviso y el auxiliar puede intentarlo de nuevo (DA-42).
+      const demora = evaluarDemora(actual, hoy());
+      if (demora.conDemora) await correo.notificarRetraso({ ...actual, fechaPrometida: demora.fechaPrometida, diasDemora: demora.diasDemora });
+
       const idSeguimiento = await baseDeDatos.guardarSeguimiento(
         actual.idIncapacidad,
         { contenido: datos.evidencia, tipoMime: evidencia.tipoMime },
@@ -137,8 +167,43 @@ export function crearControlSeguimiento({ baseDeDatos, hoy = hoyEnColombia }) {
         const ahora = await baseDeDatos.obtenerDatosSeguimiento(actual.idIncapacidad);
         throw new ErrorDeValidacion({ estado: mensajeEstado(ahora ?? actual) });
       }
-      const demora = evaluarDemora(actual, hoy());
-      return { idIncapacidad: actual.idIncapacidad, idSeguimiento, demora };
+      return { idIncapacidad: actual.idIncapacidad, idSeguimiento, demora, avisoRetraso: demora.conDemora };
+    },
+
+    /**
+     * DS-07: registrarAcuerdo(acuerdo) → guardarAcuerdo(acuerdo) — HU-17.CA2. La fecha y el valor que la Coordinación
+     * acordó con la entidad. Solo con la incapacidad pendiente de pago y en demora (DA-42).
+     * @param {{ fecha?: string, valor?: string }} datos
+     * @param {{ id: string }} usuario
+     * @returns {Promise<null | { idIncapacidad: number, idAcuerdo: number }>} null si la incapacidad no existe.
+     * @throws {ErrorDeValidacion} fecha o valor no válidos, o no admite acuerdo (`estado`).
+     */
+    async registrarAcuerdo(idIncapacidad, datos, usuario) {
+      const actual = esIdentificador(idIncapacidad) ? await baseDeDatos.obtenerDatosSeguimiento(Number(idIncapacidad)) : null;
+      if (!actual) return null;
+      if (!estaPendienteDePago(actual)) throw new ErrorDeValidacion({ estado: mensajeEstado(actual) });
+      const fecha = hoy();
+      const demora = evaluarDemora(actual, fecha);
+      if (!demora.conDemora) {
+        throw new ErrorDeValidacion({
+          estado: `La entidad aún está dentro del plazo (hasta el ${fechaBreve(demora.fechaPrometida)}): el acuerdo se registra cuando hay demora.`,
+        });
+      }
+
+      const fechaAcuerdo = leerFechaAcuerdo(datos?.fecha, { hoy: fecha, fechaCobrada: actual.fechaCobrada });
+      const valor = leerValor(datos?.valor);
+      const errores = {};
+      if (fechaAcuerdo.error) errores.fechaAcuerdo = fechaAcuerdo.error;
+      if (valor.error) errores.valorAcuerdo = valor.error;
+      if (Object.keys(errores).length) throw new ErrorDeValidacion(errores);
+
+      const idAcuerdo = await baseDeDatos.guardarAcuerdo(actual.idIncapacidad, { fecha: fechaAcuerdo.valor, valor: valor.valor }, usuario.id);
+      // Otro usuario registró el pago (o la baja) entre la consulta y el registro: la transacción no lo guardó.
+      if (idAcuerdo == null) {
+        const ahora = await baseDeDatos.obtenerDatosSeguimiento(actual.idIncapacidad);
+        throw new ErrorDeValidacion({ estado: mensajeEstado(ahora ?? actual) });
+      }
+      return { idIncapacidad: actual.idIncapacidad, idAcuerdo };
     },
 
     /** Datos de un seguimiento (sin el archivo), o null si no existe. */
