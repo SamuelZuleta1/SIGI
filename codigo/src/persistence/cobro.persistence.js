@@ -1,6 +1,6 @@
 // Grupo `cobro` de la Base de datos — DS-06 (CU-10).
 // Operaciones: obtenerDatosCobro (apoyo de la Vista), guardarEstado(cobrada, tiempoPago) (HU-13)
-// y guardarRechazo(causal) (HU-14).
+// guardarRechazo(causal) (HU-14) y guardarPago(valor, fechaPago) (HU-15).
 
 const comprobar = ({ data, error }) => {
   if (error) throw error;
@@ -10,8 +10,8 @@ const comprobar = ({ data, error }) => {
 export function crearPersistenciaCobro(cliente) {
   return {
     /**
-     * La incapacidad con su colaborador, el nombre de la entidad, los datos del cobro y sus radicaciones,
-     * de la más antigua a la más reciente (la línea de tiempo del cobro sigue a la de la radicación).
+     * La incapacidad con su colaborador, el nombre de la entidad, los datos del cobro, sus radicaciones y
+     * sus pagos, de lo más antiguo a lo más reciente (la línea de tiempo del cobro sigue a la de la radicación).
      * null si no existe.
      */
     async obtenerDatosCobro(idIncapacidad) {
@@ -20,10 +20,12 @@ export function crearPersistenciaCobro(cliente) {
           .from('incapacidad')
           .select(
             'id, tipo, fecha_inicio, dias_incapacidad, estado, causal_rechazo, fecha_rechazo, tiempo_pago, fecha_cobrada, ' +
-              'colaborador(nombre), entidad(nombre), radicacion(id, radicado, evidencia, creado_en)',
+              'colaborador(nombre), entidad(nombre), radicacion(id, radicado, evidencia, creado_en), ' +
+              'pago(id, valor, fecha_pago)',
           )
           .eq('id', idIncapacidad)
           .order('id', { referencedTable: 'radicacion' })
+          .order('id', { referencedTable: 'pago' })
           .maybeSingle(),
       );
       if (!fila) return null;
@@ -45,6 +47,8 @@ export function crearPersistenciaCobro(cliente) {
           conEvidencia: Boolean(r.evidencia),
           fecha: r.creado_en,
         })),
+        // numeric llega como número en el JSON; se pasa a texto con dos decimales para no perder centavos.
+        pagos: fila.pago.map((p) => ({ idPago: p.id, valor: Number(p.valor).toFixed(2), fechaPago: p.fecha_pago })),
       };
     },
 
@@ -80,6 +84,24 @@ export function crearPersistenciaCobro(cliente) {
           .select('id'),
       );
       return filas.length === 1;
+    },
+
+    /**
+     * DS-06/07/08: guardarPago(valor, fechaPago) — HU-15. En una transacción (`registrar_pago`) pone
+     * `estado = pagada` y guarda el pago, solo si estaba cobrada o pagada (DA-08, DA-40).
+     * @param {{ valor: string, fechaPago: string }} pago valor como texto «1234567.50».
+     * @returns {Promise<number | null>} id del pago; null si el estado ya no lo permitía.
+     */
+    async guardarPago(idIncapacidad, { valor, fechaPago }, creadoPor) {
+      const id = comprobar(
+        await cliente.rpc('registrar_pago', {
+          p_incapacidad_id: idIncapacidad,
+          p_valor: valor,
+          p_fecha_pago: fechaPago,
+          p_creado_por: creadoPor,
+        }),
+      );
+      return id == null ? null : Number(id);
     },
   };
 }

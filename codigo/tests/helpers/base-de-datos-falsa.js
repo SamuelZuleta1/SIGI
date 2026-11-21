@@ -31,8 +31,10 @@ export function crearBaseDeDatosFalsa() {
   const documentos = [];
   const reemplazos = []; // máximo uno por incapacidad, como el índice único de la tabla
   const radicaciones = [];
+  const pagos = [];
   return {
     radicaciones,
+    pagos,
     colaboradores,
     incapacidades,
     documentos,
@@ -173,7 +175,19 @@ export function crearBaseDeDatosFalsa() {
         radicaciones: radicaciones
           .filter((r) => r.idIncapacidad === idIncapacidad)
           .map(({ idRadicacion, radicado, evidencia, fecha }) => ({ idRadicacion, radicado, conEvidencia: Boolean(evidencia), fecha })),
+        pagos: pagos
+          .filter((p) => p.idIncapacidad === idIncapacidad)
+          .map(({ idPago, valor, fechaPago }) => ({ idPago, valor, fechaPago })),
       };
+    },
+    // Como registrar_pago: solo desde cobrada o pagada; guarda el pago y pone pagada (DA-08).
+    async guardarPago(idIncapacidad, { valor, fechaPago }, creadoPor) {
+      const incapacidad = incapacidades.find((i) => i.idIncapacidad === idIncapacidad);
+      if (!incapacidad || !['cobrada', 'pagada'].includes(incapacidad.estado)) return null;
+      const idPago = pagos.length + 1;
+      pagos.push({ idPago, idIncapacidad, valor, fechaPago, conciliado: false, creadoPor });
+      incapacidad.estado = 'pagada';
+      return idPago;
     },
     // Como el UPDATE condicionado de guardarCobrada: solo desde transcrita.
     async guardarCobrada(idIncapacidad, { tiempoPago, fechaCobrada }) {

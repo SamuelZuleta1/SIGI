@@ -58,7 +58,8 @@ for (const boton of document.querySelectorAll('[data-contar-faltantes]')) {
   formulario.addEventListener('change', contar);
 }
 
-// Formularios que envían un correo: tras el primer envío el botón se bloquea para no mandarlo dos veces.
+// Formularios que no deben enviarse dos veces (un correo, o un pago que se sumaría dos veces, DA-08):
+// tras el primer envío el botón se bloquea.
 // Solo el botón que envía (no «Añadir», que recarga la página por GET).
 for (const formulario of document.querySelectorAll('form[data-un-envio]')) {
   formulario.addEventListener('submit', (evento) => {
@@ -144,4 +145,17 @@ for (const contador of document.querySelectorAll('[data-contador]')) {
   campo.addEventListener('input', pintar);
   contador.hidden = false;
   pintar();
+}
+
+// Valor del pago (HU-15, DA-40): al salir del campo se escriben los puntos de miles (1250000 → 1.250.000).
+// Solo si lo escrito es un número que el servidor también acepta; si no, se deja como está y el servidor lo explica.
+for (const campo of document.querySelectorAll('input[data-pesos]')) {
+  campo.addEventListener('blur', () => {
+    const limpio = campo.value.replace(/[\s $]/g, '');
+    const sinMiles = /^\d{1,3}(\.\d{3})+(,\d{1,2})?$/.test(limpio) ? limpio.replace(/\./g, '') : limpio;
+    const partes = /^(\d{1,12})(,\d{1,2})?$/.exec(sinMiles);
+    if (!partes) return;
+    const enteros = partes[1].replace(/^0+(?=\d)/, '').replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+    campo.value = enteros + (partes[2] ?? '');
+  });
 }

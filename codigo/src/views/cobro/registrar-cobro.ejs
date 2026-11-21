@@ -4,6 +4,7 @@
     rechazo: '<path d="M7 7l10 10M17 7L7 17"/>',
     nueva: '<path d="M12 6v12M6 12h12"/>',
     espera: '<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>',
+    pago: '<path d="M14.5 8.5c-.6-.9-1.6-1.4-2.7-1.4-1.6 0-2.8.9-2.8 2.2 0 3 5.8 1.6 5.8 4.6 0 1.3-1.3 2.3-3 2.3-1.2 0-2.3-.6-2.9-1.5M12 5v2M12 17v2"/>',
   };
   const dias = (n) => (n === 1 ? '1 día' : `${n} días`);
 %>
@@ -38,6 +39,9 @@
   <div class="formulario">
     <% if (rechazoRegistrado) { %>
       <p class="mensaje mensaje-aviso entra" role="status">Rechazo registrado. Causal: <%= incapacidad.causalRechazo %></p>
+    <% } %>
+    <% if (pagoRegistrado) { const ultimo = incapacidad.pagos[incapacidad.pagos.length - 1]; %>
+      <p class="mensaje mensaje-ok entra" role="status">Pago registrado: <%= pesos(ultimo.valor) %> del <%= fechaLarga(ultimo.fechaPago) %>. La incapacidad quedó pagada.</p>
     <% } %>
     <% if (registrada) { %>
       <p class="mensaje mensaje-ok entra" role="status">Incapacidad registrada como cobrada. Tiempo de pago: <%= dias(incapacidad.tiempoPago) %>, a más tardar el <%= fechaLarga(cobro.fechaPrometida) %>.</p>
@@ -125,22 +129,48 @@
               <p class="tenue">Tiempo de pago: <%= dias(incapacidad.tiempoPago) %> · a más tardar el <%= fechaBreve(cobro.fechaPrometida) %></p>
             </div>
           </li>
-          <li class="<%= registrada ? 'entra' : '' %>">
-            <% if (estado === 'pagada') { %>
-              <span class="punto hecho"><svg viewBox="0 0 24 24" aria-hidden="true"><%- ICONOS.hecho %></svg></span>
+          <%# HU-15 (DA-08, DA-40): cada pago es un paso; con estado «cobrada» el último paso es el formulario del pago
+              y, ya pagada, se pueden registrar más pagos desde un desplegable. %>
+          <% incapacidad.pagos.forEach((p, i) => { %>
+            <li class="<%= pagoRegistrado && i === incapacidad.pagos.length - 1 ? 'entra' : '' %>">
+              <span class="punto hecho"><svg viewBox="0 0 24 24" aria-hidden="true"><%- ICONOS.pago %></svg></span>
+              <div class="paso">
+                <p class="titulo"><b><%= i === 0 ? 'Pagada' : 'Otro pago' %> · <span class="cifra"><%= pesos(p.valor) %></span></b> <span class="tenue"><%= fechaBreve(p.fechaPago) %></span></p>
+                <% if (i === 0) { %><p class="tenue">Pasó a «pagada»</p><% } %>
+              </div>
+            </li>
+          <% }) %>
+          <% if (cobro.puedeRegistrarPago) {
+            const datosFormulario = { idIncapacidad: incapacidad.idIncapacidad, hoy: cobro.hoy, fechaInicio: incapacidad.fechaInicio, origen, errores, valores };
+            const conErrorPago = Boolean(errores.valor || errores.fechaPago);
+          %>
+            <% if (estado === 'cobrada') { %>
+              <li class="<%= registrada ? 'entra' : '' %>">
+                <span class="punto actual"><svg viewBox="0 0 24 24" aria-hidden="true"><%- ICONOS.espera %></svg></span>
+                <div class="paso">
+                  <p class="titulo"><b>Esperando el pago</b></p>
+                  <p class="tenue">Cuando <%= incapacidad.entidad %> pague, registre el valor y la fecha. El seguimiento semanal revisa si pasa de la fecha prometida.</p>
+                  <% if (errores.estado) { %><p class="mensaje mensaje-error separado" role="alert"><%= errores.estado %></p><% } %>
+                  <%- include('_formulario-pago', datosFormulario) %>
+                </div>
+              </li>
             <% } else { %>
-              <span class="punto"><svg viewBox="0 0 24 24" aria-hidden="true"><%- ICONOS.espera %></svg></span>
+              <li>
+                <span class="punto"><svg viewBox="0 0 24 24" aria-hidden="true"><%- ICONOS.nueva %></svg></span>
+                <div class="paso">
+                  <% if (incapacidad.pagos.length > 1) { %>
+                    <p class="titulo"><b>Total pagado · <span class="cifra"><%= pesos(cobro.totalPagado) %></span></b> <span class="tenue"><%= incapacidad.pagos.length %> pagos</span></p>
+                  <% } %>
+                  <% if (errores.estado) { %><p class="mensaje mensaje-error separado" role="alert"><%= errores.estado %></p><% } %>
+                  <details class="otro-pago"<%- conErrorPago ? ' open' : '' %>>
+                    <summary>Registrar otro pago</summary>
+                    <p class="tenue">Si la entidad pagó por partes, registre aquí cada consignación.</p>
+                    <%- include('_formulario-pago', datosFormulario) %>
+                  </details>
+                </div>
+              </li>
             <% } %>
-            <div class="paso">
-              <% if (estado === 'pagada') { %>
-                <p class="titulo"><b>Pagada</b></p>
-              <% } else { %>
-                <p class="titulo"><b>Esperando el pago</b></p>
-                <p class="tenue">El seguimiento semanal revisa si la entidad pasa de la fecha prometida.</p>
-              <% } %>
-              <% if (errores.estado) { %><p class="mensaje mensaje-error" role="alert"><%= errores.estado %></p><% } %>
-            </div>
-          </li>
+          <% } %>
         <% } else { %>
           <li class="<%= rechazoRegistrado ? 'entra' : '' %>">
             <span class="punto"><svg viewBox="0 0 24 24" aria-hidden="true"><%- ICONOS.espera %></svg></span>

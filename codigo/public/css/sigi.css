@@ -540,6 +540,28 @@ input[type='file']::file-selector-button {
 .contador { justify-self: end; font-size: 0.74rem; color: var(--tenue); font-variant-numeric: tabular-nums; }
 .contador[hidden] { display: none; }
 
+/* ---------- registrar el pago (HU-15): último paso de la línea de tiempo del cobro (DA-40) ---------- */
+.pago .campos.dos { grid-template-columns: repeat(2, minmax(0, 15rem)); }
+@media (max-width: 560px) { .pago .campos.dos { grid-template-columns: 1fr; } }
+.con-prefijo { position: relative; display: flex; align-items: center; }
+.con-prefijo > span { position: absolute; left: 11px; color: var(--tenue); font-size: 0.86rem; pointer-events: none; }
+.campo .con-prefijo input { width: 100%; padding-left: 24px; font-variant-numeric: tabular-nums; }
+.cifra { font-variant-numeric: tabular-nums; }
+.otro-pago { margin-top: 6px; }
+.otro-pago summary {
+  display: inline-flex; align-items: center; gap: 6px; width: fit-content; height: 30px; padding: 0 10px;
+  border: 1px solid var(--borde); border-radius: 99px; color: var(--acento); font-size: 0.82rem; font-weight: 500;
+  cursor: pointer; list-style: none;
+  transition: background-color 0.15s ease, border-color 0.15s ease, transform 0.14s var(--ease);
+}
+.otro-pago summary::-webkit-details-marker { display: none; }
+.otro-pago summary::before { content: '+'; font-weight: 600; }
+.otro-pago[open] summary::before { content: '−'; }
+.otro-pago summary:active { transform: scale(0.97); }
+@media (hover: hover) { .otro-pago summary:hover { background: var(--info-f); border-color: transparent; } }
+.otro-pago > p { margin-top: 8px; }
+.otro-pago[open] > .radicar { animation: entra 0.26s var(--ease); }
+
 .mensaje { margin: 0; padding: 9px 12px; border-radius: var(--radio); font-size: 0.84rem; font-weight: 500; }
 .mensaje-error { color: var(--mal); background: var(--mal-f); }
 .mensaje-aviso { color: var(--aviso); background: var(--aviso-f); }
@@ -552,5 +574,7 @@ input[type='file']::file-selector-button {
   .barra .usado { animation: none; }
   .atajos button:active { transform: none; }
   .segmento a:active { transform: none; }
+  .otro-pago summary:active { transform: none; }
+  .otro-pago[open] > .radicar { animation: none; }
   @keyframes aparece { from { opacity: 0; } }
 }

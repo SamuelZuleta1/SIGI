@@ -1,6 +1,7 @@
 // Grupo `cobro` de la Interfaz de incapacidades — DS-06 (CU-10).
-// Operaciones de la Vista: registrarCobrada (HU-13) y registrarRechazo (HU-14).
-// Diseño: opción B «línea de tiempo del cobro» (DA-38); la respuesta de la entidad, segmento «Aprobó / Rechazó» (DA-39).
+// Operaciones de la Vista: registrarCobrada (HU-13), registrarRechazo (HU-14) y registrarPago (HU-15).
+// Diseño: opción B «línea de tiempo del cobro» (DA-38); la respuesta de la entidad, segmento «Aprobó / Rechazó» (DA-39);
+// el pago, último paso de la misma línea de tiempo (DA-40).
 import { Router } from 'express';
 import {
   CAUSAL_MAXIMO,
@@ -13,6 +14,14 @@ import { ErrorDeValidacion } from '../controllers/error-de-validacion.js';
 import { permitir } from '../middleware/autenticacion.js';
 import { NOMBRES_ESTADO_INCAPACIDAD, NOMBRES_TIPO_INCAPACIDAD } from '../models/incapacidad.model.js';
 import { fechaBreve, fechaEnColombia, fechaLarga } from '../servicios/dias-habiles.js';
+import { pesos } from '../servicios/moneda.js';
+
+// HU-15.CA2: el pago se registra con la misma operación desde el cobro, el seguimiento (HU-16) y el cobro
+// jurídico (HU-19). `origen` (lista cerrada) solo decide a qué pantalla se vuelve tras registrarlo.
+export const ORIGENES_PAGO = Object.freeze({
+  cobro: (id) => `/incapacidades/${id}/cobro?pagado=1`,
+});
+const leerOrigen = (valor) => (Object.hasOwn(ORIGENES_PAGO, valor) ? valor : 'cobro');
 
 export function crearRutasCobro({ control }) {
   const rutas = Router();
@@ -27,6 +36,9 @@ export function crearRutasCobro({ control }) {
       valores: {},
       registrada: false,
       rechazoRegistrado: false,
+      pagoRegistrado: false,
+      origen: 'cobro',
+      pesos,
       respuesta: 'aprobo',
       causalMinimo: CAUSAL_MINIMO,
       causalMaximo: CAUSAL_MAXIMO,
@@ -64,6 +76,7 @@ export function crearRutasCobro({ control }) {
       respuesta: req.query.respuesta === 'rechazo' ? 'rechazo' : 'aprobo',
       registrada: req.query.registrada === '1' && cobro.fechaPrometida != null,
       rechazoRegistrado: req.query.rechazada === '1' && cobro.incapacidad.estado === 'rechazada',
+      pagoRegistrado: req.query.pagado === '1' && cobro.incapacidad.estado === 'pagada' && cobro.incapacidad.pagos.length > 0,
     });
   });
 
@@ -100,6 +113,30 @@ export function crearRutasCobro({ control }) {
         respuesta: 'rechazo',
         errores: error.errores,
         valores: { causal: causal.trim().slice(0, CAUSAL_MAXIMO * 2) },
+      });
+    }
+  });
+
+  // registrarPago(idIncapacidad, valor, fechaPago) — HU-15 (DA-16). Datos no válidos: 400; el estado no es cobrada ni
+  // pagada: 409. Si falla, se muestra en la línea de tiempo del cobro con lo escrito y el origen, para volver a él.
+  rutas.post('/incapacidades/:id/pago', permitir('registrarPago'), async (req, res) => {
+    const valor = String(req.body?.valor ?? '');
+    const fechaPago = String(req.body?.fechaPago ?? '');
+    const origen = leerOrigen(String(req.body?.origen ?? ''));
+    try {
+      const resultado = await control.registrarPago(req.params.id, { valor, fechaPago }, req.usuario);
+      if (!resultado) return noExiste(res, req.params.id);
+      res.redirect(303, ORIGENES_PAGO[origen](resultado.idIncapacidad));
+    } catch (error) {
+      if (!(error instanceof ErrorDeValidacion)) throw error;
+      const cobro = await control.prepararCobro(req.params.id);
+      if (!cobro) return noExiste(res, req.params.id);
+      const estado = error.errores.estado ? 409 : 400;
+      await pagina(res, estado, {
+        cobro,
+        origen,
+        errores: error.errores,
+        valores: { valor: valor.trim().slice(0, 30), fechaPago: fechaPago.trim().slice(0, 10) },
       });
     }
   });

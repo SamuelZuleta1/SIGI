@@ -1,6 +1,8 @@
 // Grupo `cobro` del Control de incapacidades — DS-06 (CU-10).
-// Operaciones: registrarCobrada (HU-13) y registrarRechazo (HU-14). Se agregará registrarPago (HU-15).
-import { hoyEnColombia, sumarIntervalo } from '../servicios/dias-habiles.js';
+// Operaciones: registrarCobrada (HU-13), registrarRechazo (HU-14) y registrarPago (HU-15), esta última
+// compartida con el seguimiento (HU-16, DS-07) y el cobro jurídico (HU-19, DS-08).
+import { fechaBreve, hoyEnColombia, sumarIntervalo } from '../servicios/dias-habiles.js';
+import { aCentavos, centavosATexto } from '../servicios/moneda.js';
 import { ErrorDeValidacion } from './error-de-validacion.js';
 import { esIdentificador } from './identificador.js';
 
@@ -51,6 +53,60 @@ export function leerCausal(texto) {
   return { valor: limpio };
 }
 
+// DA-08: cualquier pago deja la incapacidad pagada; después se pueden registrar más pagos.
+export const puedeRegistrarPago = (estado) => estado === 'cobrada' || estado === 'pagada';
+
+const MENSAJES_PAGO = {
+  null: 'La incapacidad aún no se ha radicado: radíquela primero.',
+  transcrita: 'La entidad aún no ha aprobado la incapacidad: regístrela como cobrada antes del pago.',
+  rechazada: 'La entidad rechazó la incapacidad: debe radicarse de nuevo antes de registrar un pago.',
+};
+const mensajePago = (estado) => MENSAJES_PAGO[estado ?? 'null'] ?? 'La incapacidad no admite registrar un pago.';
+
+// numeric(14,2): hasta 12 cifras enteras (DA-40).
+export const VALOR_MAXIMO_CIFRAS = 12;
+
+/**
+ * Valida el valor del pago en pesos (DA-40). Admite «1234567», «1.234.567», «1.234.567,50» y el signo «$».
+ * El punto es separador de miles y la coma, de decimales (uso colombiano).
+ * @returns {{ valor?: string, centavos?: number, error?: string }} valor como texto para numeric(14,2).
+ */
+export function leerValor(texto) {
+  const limpio = typeof texto === 'string' ? texto.replace(/[\s\u00a0$]/g, '') : '';
+  if (limpio === '') return { error: 'Escriba el valor que pagó la entidad.' };
+  const conMiles = /^\d{1,3}(\.\d{3})+(,\d{1,2})?$/.test(limpio);
+  if (!conMiles && !/^\d+(,\d{1,2})?$/.test(limpio)) {
+    return { error: 'Escriba el valor en pesos, por ejemplo 1.250.000 o 1.250.000,50.' };
+  }
+  const [enteros, decimales = ''] = limpio.replace(/\./g, '').split(',');
+  const sinCeros = enteros.replace(/^0+(?=\d)/, '');
+  if (sinCeros.length > VALOR_MAXIMO_CIFRAS) return { error: 'El valor es demasiado grande.' };
+  const centavos = Number(sinCeros) * 100 + Number(decimales.padEnd(2, '0'));
+  if (centavos <= 0) return { error: 'El valor debe ser mayor que cero.' };
+  return { valor: centavosATexto(centavos), centavos };
+}
+
+const esFechaValida = (valor) => {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(valor) || valor < '0001-01-01') return false;
+  const fecha = new Date(`${valor}T00:00:00Z`);
+  return !Number.isNaN(fecha.getTime()) && fecha.toISOString().startsWith(valor);
+};
+
+/**
+ * Valida la fecha del pago, que escribe el auxiliar (DA-16): no futura ni anterior al inicio de la incapacidad (DA-40).
+ * @returns {{ valor?: string, error?: string }}
+ */
+export function leerFechaPago(texto, { hoy, fechaInicio }) {
+  const limpio = typeof texto === 'string' ? texto.trim() : '';
+  if (limpio === '') return { error: 'Escriba la fecha en que la entidad pagó.' };
+  if (!esFechaValida(limpio)) return { error: 'Escriba una fecha válida (día, mes y año).' };
+  if (limpio > hoy) return { error: 'La fecha del pago no puede ser posterior a hoy.' };
+  if (fechaInicio && limpio < fechaInicio) {
+    return { error: `La fecha del pago no puede ser anterior al inicio de la incapacidad (${fechaBreve(fechaInicio)}).` };
+  }
+  return { valor: limpio };
+}
+
 /** Valida el texto del formulario. @returns {{ valor?: number, error?: string }} */
 export function leerTiempoPago(texto) {
   const limpio = typeof texto === 'string' ? texto.trim() : '';
@@ -77,6 +133,8 @@ export function crearControlCobro({ baseDeDatos, hoy = hoyEnColombia }) {
         hoy: hoy(),
         puedeRegistrarCobrada: puedeRegistrarCobrada(incapacidad.estado),
         puedeRegistrarRechazo: puedeRegistrarRechazo(incapacidad.estado),
+        puedeRegistrarPago: puedeRegistrarPago(incapacidad.estado),
+        totalPagado: centavosATexto(incapacidad.pagos.reduce((total, p) => total + aCentavos(p.valor), 0)),
         fechaPrometida:
           incapacidad.tiempoPago != null && incapacidad.fechaCobrada
             ? fechaPrometida(incapacidad.fechaCobrada, incapacidad.tiempoPago)
@@ -131,6 +189,36 @@ export function crearControlCobro({ baseDeDatos, hoy = hoyEnColombia }) {
         throw new ErrorDeValidacion({ estado: mensajeRechazo(ahora?.estado === 'transcrita' ? 'rechazada' : ahora?.estado) });
       }
       return { idIncapacidad: actual.idIncapacidad };
+    },
+
+    /**
+     * DS-06/07/08: registrarPago(idIncapacidad, valor, fechaPago) → actualizarEstado(pagada)
+     * → guardarPago(valor, fechaPago) — HU-15. Una sola operación para el cobro, el seguimiento (HU-16)
+     * y el cobro jurídico (HU-19) (HU-15.CA2). Admite varios pagos (HU-15.CA3, DA-08).
+     * @param {{ valor?: string, fechaPago?: string }} datos
+     * @param {{ id: string }} usuario quien registra (creado_por).
+     * @returns {Promise<null | { idIncapacidad: number, idPago: number }>} null si la incapacidad no existe.
+     * @throws {ErrorDeValidacion} valor o fecha no válidos, o el estado no es cobrada ni pagada (`estado`).
+     */
+    async registrarPago(idIncapacidad, datos, usuario) {
+      const actual = esIdentificador(idIncapacidad) ? await baseDeDatos.obtenerDatosCobro(Number(idIncapacidad)) : null;
+      if (!actual) return null;
+      if (!puedeRegistrarPago(actual.estado)) throw new ErrorDeValidacion({ estado: mensajePago(actual.estado) });
+
+      const valor = leerValor(datos?.valor);
+      const fechaPago = leerFechaPago(datos?.fechaPago, { hoy: hoy(), fechaInicio: actual.fechaInicio });
+      const errores = {};
+      if (valor.error) errores.valor = valor.error;
+      if (fechaPago.error) errores.fechaPago = fechaPago.error;
+      if (Object.keys(errores).length) throw new ErrorDeValidacion(errores);
+
+      const idPago = await baseDeDatos.guardarPago(actual.idIncapacidad, { valor: valor.valor, fechaPago: fechaPago.valor }, usuario.id);
+      // Otro usuario cambió el estado entre la consulta y el registro: la transacción no guardó el pago.
+      if (idPago == null) {
+        const ahora = await baseDeDatos.obtenerDatosCobro(actual.idIncapacidad);
+        throw new ErrorDeValidacion({ estado: mensajePago(ahora?.estado) });
+      }
+      return { idIncapacidad: actual.idIncapacidad, idPago };
     },
   };
 }
