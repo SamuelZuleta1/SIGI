@@ -151,7 +151,7 @@ describe('DA-40 — valor del pago en pesos', () => {
     expect(aCentavos('1234567.50')).toBe(123456750);
     expect(aCentavos(0.1) + aCentavos(0.2)).toBe(30);
     expect(pesos('1250000.00')).toBe('$ 1.250.000');
-    expect(pesos('1250000.50')).toBe('$ 1.250.000,5');
+    expect(pesos('1250000.50')).toBe('$ 1.250.000,50');
   });
 });
 

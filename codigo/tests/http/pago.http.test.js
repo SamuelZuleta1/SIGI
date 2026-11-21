@@ -63,8 +63,8 @@ describe('HU-15 — registrar el pago (rutas)', () => {
     await pagar(agente, { valor: '800.000', fechaPago: '2026-11-10' });
     await pagar(agente, { valor: '450.000,50', fechaPago: '2026-11-21' });
     const pagina = await agente.get('/incapacidades/1/cobro');
-    expect(pagina.text).toContain('Otro pago · <span class="cifra">$ 450.000,5</span>');
-    expect(pagina.text).toContain('Total pagado · <span class="cifra">$ 1.250.000,5</span>');
+    expect(pagina.text).toContain('Otro pago · <span class="cifra">$ 450.000,50</span>');
+    expect(pagina.text).toContain('Total pagado · <span class="cifra">$ 1.250.000,50</span>');
     expect(pagina.text).toContain('2 pagos');
   });
 
