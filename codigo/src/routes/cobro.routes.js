@@ -20,6 +20,7 @@ import { pesos } from '../servicios/moneda.js';
 // jurídico (HU-19). `origen` (lista cerrada) solo decide a qué pantalla se vuelve tras registrarlo.
 export const ORIGENES_PAGO = Object.freeze({
   cobro: (id) => `/incapacidades/${id}/cobro?pagado=1`,
+  seguimiento: (id) => `/incapacidades/${id}/seguimiento?pagado=1`, // HU-16.CA2
 });
 const leerOrigen = (valor) => (Object.hasOwn(ORIGENES_PAGO, valor) ? valor : 'cobro');
 

@@ -8,6 +8,7 @@ import { crearRutasEstados } from './estados.routes.js';
 import { crearRutasRadicacion } from './radicacion.routes.js';
 import { crearRutasReemplazo } from './reemplazo.routes.js';
 import { crearRutasRegistro } from './registro.routes.js';
+import { crearRutasSeguimiento } from './seguimiento.routes.js';
 import { crearRutasSesion } from './sesion.routes.js';
 import { crearRutasVerificacion } from './verificacion.routes.js';
 
@@ -34,6 +35,7 @@ export function crearRutas(dependencias) {
     rutas.use(crearRutasEstados(dependencias));
     rutas.use(crearRutasAlertas(dependencias));
     rutas.use(crearRutasCobro(dependencias));
+    rutas.use(crearRutasSeguimiento(dependencias));
   }
 
   // Solo para las pruebas: rutas de ensayo detrás de la sesión.

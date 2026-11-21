@@ -6,6 +6,7 @@ import { crearControlEstados } from './estados.controller.js';
 import { crearControlRadicacion } from './radicacion.controller.js';
 import { crearControlReemplazo } from './reemplazo.controller.js';
 import { crearControlRegistro } from './registro.controller.js';
+import { crearControlSeguimiento } from './seguimiento.controller.js';
 import { crearControlVerificacion } from './verificacion.controller.js';
 
 /** @param {{ baseDeDatos: object, correo: object }} dependencias */
@@ -18,5 +19,6 @@ export function crearControlIncapacidades(dependencias) {
     ...crearControlEstados(dependencias),
     ...crearControlAlertas(dependencias),
     ...crearControlCobro(dependencias),
+    ...crearControlSeguimiento(dependencias),
   };
 }

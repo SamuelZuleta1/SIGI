@@ -1,0 +1,114 @@
+<%
+  // HU-16 (DS-07; DA-41): línea de tiempo del seguimiento. El último paso es la gestión de esta semana, con el
+  // segmento «Sigue pendiente / Ya pagó» (mismo patrón y mismo JavaScript que la respuesta de la entidad, DA-39).
+  const ICONOS = {
+    hecho: '<path d="M5 12.5l4.5 4.5L19 7.5"/>',
+    seguimiento: '<path d="M4 6h16v10H8l-4 4zM8 10h8M8 13h5"/>',
+    espera: '<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>',
+    nueva: '<path d="M12 6v12M6 12h12"/>',
+    pago: '<path d="M14.5 8.5c-.6-.9-1.6-1.4-2.7-1.4-1.6 0-2.8.9-2.8 2.2 0 3 5.8 1.6 5.8 4.6 0 1.3-1.3 2.3-3 2.3-1.2 0-2.3-.6-2.9-1.5M12 5v2M12 17v2"/>',
+  };
+  const dias = (n) => (n === 1 ? '1 día' : `${n} días`);
+  const { incapacidad, demora } = seguimiento;
+  const enlace = `/incapacidades/${incapacidad.idIncapacidad}/seguimiento`;
+  const ultimo = incapacidad.seguimientos.at(-1);
+  const situacion = !demora
+    ? null
+    : demora.conDemora
+      ? ['vencido', `${dias(demora.diasDemora)} de demora`]
+      : demora.diasRestantes === 0
+        ? ['por_vencer', 'Vence hoy']
+        : [demora.diasRestantes <= 5 ? 'por_vencer' : 'al_dia', `Faltan ${dias(demora.diasRestantes)}`];
+%>
+<h1>Seguimiento del cobro</h1>
+<p class="sub">Gestión semanal ante la entidad mientras el pago sigue pendiente.</p>
+
+<div class="formulario">
+  <% if (registrado && demora) { %>
+    <% if (ultimo.diasDemora > 0) { %>
+      <p class="mensaje mensaje-aviso entra" role="status">Seguimiento registrado. <%= incapacidad.entidad %> lleva <%= dias(ultimo.diasDemora) %> de demora: prometió pagar a más tardar el <%= fechaLarga(demora.fechaPrometida) %>.</p>
+    <% } else { %>
+      <p class="mensaje mensaje-ok entra" role="status">Seguimiento registrado. <%= incapacidad.entidad %> está dentro del plazo: pagaría a más tardar el <%= fechaLarga(demora.fechaPrometida) %>.</p>
+    <% } %>
+  <% } %>
+  <% if (pagoRegistrado) { %>
+    <p class="mensaje mensaje-ok entra" role="status">Pago registrado. La incapacidad quedó pagada y sale de los pendientes de pago.</p>
+  <% } %>
+
+  <dl class="resumen">
+    <dt>Incapacidad</dt><dd>n.º <%= incapacidad.idIncapacidad %></dd>
+    <dt>Colaborador</dt><dd><%= incapacidad.colaborador %></dd>
+    <dt>Tipo</dt><dd><%= nombresTipo[incapacidad.tipo] %> · <%= incapacidad.entidad %></dd>
+    <dt>Inicio</dt><dd><%= fechaBreve(incapacidad.fechaInicio) %> · <%= dias(incapacidad.diasIncapacidad) %></dd>
+  </dl>
+
+  <section class="radicaciones" aria-labelledby="titulo-seguimiento">
+    <h2 id="titulo-seguimiento">Seguimiento<% if (seguimiento.pendiente && situacion) { %> <span class="chip <%= situacion[0] %>"><%= situacion[1] %></span><% } %></h2>
+    <ol class="linea-tiempo">
+      <% if (demora) { %>
+        <li>
+          <span class="punto hecho"><svg viewBox="0 0 24 24" aria-hidden="true"><%- ICONOS.hecho %></svg></span>
+          <div class="paso">
+            <p class="titulo"><b>Cobrada · <%= incapacidad.entidad %> aprobó</b> <span class="tenue"><%= fechaBreve(incapacidad.fechaCobrada) %></span></p>
+            <p class="tenue">Tiempo de pago: <%= dias(incapacidad.tiempoPago) %> · a más tardar el <%= fechaBreve(demora.fechaPrometida) %></p>
+          </div>
+        </li>
+      <% } %>
+      <% incapacidad.seguimientos.forEach((s, i) => { %>
+        <li class="<%= registrado && i === incapacidad.seguimientos.length - 1 ? 'entra' : '' %>">
+          <span class="punto <%= s.diasDemora > 0 ? 'rechazo' : 'hecho' %>"><svg viewBox="0 0 24 24" aria-hidden="true"><%- ICONOS.seguimiento %></svg></span>
+          <div class="paso">
+            <p class="titulo"><b>Seguimiento</b> <span class="tenue"><%= fechaBreve(s.dia) %></span></p>
+            <p class="tenue"><%= s.diasDemora > 0 ? `Con ${dias(s.diasDemora)} de demora` : 'Dentro del plazo' %> · <a href="/seguimientos/<%= s.idSeguimiento %>/evidencia" target="_blank" rel="noopener">ver evidencia</a></p>
+          </div>
+        </li>
+      <% }) %>
+
+      <% if (seguimiento.pendiente) { %>
+        <li>
+          <span class="punto actual"><svg viewBox="0 0 24 24" aria-hidden="true"><%- ICONOS.nueva %></svg></span>
+          <div class="paso">
+            <p class="titulo"><b><%= seguimiento.tocaSeguimiento ? 'Seguimiento de esta semana' : 'Nueva gestión' %></b></p>
+            <p class="tenue">Consulte a <%= incapacidad.entidad %> el estado del pago y registre lo que respondió.</p>
+            <% if (errores.estado) { %><p class="mensaje mensaje-error separado" role="alert"><%= errores.estado %></p><% } %>
+            <nav class="segmento" aria-label="Respuesta de la entidad">
+              <a href="<%= enlace %>" data-respuesta="seguimiento"<%- accion === 'seguimiento' ? ' aria-current="true"' : '' %>><svg viewBox="0 0 24 24" aria-hidden="true"><%- ICONOS.espera %></svg>Sigue pendiente</a>
+              <a href="<%= enlace %>?accion=pago" data-respuesta="pago"<%- accion === 'pago' ? ' aria-current="true"' : '' %>><svg viewBox="0 0 24 24" aria-hidden="true"><%- ICONOS.pago %></svg>Ya pagó</a>
+            </nav>
+
+            <form class="radicar" method="post" action="<%= enlace %>" enctype="multipart/form-data" novalidate data-un-envio data-panel-respuesta="seguimiento"<%- accion === 'seguimiento' ? '' : ' hidden' %>>
+              <div class="campo <%= errores.evidencia ? 'invalido' : '' %>">
+                <label for="evidencia">Evidencia de la gestión</label>
+                <input id="evidencia" name="evidencia" type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" required aria-describedby="<%= errores.evidencia ? 'error-evidencia' : 'ayuda-evidencia' %>"<%- errores.evidencia ? ' aria-invalid="true" autofocus' : '' %>>
+                <% if (errores.evidencia) { %><span class="error" id="error-evidencia"><%= errores.evidencia %></span><% } else { %><span class="ayuda" id="ayuda-evidencia">Correo, pantallazo del portal o respuesta de la entidad. PDF, JPG o PNG, máx. 10 MB.</span><% } %>
+              </div>
+              <p class="ayuda">Al registrarlo, SIGI compara hoy con la fecha prometida y le dice si hay demora.</p>
+              <div class="acciones"><button class="boton" data-enviando="Registrando…">Registrar seguimiento</button></div>
+            </form>
+
+            <div data-panel-respuesta="pago"<%- accion === 'pago' ? '' : ' hidden' %>>
+              <%- include('../cobro/_formulario-pago', { idIncapacidad: incapacidad.idIncapacidad, hoy: seguimiento.hoy, fechaInicio: incapacidad.fechaInicio, origen: 'seguimiento', errores: {}, valores: {} }) %>
+            </div>
+          </div>
+        </li>
+      <% } else { %>
+        <li class="<%= pagoRegistrado ? 'entra' : '' %>">
+          <span class="punto <%= incapacidad.estado === 'pagada' ? 'hecho' : '' %>"><svg viewBox="0 0 24 24" aria-hidden="true"><%- incapacidad.estado === 'pagada' ? ICONOS.pago : ICONOS.espera %></svg></span>
+          <div class="paso">
+            <p class="titulo"><b><%= incapacidad.estado === 'pagada' ? 'Pagada' : 'Sin seguimiento' %></b></p>
+            <% if (errores.estado) { %>
+              <p class="mensaje mensaje-error separado" role="alert"><%= errores.estado %></p>
+              <p class="tenue"><a href="/incapacidades/<%= incapacidad.idIncapacidad %>/cobro">Ver el cobro</a></p>
+            <% } else { %>
+              <p class="tenue"><%= seguimiento.mensajeEstado %> <a href="/incapacidades/<%= incapacidad.idIncapacidad %>/cobro">Ver el cobro</a></p>
+            <% } %>
+          </div>
+        </li>
+      <% } %>
+    </ol>
+  </section>
+
+  <div class="acciones">
+    <a class="boton secundario" href="/seguimiento">Volver a los pendientes</a>
+  </div>
+</div>

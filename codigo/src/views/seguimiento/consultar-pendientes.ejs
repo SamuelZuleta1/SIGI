@@ -1,0 +1,68 @@
+<%
+  // HU-16.CA1 (DS-07: mostrarPendientes; DA-18, DA-41): cobradas pendientes de pago, sin las dadas de baja.
+  // Pestañas como en «Consultar estados»: todas, con demora y las que no tienen seguimiento esta semana.
+  const pestanas = [['todas', 'Todas'], ['demora', 'Con demora'], ['semana', 'Toca esta semana']];
+  const dias = (n) => (n === 1 ? '1 día' : `${n} días`);
+  const situacion = (p) =>
+    p.conDemora
+      ? ['vencido', `${dias(p.diasDemora)} de demora`]
+      : p.diasRestantes === 0
+        ? ['por_vencer', 'Vence hoy']
+        : [p.diasRestantes <= 5 ? 'por_vencer' : 'al_dia', `Faltan ${dias(p.diasRestantes)}`];
+  const vacios = {
+    todas: ['No hay incapacidades pendientes de pago.', 'Aparecerán aquí cuando se registren como cobradas en «Cobro».'],
+    demora: ['Ninguna entidad está en demora.', 'Todas las pendientes están dentro del tiempo de pago que prometieron.'],
+    semana: ['El seguimiento de esta semana está al día.', 'Cada incapacidad pendiente tiene un seguimiento de los últimos 7 días.'],
+  };
+%>
+<h1>Seguimiento semanal</h1>
+<p class="sub">Incapacidades cobradas que la entidad aún no ha pagado. Abra cada una para registrar el seguimiento o el pago.</p>
+<nav aria-label="Pendientes">
+  <ul class="pestanas">
+    <% for (const [valor, nombre] of pestanas) { %>
+    <li>
+      <a href="/seguimiento<%= valor === 'todas' ? '' : `?ver=${valor}` %>"<%- valor === ver ? ' aria-current="page"' : '' %>>
+        <%= nombre %><span class="n"><span class="oculto">: </span><%= conteos[valor] %></span>
+      </a>
+    </li>
+    <% } %>
+  </ul>
+</nav>
+
+<section class="resultado" aria-label="Incapacidades pendientes de pago">
+  <% if (pendientes.length === 0) { %>
+    <div class="tabla-envuelta">
+      <div class="vacio">
+        <b><%= vacios[ver][0] %></b>
+        <p><%= vacios[ver][1] %></p>
+      </div>
+    </div>
+  <% } else { %>
+    <p class="cuenta-resultado">
+      <span><b><%= pendientes.length %></b> <%= pendientes.length === 1 ? 'incapacidad' : 'incapacidades' %></span>
+      <span>Primero las de más demora; luego las que vencen antes</span>
+    </p>
+    <div class="tabla-envuelta">
+      <table class="estados pendientes">
+        <thead>
+          <tr><th scope="col">N.º</th><th scope="col">Colaborador</th><th scope="col">Entidad</th><th scope="col">Pagaría a más tardar</th><th scope="col">Situación</th><th scope="col">Último seguimiento</th></tr>
+        </thead>
+        <tbody>
+          <% for (const p of pendientes) { const [clase, texto] = situacion(p); %>
+          <tr>
+            <td><a href="/incapacidades/<%= p.idIncapacidad %>/seguimiento" aria-label="Abrir el seguimiento de la incapacidad <%= p.idIncapacidad %>"><%= p.idIncapacidad %></a></td>
+            <td><%= p.colaborador %><small><%= nombresTipo[p.tipo] ?? p.tipo %></small></td>
+            <td><%= p.entidad %></td>
+            <td class="fecha"><%= fechaBreve(p.fechaPrometida) %><small>Cobrada el <%= fechaBreve(p.fechaCobrada) %> · <%= dias(p.tiempoPago) %></small></td>
+            <td><span class="chip <%= clase %>"><%= texto %></span></td>
+            <td class="fecha">
+              <% if (p.ultimoSeguimiento) { %><%= fechaBreve(p.ultimoSeguimiento) %><% } else { %><span class="tenue">Sin seguimiento</span><% } %>
+              <% if (p.tocaSeguimiento) { %><small class="toca">Toca esta semana</small><% } %>
+            </td>
+          </tr>
+          <% } %>
+        </tbody>
+      </table>
+    </div>
+  <% } %>
+</section>

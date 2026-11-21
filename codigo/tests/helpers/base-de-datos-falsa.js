@@ -32,9 +32,13 @@ export function crearBaseDeDatosFalsa() {
   const reemplazos = []; // máximo uno por incapacidad, como el índice único de la tabla
   const radicaciones = [];
   const pagos = [];
+  const seguimientos = [];
+  const acuerdos = [];
   return {
     radicaciones,
     pagos,
+    seguimientos,
+    acuerdos,
     colaboradores,
     incapacidades,
     documentos,
@@ -203,12 +207,72 @@ export function crearBaseDeDatosFalsa() {
       Object.assign(incapacidad, { estado: 'rechazada', causalRechazo: causal, fechaRechazo });
       return true;
     },
+    // HU-16 (DS-07): como seguimiento.persistence.js.
+    async consultarCobradas() {
+      return incapacidades
+        .filter((i) => i.estado === 'cobrada' && i.decision !== 'dar_de_baja')
+        .map((i) => ({
+          idIncapacidad: i.idIncapacidad,
+          colaborador: colaboradores.find((c) => c.id === i.colaboradorId).nombre,
+          entidad: ENTIDADES.find((e) => e.id === i.entidad).nombre,
+          tipo: i.tipo,
+          fechaInicio: i.fechaInicio,
+          diasIncapacidad: i.diasIncapacidad,
+          estado: i.estado,
+          decision: i.decision ?? null,
+          tiempoPago: i.tiempoPago,
+          fechaCobrada: i.fechaCobrada,
+          ultimoSeguimiento: seguimientos.filter((s) => s.idIncapacidad === i.idIncapacidad).at(-1)?.fecha ?? null,
+        }));
+    },
+    async obtenerDatosSeguimiento(idIncapacidad) {
+      const guardada = incapacidades.find((i) => i.idIncapacidad === idIncapacidad);
+      if (!guardada) return null;
+      return {
+        idIncapacidad,
+        colaborador: colaboradores.find((c) => c.id === guardada.colaboradorId).nombre,
+        entidad: ENTIDADES.find((e) => e.id === guardada.entidad).nombre,
+        tipo: guardada.tipo,
+        fechaInicio: guardada.fechaInicio,
+        diasIncapacidad: guardada.diasIncapacidad,
+        estado: guardada.estado,
+        decision: guardada.decision ?? null,
+        tiempoPago: guardada.tiempoPago ?? null,
+        fechaCobrada: guardada.fechaCobrada ?? null,
+        seguimientos: seguimientos
+          .filter((x) => x.idIncapacidad === idIncapacidad)
+          .map(({ idSeguimiento, fecha }) => ({ idSeguimiento, fecha })),
+        acuerdos: acuerdos
+          .filter((a) => a.idIncapacidad === idIncapacidad)
+          .map(({ idAcuerdo, fecha, valor, registrado }) => ({ idAcuerdo, fecha, valor, registrado })),
+      };
+    },
+    // Como registrar_seguimiento: solo cobrada y sin dar de baja. `fechaSeguimiento` (solo pruebas) fija el momento.
+    async guardarSeguimiento(idIncapacidad, { contenido, tipoMime }, creadoPor) {
+      const incapacidad = incapacidades.find((i) => i.idIncapacidad === idIncapacidad);
+      if (incapacidad?.estado !== 'cobrada' || incapacidad.decision === 'dar_de_baja') return null;
+      const idSeguimiento = seguimientos.length + 1;
+      seguimientos.push({
+        idSeguimiento,
+        idIncapacidad,
+        evidencia: `incapacidades/${idIncapacidad}/seguimiento-${idSeguimiento}.${EXTENSIONES[tipoMime]}`,
+        contenido,
+        tipoMime,
+        creadoPor,
+        fecha: this.fechaSeguimiento ?? '2026-11-21T15:00:00.000Z',
+      });
+      return idSeguimiento;
+    },
+    async consultarSeguimiento(idSeguimiento) {
+      const s = seguimientos.find((x) => x.idSeguimiento === idSeguimiento);
+      return s ? { idSeguimiento, idIncapacidad: s.idIncapacidad, evidencia: s.evidencia } : null;
+    },
     async consultarRadicacion(idRadicacion) {
       const r = radicaciones.find((x) => x.idRadicacion === idRadicacion);
       return r ? { idRadicacion, idIncapacidad: r.idIncapacidad, radicado: r.radicado, evidencia: r.evidencia ?? null } : null;
     },
     async descargarEvidencia(evidencia) {
-      const r = radicaciones.find((x) => x.evidencia === evidencia);
+      const r = [...radicaciones, ...seguimientos].find((x) => x.evidencia === evidencia);
       return { contenido: r.contenido, tipoMime: r.tipoMime };
     },
     async consultarDocumento(idDocumento) {
