@@ -1,4 +1,5 @@
-// Modelo: Incapacidad (CL-01; tramitePension: DA-10; fechaAvisoFaltantes y fechaNacimiento: DA-13). Clase de datos, sin métodos.
+// Modelo: Incapacidad (CL-01; tramitePension: DA-10; fechaAvisoFaltantes y fechaNacimiento: DA-13;
+// tiempoPago en días y fechaCobrada: DA-38). Clase de datos, sin métodos.
 export const TIPOS_INCAPACIDAD = Object.freeze([
   'enfermedad_general',
   'accidente_laboral',
@@ -44,7 +45,8 @@ export class Incapacidad {
   faltantes = [];
   fechaAvisoFaltantes = null;
   segundoLlamado = false;
-  tiempoPago = null;
+  tiempoPago = null; // días calendario prometidos por la entidad (DA-38)
+  fechaCobrada = null;
   causalRechazo = null;
   motivoTraslado = null;
   decision = null;

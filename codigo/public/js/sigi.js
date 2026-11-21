@@ -82,3 +82,32 @@ window.addEventListener('pageshow', (evento) => {
     boton.closest('form').dispatchEvent(new Event('change')); // el contador rehace el texto y el estado
   }
 });
+
+// Registrar cobrada (HU-13): los atajos llenan los días y se muestra la fecha prometida (hoy + días, DA-38).
+for (const campo of document.querySelectorAll('input[data-hoy]')) {
+  const formulario = campo.form;
+  const salida = formulario.querySelector('[data-fecha-prometida]');
+  const atajos = formulario.querySelectorAll('[data-tiempo-pago]');
+  const [anio, mes, dia] = campo.dataset.hoy.split('-').map(Number);
+  const formato = new Intl.DateTimeFormat('es-CO', { timeZone: 'UTC', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  const pintar = () => {
+    const texto = campo.value.trim();
+    const dias = Number(texto);
+    const valido = /^\d{1,3}$/.test(texto) && dias >= 1 && dias <= 365;
+    salida.classList.toggle('vacia', !valido);
+    salida.querySelector('b').textContent = valido
+      ? formato.format(new Date(Date.UTC(anio, mes - 1, dia + dias))).replace(',', '')
+      : texto ? 'Entre 1 y 365 días' : 'Escriba los días';
+    for (const boton of atajos) boton.setAttribute('aria-pressed', String(boton.dataset.tiempoPago === texto));
+  };
+  for (const boton of atajos) {
+    boton.addEventListener('click', () => {
+      campo.value = boton.dataset.tiempoPago;
+      pintar();
+      campo.focus();
+    });
+  }
+  campo.addEventListener('input', pintar);
+  salida.hidden = false;
+  pintar();
+}

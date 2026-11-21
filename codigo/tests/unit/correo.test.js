@@ -11,7 +11,7 @@ const casos = [
   ['notificarRecepcion', (c) => c.notificarRecepcion(inc), DESTINATARIOS.auxiliar],
   ['notificarFaltantes', (c) => c.notificarFaltantes(inc, ['Epicrisis'], '2026-11-10'), inc.correoColaborador],
   ['notificarCitacion', (c) => c.notificarCitacion({ ...inc, faltantes: ['Epicrisis'] }), DESTINATARIOS.coordinacion],
-  ['notificarRetraso', (c) => c.notificarRetraso({ ...inc, tiempoPago: '30 días' }), DESTINATARIOS.coordinacion],
+  ['notificarRetraso', (c) => c.notificarRetraso({ ...inc, tiempoPago: 30 }), DESTINATARIOS.coordinacion],
   ['notificarTraslado', (c) => c.notificarTraslado(inc, '180 días sin pago'), DESTINATARIOS.cartera],
   ['comunicarConcepto', (c) => c.comunicarConcepto(inc, 'Favorable'), inc.correoColaborador],
   ['avisarFaltaConcepto', (c) => c.avisarFaltaConcepto(inc), inc.correoColaborador],
@@ -46,6 +46,16 @@ describe('T-00d — servicio de correo', () => {
     expect(enviados[0].text).toContain('- FURIPS');
     expect(enviados[0].text).toContain('3 días hábiles');
     expect(enviados[0].text).toContain('2026-11-10');
+  });
+
+  it('notificarRetraso dice el tiempo de pago en días, con singular para 1 (DA-38)', async () => {
+    const { correo, enviados } = crearCorreoFalso();
+    await correo.notificarRetraso({ ...inc, tiempoPago: 30 });
+    await correo.notificarRetraso({ ...inc, tiempoPago: 1 });
+    await correo.notificarRetraso({ ...inc, tiempoPago: null });
+    expect(enviados[0].text).toContain('Tiempo de pago informado: 30 días');
+    expect(enviados[1].text).toContain('Tiempo de pago informado: 1 día\n');
+    expect(enviados[2].text).toContain('Tiempo de pago informado: sin dato');
   });
 
   it('notificarTraslado incluye el motivo', async () => {

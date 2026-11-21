@@ -1,6 +1,7 @@
 // «Control de incapacidades» (Controlador, CL-01): índice que compone los 14 grupos.
 // Los grupos se agregan módulo por módulo.
 import { crearControlAlertas } from './alertas.controller.js';
+import { crearControlCobro } from './cobro.controller.js';
 import { crearControlEstados } from './estados.controller.js';
 import { crearControlRadicacion } from './radicacion.controller.js';
 import { crearControlReemplazo } from './reemplazo.controller.js';
@@ -16,5 +17,6 @@ export function crearControlIncapacidades(dependencias) {
     ...crearControlRadicacion(dependencias),
     ...crearControlEstados(dependencias),
     ...crearControlAlertas(dependencias),
+    ...crearControlCobro(dependencias),
   };
 }

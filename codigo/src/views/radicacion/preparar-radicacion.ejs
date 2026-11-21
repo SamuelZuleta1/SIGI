@@ -162,7 +162,7 @@
             <div class="paso">
               <% if (estado === 'transcrita') { %>
                 <p class="titulo"><b>Esperando respuesta de la entidad</b></p>
-                <p class="tenue">Si la rechaza, aquí se registra la nueva radicación.</p>
+                <p class="tenue">Si la aprueba, regístrela en <a href="/incapacidades/<%= incapacidad.idIncapacidad %>/cobro">Cobro</a>. Si la rechaza, aquí se registra la nueva radicación.</p>
               <% } else { %>
                 <p class="titulo"><b><%= nombresEstado[estado] %></b></p>
                 <p class="tenue">Ya no admite una nueva radicación.</p>

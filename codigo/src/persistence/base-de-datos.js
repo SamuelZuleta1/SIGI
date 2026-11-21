@@ -2,6 +2,7 @@
 // Los grupos se agregan módulo por módulo.
 import { crearClienteServidor } from '../config/supabase.js';
 import { crearPersistenciaAlertas } from './alertas.persistence.js';
+import { crearPersistenciaCobro } from './cobro.persistence.js';
 import { crearPersistenciaEstados } from './estados.persistence.js';
 import { crearPersistenciaRadicacion } from './radicacion.persistence.js';
 import { crearPersistenciaReemplazo } from './reemplazo.persistence.js';
@@ -16,5 +17,6 @@ export function crearBaseDeDatos(cliente = crearClienteServidor()) {
     ...crearPersistenciaRadicacion(cliente),
     ...crearPersistenciaEstados(cliente),
     ...crearPersistenciaAlertas(cliente),
+    ...crearPersistenciaCobro(cliente),
   };
 }

@@ -501,6 +501,25 @@ input[type='file']::file-selector-button {
 .alertas small { display: block; font-weight: 400; color: var(--tenue); font-size: 0.76rem; }
 .alertas .fecha, .alertas .situacion { font-variant-numeric: tabular-nums; }
 
+/* ---------- registrar cobrada (HU-13): paso de la línea de tiempo con atajos y fecha prometida (opción B) ---------- */
+.atajos { display: none; flex-wrap: wrap; gap: 6px; }
+.js .atajos { display: flex; } /* los atajos necesitan JavaScript; sin él se escribe el número */
+.atajos button {
+  height: 30px; padding: 0 10px; border: 1px solid var(--borde); border-radius: 99px; background: var(--panel);
+  color: var(--tenue); font-size: 0.8rem; cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease, transform 0.14s var(--ease);
+}
+.atajos button:active { transform: scale(0.97); }
+@media (hover: hover) { .atajos button:hover { color: var(--texto); border-color: var(--tenue); } }
+.atajos button[aria-pressed='true'] { color: var(--info); background: var(--info-f); border-color: transparent; font-weight: 600; }
+.fila-dias { display: flex; flex-wrap: wrap; gap: 12px; align-items: start; }
+.fila-dias > .campo { width: 15rem; max-width: 100%; } /* mismo ancho con ayuda o con error */
+.fila-dias .campo input { max-width: 10rem; }
+.prometida { display: grid; gap: 2px; flex: 1; min-width: 200px; margin: 0; margin-top: calc(0.84rem * 1.45 + 5px); /* a la altura del campo, bajo su etiqueta */ padding: 8px 12px; border-radius: var(--radio); background: var(--info-f); color: var(--info); font-size: 0.8rem; }
+.prometida b { color: var(--texto); font-size: 0.95rem; font-weight: 650; letter-spacing: -0.01em; }
+.prometida.vacia b { color: var(--tenue); font-size: 0.84rem; font-weight: 500; }
+.prometida[hidden] { display: none; }
+
 .mensaje { margin: 0; padding: 9px 12px; border-radius: var(--radio); font-size: 0.84rem; font-weight: 500; }
 .mensaje-error { color: var(--mal); background: var(--mal-f); }
 .mensaje-aviso { color: var(--aviso); background: var(--aviso-f); }
@@ -511,5 +530,6 @@ input[type='file']::file-selector-button {
   .boton:active { transform: none; }
   .entra { animation: aparece 0.2s ease; }
   .barra .usado { animation: none; }
+  .atajos button:active { transform: none; }
   @keyframes aparece { from { opacity: 0; } }
 }

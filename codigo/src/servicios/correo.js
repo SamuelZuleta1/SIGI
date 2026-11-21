@@ -84,7 +84,7 @@ export function crearServicioCorreo({ transporte, remitente, destinatarios }) {
     notificarRetraso: (incapacidad) =>
       enviar(destinatarios.coordinacion, `Retraso en el pago — incapacidad n.º ${incapacidad.idIncapacidad}`, [
         'El pago de esta incapacidad superó el tiempo informado por la entidad.',
-        `Tiempo de pago informado: ${incapacidad.tiempoPago ?? 'sin dato'}`,
+        `Tiempo de pago informado: ${incapacidad.tiempoPago == null ? 'sin dato' : incapacidad.tiempoPago === 1 ? '1 día' : `${incapacidad.tiempoPago} días`}`,
         '',
         ...resumen(incapacidad),
       ]),

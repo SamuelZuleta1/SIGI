@@ -154,6 +154,32 @@ export function crearBaseDeDatosFalsa() {
       incapacidad.estado = 'transcrita';
       return idRadicacion;
     },
+    async obtenerDatosCobro(idIncapacidad) {
+      const guardada = incapacidades.find((i) => i.idIncapacidad === idIncapacidad);
+      if (!guardada) return null;
+      return {
+        idIncapacidad,
+        colaborador: colaboradores.find((c) => c.id === guardada.colaboradorId).nombre,
+        entidad: ENTIDADES.find((e) => e.id === guardada.entidad).nombre,
+        tipo: guardada.tipo,
+        fechaInicio: guardada.fechaInicio,
+        diasIncapacidad: guardada.diasIncapacidad,
+        estado: guardada.estado,
+        causalRechazo: guardada.causalRechazo ?? null,
+        tiempoPago: guardada.tiempoPago ?? null,
+        fechaCobrada: guardada.fechaCobrada ?? null,
+        radicaciones: radicaciones
+          .filter((r) => r.idIncapacidad === idIncapacidad)
+          .map(({ idRadicacion, radicado, evidencia, fecha }) => ({ idRadicacion, radicado, conEvidencia: Boolean(evidencia), fecha })),
+      };
+    },
+    // Como el UPDATE condicionado de guardarCobrada: solo desde transcrita.
+    async guardarCobrada(idIncapacidad, { tiempoPago, fechaCobrada }) {
+      const incapacidad = incapacidades.find((i) => i.idIncapacidad === idIncapacidad);
+      if (incapacidad?.estado !== 'transcrita') return false;
+      Object.assign(incapacidad, { estado: 'cobrada', tiempoPago, fechaCobrada });
+      return true;
+    },
     async consultarRadicacion(idRadicacion) {
       const r = radicaciones.find((x) => x.idRadicacion === idRadicacion);
       return r ? { idRadicacion, idIncapacidad: r.idIncapacidad, radicado: r.radicado, evidencia: r.evidencia ?? null } : null;

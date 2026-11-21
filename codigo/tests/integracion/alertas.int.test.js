@@ -25,7 +25,7 @@ beforeAll(async () => {
   for (const [cambios, columnas] of [
     [{ fechaInicio: '2025-11-21', fechaRecepcion: '2025-11-22' }, null],
     [{ fechaInicio: '2026-11-03', fechaRecepcion: '2026-11-04' }, { estado: 'transcrita', documentacion_completa: false, fecha_aviso_faltantes: '2026-11-12', faltantes: ['epicrisis'] }],
-    [{ fechaInicio: '2026-08-24', fechaRecepcion: '2026-08-25', diasIncapacidad: '120' }, { estado: 'cobrada' }],
+    [{ fechaInicio: '2026-08-24', fechaRecepcion: '2026-08-25', diasIncapacidad: '120' }, { estado: 'cobrada', tiempo_pago: 30, fecha_cobrada: '2026-08-30' }], // una cobrada lleva su tiempo de pago (DA-38)
     [{ fechaInicio: '2026-11-03', fechaRecepcion: '2026-11-04' }, { estado: 'transcrita' }],
   ]) {
     const { idIncapacidad } = await control.registrarIncapacidad(
