@@ -113,7 +113,7 @@ describe('HU-10 — registrar la radicación (base de datos)', () => {
   it('HU-10.CA2 — rechazada: una nueva radicación vuelve a transcrita y quedan las dos, en orden', async () => {
     const id = await registrar('Nueva EPS');
     await control.registrarRadicacion(id, { radicado: 'NEPS-INT-4', evidencia: PDF }, auxiliar);
-    await servidor.from('incapacidad').update({ estado: 'rechazada', causal_rechazo: 'Soporte ilegible' }).eq('id', id); // HU-14 llega en T-14
+    await control.registrarRechazo(id, { causal: 'Soporte ilegible' }); // HU-14
     await control.registrarRadicacion(id, { radicado: 'NEPS-INT-5', evidencia: PNG }, auxiliar);
 
     const datos = await baseDeDatos.obtenerDatosRadicacion(id);

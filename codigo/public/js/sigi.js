@@ -111,3 +111,37 @@ for (const campo of document.querySelectorAll('input[data-hoy]')) {
   salida.hidden = false;
   pintar();
 }
+
+// Respuesta de la entidad (HU-13/HU-14, DA-39): el segmento cambia el formulario sin recargar. Sin JavaScript,
+// cada opción es un enlace (?respuesta=rechazo) y el servidor muestra el formulario que corresponde.
+for (const segmento of document.querySelectorAll('.segmento')) {
+  const paso = segmento.closest('.paso');
+  for (const enlace of segmento.querySelectorAll('a[data-respuesta]')) {
+    enlace.addEventListener('click', (evento) => {
+      if (evento.metaKey || evento.ctrlKey || evento.shiftKey || evento.altKey || evento.button !== 0) return;
+      evento.preventDefault();
+      const respuesta = enlace.dataset.respuesta;
+      for (const otro of segmento.querySelectorAll('a[data-respuesta]')) {
+        if (otro === enlace) otro.setAttribute('aria-current', 'true');
+        else otro.removeAttribute('aria-current');
+      }
+      for (const panel of paso.querySelectorAll('[data-panel-respuesta]')) {
+        panel.hidden = panel.dataset.panelRespuesta !== respuesta;
+        if (!panel.hidden) panel.classList.add('entra');
+      }
+      history.replaceState(null, '', enlace.href);
+      if (respuesta === 'rechazo') paso.querySelector('[data-panel-respuesta="rechazo"] textarea')?.focus();
+    });
+  }
+}
+
+// Causal del rechazo (HU-14): contador en vivo. Cuenta como el maxlength del navegador (unidades UTF-16),
+// para que el contador y el tope coincidan.
+for (const contador of document.querySelectorAll('[data-contador]')) {
+  const campo = contador.closest('.campo').querySelector('textarea');
+  const maximo = Number(campo.maxLength);
+  const pintar = () => { contador.textContent = `${campo.value.length} / ${maximo}`; };
+  campo.addEventListener('input', pintar);
+  contador.hidden = false;
+  pintar();
+}

@@ -1,5 +1,6 @@
 // Grupo `cobro` de la Base de datos — DS-06 (CU-10).
-// Operaciones: obtenerDatosCobro (apoyo de la Vista) y guardarEstado(cobrada, tiempoPago) (HU-13).
+// Operaciones: obtenerDatosCobro (apoyo de la Vista), guardarEstado(cobrada, tiempoPago) (HU-13)
+// y guardarRechazo(causal) (HU-14).
 
 const comprobar = ({ data, error }) => {
   if (error) throw error;
@@ -18,7 +19,7 @@ export function crearPersistenciaCobro(cliente) {
         await cliente
           .from('incapacidad')
           .select(
-            'id, tipo, fecha_inicio, dias_incapacidad, estado, causal_rechazo, tiempo_pago, fecha_cobrada, ' +
+            'id, tipo, fecha_inicio, dias_incapacidad, estado, causal_rechazo, fecha_rechazo, tiempo_pago, fecha_cobrada, ' +
               'colaborador(nombre), entidad(nombre), radicacion(id, radicado, evidencia, creado_en)',
           )
           .eq('id', idIncapacidad)
@@ -35,6 +36,7 @@ export function crearPersistenciaCobro(cliente) {
         diasIncapacidad: fila.dias_incapacidad,
         estado: fila.estado,
         causalRechazo: fila.causal_rechazo,
+        fechaRechazo: fila.fecha_rechazo,
         tiempoPago: fila.tiempo_pago,
         fechaCobrada: fila.fecha_cobrada,
         radicaciones: fila.radicacion.map((r) => ({
@@ -56,6 +58,23 @@ export function crearPersistenciaCobro(cliente) {
         await cliente
           .from('incapacidad')
           .update({ estado: 'cobrada', tiempo_pago: tiempoPago, fecha_cobrada: fechaCobrada })
+          .eq('id', idIncapacidad)
+          .eq('estado', 'transcrita')
+          .select('id'),
+      );
+      return filas.length === 1;
+    },
+
+    /**
+     * DS-06: guardarRechazo(causal) — HU-14, con la fecha del rechazo. Un solo UPDATE condicionado a `estado = transcrita`,
+     * como guardarCobrada: si la entidad «responde» dos veces a la vez, solo una respuesta queda (DA-39).
+     * @returns {Promise<boolean>} false si la incapacidad ya no estaba transcrita.
+     */
+    async guardarRechazo(idIncapacidad, { causal, fechaRechazo }) {
+      const filas = comprobar(
+        await cliente
+          .from('incapacidad')
+          .update({ estado: 'rechazada', causal_rechazo: causal, fecha_rechazo: fechaRechazo })
           .eq('id', idIncapacidad)
           .eq('estado', 'transcrita')
           .select('id'),

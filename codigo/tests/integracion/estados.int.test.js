@@ -37,7 +37,9 @@ beforeAll(async () => {
     );
     ids.push(idIncapacidad);
     if (estado) {
-      const { error: e } = await servidor.from('incapacidad').update({ estado }).eq('id', idIncapacidad);
+      // Una rechazada siempre lleva su causal y su fecha (DA-39).
+      const cambio = estado === 'rechazada' ? { estado, causal_rechazo: 'Soporte ilegible', fecha_rechazo: '2026-09-15' } : { estado };
+      const { error: e } = await servidor.from('incapacidad').update(cambio).eq('id', idIncapacidad);
       if (e) throw e;
     }
   }

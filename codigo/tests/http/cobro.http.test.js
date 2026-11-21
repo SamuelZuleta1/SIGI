@@ -30,7 +30,7 @@ describe('HU-13 — registrar cobrada (rutas)', () => {
     const res = await agente.get('/incapacidades/1/cobro');
     expect(res.status).toBe(200);
     expect(res.text).toContain('Radicada · NEPS-2026-118402');
-    expect(res.text).toContain('Nueva EPS aprobó la incapacidad');
+    expect(res.text).toContain('Respuesta de Nueva EPS');
     expect(res.text).toContain('action="/incapacidades/1/cobro"');
     expect(res.text).toContain('data-tiempo-pago="30"');
     expect(res.text).toContain('data-hoy="2026-11-21"');

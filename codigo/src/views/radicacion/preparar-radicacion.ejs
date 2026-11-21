@@ -127,7 +127,7 @@
             <li>
               <span class="punto rechazo"><svg viewBox="0 0 24 24" aria-hidden="true"><%- ICONOS.rechazo %></svg></span>
               <div class="paso">
-                <p class="titulo"><b>Rechazada por la entidad</b></p>
+                <p class="titulo"><b>Rechazada por la entidad</b><% if (i === ultimoRechazo && incapacidad.fechaRechazo) { %> <span class="tenue"><%= fechaBreve(incapacidad.fechaRechazo) %></span><% } %></p>
                 <% if (i === ultimoRechazo && incapacidad.causalRechazo) { %><p class="tenue">Causal: <%= incapacidad.causalRechazo %></p><% } %>
               </div>
             </li>

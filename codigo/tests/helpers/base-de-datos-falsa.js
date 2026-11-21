@@ -128,6 +128,7 @@ export function crearBaseDeDatosFalsa() {
         fechaNacimiento: guardada.fechaNacimiento ?? null,
         estado: guardada.estado,
         causalRechazo: guardada.causalRechazo ?? null,
+        fechaRechazo: guardada.fechaRechazo ?? null,
         documentacionCompleta: guardada.documentacionCompleta ?? null,
         archivadoDigital: guardada.archivadoDigital ?? false,
         entidad: { ...entidad, ...PLAZOS[id] },
@@ -166,6 +167,7 @@ export function crearBaseDeDatosFalsa() {
         diasIncapacidad: guardada.diasIncapacidad,
         estado: guardada.estado,
         causalRechazo: guardada.causalRechazo ?? null,
+        fechaRechazo: guardada.fechaRechazo ?? null,
         tiempoPago: guardada.tiempoPago ?? null,
         fechaCobrada: guardada.fechaCobrada ?? null,
         radicaciones: radicaciones
@@ -178,6 +180,13 @@ export function crearBaseDeDatosFalsa() {
       const incapacidad = incapacidades.find((i) => i.idIncapacidad === idIncapacidad);
       if (incapacidad?.estado !== 'transcrita') return false;
       Object.assign(incapacidad, { estado: 'cobrada', tiempoPago, fechaCobrada });
+      return true;
+    },
+    // Como el UPDATE condicionado de guardarRechazo: solo desde transcrita.
+    async guardarRechazo(idIncapacidad, { causal, fechaRechazo }) {
+      const incapacidad = incapacidades.find((i) => i.idIncapacidad === idIncapacidad);
+      if (incapacidad?.estado !== 'transcrita') return false;
+      Object.assign(incapacidad, { estado: 'rechazada', causalRechazo: causal, fechaRechazo });
       return true;
     },
     async consultarRadicacion(idRadicacion) {

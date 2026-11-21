@@ -36,6 +36,9 @@
   <p class="sub">Respuesta de la entidad y pago de la incapacidad.</p>
 
   <div class="formulario">
+    <% if (rechazoRegistrado) { %>
+      <p class="mensaje mensaje-aviso entra" role="status">Rechazo registrado. Causal: <%= incapacidad.causalRechazo %></p>
+    <% } %>
     <% if (registrada) { %>
       <p class="mensaje mensaje-ok entra" role="status">Incapacidad registrada como cobrada. Tiempo de pago: <%= dias(incapacidad.tiempoPago) %>, a más tardar el <%= fechaLarga(cobro.fechaPrometida) %>.</p>
     <% } %>
@@ -59,23 +62,32 @@
             </div>
           </li>
           <% if (huboRechazoTras(i)) { %>
-            <li>
+            <li class="<%= rechazoRegistrado && i === radicaciones.length - 1 ? 'entra' : '' %>">
               <span class="punto rechazo"><svg viewBox="0 0 24 24" aria-hidden="true"><%- ICONOS.rechazo %></svg></span>
               <div class="paso">
-                <p class="titulo"><b>Rechazada por la entidad</b></p>
+                <p class="titulo"><b>Rechazada por la entidad</b><% if (i === ultimoRechazo && incapacidad.fechaRechazo) { %> <span class="tenue"><%= fechaBreve(incapacidad.fechaRechazo) %></span><% } %></p>
                 <% if (i === ultimoRechazo && incapacidad.causalRechazo) { %><p class="tenue">Causal: <%= incapacidad.causalRechazo %></p><% } %>
               </div>
             </li>
           <% } %>
         <% }) %>
 
-        <% if (cobro.puedeRegistrarCobrada) { %>
+        <% if (cobro.puedeRegistrarCobrada) {
+          const enlaceCobro = `/incapacidades/${incapacidad.idIncapacidad}/cobro`;
+        %>
+          <%# HU-13 / HU-14 (DA-39, opción A): la respuesta de la entidad es un segmento «Aprobó / Rechazó». Sin
+              JavaScript son dos enlaces (?respuesta=rechazo); con él cambian el formulario sin recargar (sigi.js). %>
           <li>
             <span class="punto actual"><svg viewBox="0 0 24 24" aria-hidden="true"><%- ICONOS.nueva %></svg></span>
             <div class="paso">
-              <p class="titulo"><b><%= incapacidad.entidad %> aprobó la incapacidad</b></p>
-              <form class="radicar" method="post" action="/incapacidades/<%= incapacidad.idIncapacidad %>/cobro" novalidate>
-                <% if (errores.estado) { %><p class="mensaje mensaje-error" role="alert"><%= errores.estado %></p><% } %>
+              <p class="titulo"><b>Respuesta de <%= incapacidad.entidad %></b></p>
+              <% if (errores.estado) { %><p class="mensaje mensaje-error separado" role="alert"><%= errores.estado %></p><% } %>
+              <nav class="segmento" aria-label="Respuesta de la entidad">
+                <a href="<%= enlaceCobro %>" data-respuesta="aprobo"<%- respuesta === 'aprobo' ? ' aria-current="true"' : '' %>><svg viewBox="0 0 24 24" aria-hidden="true"><%- ICONOS.hecho %></svg>Aprobó</a>
+                <a href="<%= enlaceCobro %>?respuesta=rechazo" data-respuesta="rechazo"<%- respuesta === 'rechazo' ? ' aria-current="true"' : '' %>><svg viewBox="0 0 24 24" aria-hidden="true"><%- ICONOS.rechazo %></svg>Rechazó</a>
+              </nav>
+
+              <form class="radicar" method="post" action="<%= enlaceCobro %>" data-panel-respuesta="aprobo" novalidate<%- respuesta === 'aprobo' ? '' : ' hidden' %>>
                 <div class="atajos" role="group" aria-label="Tiempos de pago frecuentes">
                   <% tiemposFrecuentes.forEach((n) => { %>
                     <button type="button" data-tiempo-pago="<%= n %>" aria-pressed="<%= String(valores.tiempoPago) === String(n) %>"><%= n %> días</button>
@@ -91,6 +103,17 @@
                   <p class="prometida vacia" data-fecha-prometida aria-live="polite" hidden><span>Pagaría a más tardar</span><b>Escriba los días</b></p>
                 </div>
                 <div class="acciones"><button class="boton">Registrar como cobrada</button></div>
+              </form>
+
+              <form class="radicar" method="post" action="/incapacidades/<%= incapacidad.idIncapacidad %>/rechazo" data-panel-respuesta="rechazo" novalidate<%- respuesta === 'rechazo' ? '' : ' hidden' %>>
+                <div class="campo <%= errores.causal ? 'invalido' : '' %>">
+                  <label for="causal">Causal del rechazo</label>
+                  <textarea id="causal" name="causal" maxlength="<%= causalMaximo %>" required placeholder="Como la escribió la entidad en su respuesta" aria-describedby="<%= errores.causal ? 'error-causal' : 'ayuda-causal' %>"<%- errores.causal ? ' aria-invalid="true" autofocus' : '' %>><%= valores.causal ?? '' %></textarea>
+                  <% if (errores.causal) { %><span class="error" id="error-causal"><%= errores.causal %></span><% } else { %><span class="ayuda" id="ayuda-causal">Queda en la línea de tiempo; luego se pide una nueva transcripción y se radica de nuevo.</span><% } %>
+                  <%# Contador en vivo (public/js/sigi.js); sin JavaScript no se muestra. %>
+                  <span class="contador" data-contador hidden></span>
+                </div>
+                <div class="acciones"><button class="boton peligro">Registrar el rechazo</button></div>
               </form>
             </div>
           </li>
@@ -119,12 +142,12 @@
             </div>
           </li>
         <% } else { %>
-          <li>
+          <li class="<%= rechazoRegistrado ? 'entra' : '' %>">
             <span class="punto"><svg viewBox="0 0 24 24" aria-hidden="true"><%- ICONOS.espera %></svg></span>
             <div class="paso">
               <% if (estado === 'rechazada') { %>
                 <p class="titulo"><b>Debe radicarse de nuevo</b></p>
-                <p class="tenue">Registre la nueva radicación en <a href="/incapacidades/<%= incapacidad.idIncapacidad %>/radicacion">Radicación</a>.</p>
+                <p class="tenue">Pida a <%= incapacidad.entidad %> una nueva transcripción y registre la nueva radicación en <a href="/incapacidades/<%= incapacidad.idIncapacidad %>/radicacion">Radicación</a>.</p>
               <% } else { %>
                 <p class="titulo"><b>Aún no se ha radicado</b></p>
                 <p class="tenue">Radíquela primero en <a href="/incapacidades/<%= incapacidad.idIncapacidad %>/radicacion">Radicación</a>.</p>

@@ -108,7 +108,7 @@ describe('HU-10.CA1 — valida el radicado y la evidencia', () => {
 describe('HU-10.CA2 — tras un rechazo, una nueva radicación vuelve a «transcrita»', () => {
   it('HU-10.CA2 — rechazada + nueva radicación → transcrita; quedan las dos radicaciones', async () => {
     await radicar({ radicado: 'RAD-1' });
-    baseDeDatos.incapacidades[0].estado = 'rechazada'; // HU-14 (registrarRechazo) llega en T-14
+    await control.registrarRechazo('1', { causal: 'Soporte ilegible' }); // HU-14
     expect((await control.prepararRadicacion('1')).puedeRadicar).toBe(true);
     await expect(radicar({ radicado: 'RAD-2' })).resolves.toEqual({ idIncapacidad: 1, idRadicacion: 2 });
     expect(baseDeDatos.incapacidades[0].estado).toBe('transcrita');
