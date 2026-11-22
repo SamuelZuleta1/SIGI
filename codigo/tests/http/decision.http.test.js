@@ -97,11 +97,24 @@ describe('HU-20 — decisión de Cartera y Jurídica (rutas)', () => {
     expect(baseDeDatos.incapacidades[0].decision ?? null).toBeNull();
   });
 
-  it('DA-45 — ya decidida: 409; sin traslado: 409', async () => {
+  it('DA-02 — Cartera no ve ni decide una incapacidad sin trasladar: 404 sin datos del colaborador', async () => {
     const agente = await agenteCon(request, app, 'cartera');
-    const sinTraslado = await decidir(agente);
-    expect(sinTraslado.status).toBe(409);
-    expect(sinTraslado.text).toContain('aún no se ha trasladado');
+    for (const res of [await agente.get('/incapacidades/1/decision'), await decidir(agente)]) {
+      expect(res.status).toBe(404);
+      expect(res.text).not.toContain('Ana María Gómez');
+    }
+    expect(baseDeDatos.incapacidades[0].decision ?? null).toBeNull();
+  });
+
+  it('DA-02 — una incapacidad pagada sale de la vista de Cartera: 404', async () => {
+    await trasladar();
+    await control.registrarPago('1', { valor: '1.000', fechaPago: '2026-12-04' }, USUARIOS.auxiliar);
+    const agente = await agenteCon(request, app, 'cartera');
+    expect((await agente.get('/incapacidades/1/decision')).status).toBe(404);
+  });
+
+  it('DA-45 — ya decidida: 409', async () => {
+    const agente = await agenteCon(request, app, 'cartera');
     await trasladar();
     await decidir(agente);
     const otra = await decidir(agente, 'dar_de_baja');

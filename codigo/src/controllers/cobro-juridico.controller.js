@@ -199,10 +199,13 @@ export function crearControlCobroJuridico({ baseDeDatos, correo, hoy = hoyEnColo
       };
     },
 
-    /** Datos de la pantalla de decisión de una incapacidad. Solo consulta. null si no existe. */
+    /**
+     * Datos de la pantalla de decisión de una incapacidad. Solo consulta. null si no existe o si no es de Cartera y
+     * Jurídica (no está cobrada y trasladada): el rol solo ve lo que le toca (DA-02, DA-45).
+     */
     async prepararDecision(idIncapacidad) {
       const incapacidad = esIdentificador(idIncapacidad) ? await baseDeDatos.obtenerDatosRequerimientos(Number(idIncapacidad)) : null;
-      if (!incapacidad) return null;
+      if (!incapacidad || incapacidad.estado !== 'cobrada' || incapacidad.motivoTraslado == null) return null;
       const cobrada = incapacidad.tiempoPago != null && incapacidad.fechaCobrada != null;
       return {
         incapacidad: {

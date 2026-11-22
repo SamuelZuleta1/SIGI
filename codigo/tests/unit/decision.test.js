@@ -65,7 +65,9 @@ describe('HU-20.CA1 — Cartera y Jurídica registra la decisión', () => {
 
   it('DA-45 — sin traslado no hay decisión', async () => {
     expect((await errores(decidir())).estado).toMatch(/aún no se ha trasladado/);
-    expect((await control.prepararDecision('1')).puedeDecidir).toBe(false);
+    expect(await control.prepararDecision('1')).toBeNull(); // Cartera no ve lo que no es suyo
+    await trasladar();
+    expect((await control.prepararDecision('1')).puedeDecidir).toBe(true);
     expect(baseDeDatos.incapacidades[0].decision ?? null).toBeNull();
   });
 
@@ -73,6 +75,7 @@ describe('HU-20.CA1 — Cartera y Jurídica registra la decisión', () => {
     await trasladar();
     await control.registrarPago('1', { valor: '1.000', fechaPago: '2026-12-04' }, USUARIOS.auxiliar);
     expect((await errores(decidir())).estado).toMatch(/ya está pagada/);
+    expect(await control.prepararDecision('1')).toBeNull(); // ya no está en cobro: sale de la vista de Cartera
   });
 
   it('una decisión que no es una de las dos no se registra', async () => {
