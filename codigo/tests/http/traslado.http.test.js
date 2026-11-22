@@ -143,6 +143,15 @@ describe('HU-19.CA2 — pago posterior al traslado', () => {
     expect(baseDeDatos.incapacidades[0].estado).toBe('pagada');
   });
 
+  it('un pago con error desde el cobro jurídico: 400 y conserva el origen para volver a esta pantalla', async () => {
+    const agente = await agenteCon(request, app, 'auxiliar');
+    await trasladar(agente);
+    const res = await agente.post('/incapacidades/1/pago').type('form').send({ valor: '0', fechaPago: '2026-12-04', origen: 'cobro-juridico' });
+    expect(res.status).toBe(400);
+    expect(res.text).toContain('name="origen" value="cobro-juridico"');
+    expect(baseDeDatos.pagos).toHaveLength(0);
+  });
+
   it('sin traslado la pantalla no ofrece el pago', async () => {
     const agente = await agenteCon(request, app, 'auxiliar');
     expect((await agente.get('/incapacidades/1/requerimientos')).text).not.toContain('action="/incapacidades/1/pago"');
