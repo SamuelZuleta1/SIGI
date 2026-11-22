@@ -62,7 +62,7 @@
       <% } %>
       <% if (puede('consultarPendientesDePago')) { %>
       <li>
-        <a href="/seguimiento" <%- ruta === '/seguimiento' || /^\/incapacidades\/\d+\/seguimiento$/.test(ruta) ? 'aria-current="page"' : '' %>>
+        <a href="/seguimiento" <%- ruta === '/seguimiento' || /^\/incapacidades\/\d+\/(seguimiento|requerimientos)$/.test(ruta) ? 'aria-current="page"' : '' %>>
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16M4 12h10M4 19h7"/><circle cx="17.5" cy="16.5" r="3.5"/><path d="M17.5 15v1.7l1.1.8"/></svg>
           Seguimiento
         </a>

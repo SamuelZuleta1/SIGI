@@ -155,6 +155,9 @@
   </section>
 
   <div class="acciones">
+    <% if (incapacidad.requerimientos > 0 || seguimiento.puedeRegistrarAcuerdo) { %>
+      <a class="boton" href="/incapacidades/<%= incapacidad.idIncapacidad %>/requerimientos">Cobro persuasivo<% if (incapacidad.requerimientos > 0) { %> (<%= incapacidad.requerimientos %>)<% } %></a>
+    <% } %>
     <a class="boton secundario" href="/seguimiento">Volver a los pendientes</a>
   </div>
 </div>

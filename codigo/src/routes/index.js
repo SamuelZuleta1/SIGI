@@ -4,6 +4,7 @@ import { exigirSesion } from '../middleware/autenticacion.js';
 import { NOMBRES_DE_ROL } from '../config/permisos.js';
 import { crearRutasAlertas } from './alertas.routes.js';
 import { crearRutasCobro } from './cobro.routes.js';
+import { crearRutasCobroJuridico } from './cobro-juridico.routes.js';
 import { crearRutasEstados } from './estados.routes.js';
 import { crearRutasRadicacion } from './radicacion.routes.js';
 import { crearRutasReemplazo } from './reemplazo.routes.js';
@@ -36,6 +37,7 @@ export function crearRutas(dependencias) {
     rutas.use(crearRutasAlertas(dependencias));
     rutas.use(crearRutasCobro(dependencias));
     rutas.use(crearRutasSeguimiento(dependencias));
+    rutas.use(crearRutasCobroJuridico(dependencias));
   }
 
   // Solo para las pruebas: rutas de ensayo detrás de la sesión.

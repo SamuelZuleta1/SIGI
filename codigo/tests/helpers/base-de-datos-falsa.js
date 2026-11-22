@@ -34,11 +34,13 @@ export function crearBaseDeDatosFalsa() {
   const pagos = [];
   const seguimientos = [];
   const acuerdos = [];
+  const requerimientos = [];
   return {
     radicaciones,
     pagos,
     seguimientos,
     acuerdos,
+    requerimientos,
     colaboradores,
     incapacidades,
     documentos,
@@ -223,6 +225,7 @@ export function crearBaseDeDatosFalsa() {
           tiempoPago: i.tiempoPago,
           fechaCobrada: i.fechaCobrada,
           ultimoSeguimiento: seguimientos.filter((s) => s.idIncapacidad === i.idIncapacidad).at(-1)?.fecha ?? null,
+          requerimientos: requerimientos.filter((r) => r.idIncapacidad === i.idIncapacidad).length,
           ultimoAcuerdo: (({ fecha, valor } = {}) => (fecha ? { fecha, valor } : null))(acuerdos.filter((a) => a.idIncapacidad === i.idIncapacidad).at(-1)),
         }));
     },
@@ -240,6 +243,7 @@ export function crearBaseDeDatosFalsa() {
         decision: guardada.decision ?? null,
         tiempoPago: guardada.tiempoPago ?? null,
         fechaCobrada: guardada.fechaCobrada ?? null,
+        requerimientos: requerimientos.filter((r) => r.idIncapacidad === idIncapacidad).length,
         seguimientos: seguimientos
           .filter((x) => x.idIncapacidad === idIncapacidad)
           .map(({ idSeguimiento, fecha }) => ({ idSeguimiento, fecha })),
@@ -271,6 +275,34 @@ export function crearBaseDeDatosFalsa() {
       const idAcuerdo = acuerdos.length + 1;
       acuerdos.push({ idAcuerdo, idIncapacidad, fecha, valor, creadoPor, registrado: this.fechaSeguimiento ?? '2026-11-21T16:00:00.000Z' });
       return idAcuerdo;
+    },
+    // HU-18 (DS-08): como cobro-juridico.persistence.js.
+    async obtenerDatosRequerimientos(idIncapacidad) {
+      const guardada = incapacidades.find((i) => i.idIncapacidad === idIncapacidad);
+      if (!guardada) return null;
+      return {
+        idIncapacidad,
+        colaborador: colaboradores.find((c) => c.id === guardada.colaboradorId).nombre,
+        entidad: ENTIDADES.find((e) => e.id === guardada.entidad).nombre,
+        tipo: guardada.tipo,
+        fechaInicio: guardada.fechaInicio,
+        diasIncapacidad: guardada.diasIncapacidad,
+        estado: guardada.estado,
+        decision: guardada.decision ?? null,
+        tiempoPago: guardada.tiempoPago ?? null,
+        fechaCobrada: guardada.fechaCobrada ?? null,
+        requerimientos: requerimientos
+          .filter((r) => r.idIncapacidad === idIncapacidad)
+          .map(({ idRequerimiento, fundamentos, registrado }) => ({ idRequerimiento, fundamentos, registrado })),
+      };
+    },
+    // Como registrar_requerimiento: solo cobrada y sin dar de baja.
+    async guardarRequerimiento(idIncapacidad, fundamentos, creadoPor) {
+      const incapacidad = incapacidades.find((i) => i.idIncapacidad === idIncapacidad);
+      if (incapacidad?.estado !== 'cobrada' || incapacidad.decision === 'dar_de_baja') return null;
+      const idRequerimiento = requerimientos.length + 1;
+      requerimientos.push({ idRequerimiento, idIncapacidad, fundamentos, creadoPor, registrado: this.fechaSeguimiento ?? '2026-11-21T17:00:00.000Z' });
+      return idRequerimiento;
     },
     async consultarSeguimiento(idSeguimiento) {
       const s = seguimientos.find((x) => x.idSeguimiento === idSeguimiento);

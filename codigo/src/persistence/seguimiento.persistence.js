@@ -27,7 +27,7 @@ export function crearPersistenciaSeguimiento(cliente, almacen = crearAlmacenDocu
             .from('incapacidad')
             .select(
               'id, tipo, fecha_inicio, dias_incapacidad, estado, decision, tiempo_pago, fecha_cobrada, ' +
-                'colaborador(nombre), entidad(nombre), seguimiento(creado_en), acuerdo_pago(fecha, valor)',
+                'colaborador(nombre), entidad(nombre), seguimiento(creado_en), acuerdo_pago(fecha, valor), requerimiento(count)',
             )
             .eq('estado', 'cobrada')
             .or('decision.is.null,decision.neq.dar_de_baja')
@@ -53,6 +53,7 @@ export function crearPersistenciaSeguimiento(cliente, almacen = crearAlmacenDocu
         tiempoPago: f.tiempo_pago,
         fechaCobrada: f.fecha_cobrada,
         ultimoSeguimiento: f.seguimiento[0]?.creado_en ?? null,
+        requerimientos: f.requerimiento[0]?.count ?? 0,
         ultimoAcuerdo: f.acuerdo_pago[0] ? { fecha: f.acuerdo_pago[0].fecha, valor: Number(f.acuerdo_pago[0].valor).toFixed(2) } : null,
       }));
     },
@@ -67,7 +68,7 @@ export function crearPersistenciaSeguimiento(cliente, almacen = crearAlmacenDocu
           .from('incapacidad')
           .select(
             'id, tipo, fecha_inicio, dias_incapacidad, estado, decision, tiempo_pago, fecha_cobrada, ' +
-              'colaborador(nombre), entidad(nombre), seguimiento(id, creado_en), acuerdo_pago(id, fecha, valor, creado_en)',
+              'colaborador(nombre), entidad(nombre), seguimiento(id, creado_en), acuerdo_pago(id, fecha, valor, creado_en), requerimiento(count)',
           )
           .eq('id', idIncapacidad)
           .order('id', { referencedTable: 'seguimiento' })
@@ -86,6 +87,7 @@ export function crearPersistenciaSeguimiento(cliente, almacen = crearAlmacenDocu
         decision: fila.decision,
         tiempoPago: fila.tiempo_pago,
         fechaCobrada: fila.fecha_cobrada,
+        requerimientos: fila.requerimiento[0]?.count ?? 0,
         seguimientos: fila.seguimiento.map((s) => ({ idSeguimiento: s.id, fecha: s.creado_en })),
         acuerdos: fila.acuerdo_pago.map((a) => ({
           idAcuerdo: a.id,

@@ -56,6 +56,7 @@
             <td class="fecha"><%= fechaBreve(p.fechaPrometida) %><small>Cobrada el <%= fechaBreve(p.fechaCobrada) %> · <%= dias(p.tiempoPago) %></small></td>
             <td>
               <span class="chip <%= clase %>"><%= texto %></span>
+              <% if (p.requerimientos > 0) { %><small>Requerimientos: <%= p.requerimientos %></small><% } %>
               <% if (p.ultimoAcuerdo) { %><small>Acuerdo: <%= pesos(p.ultimoAcuerdo.valor) %> el <%= fechaBreve(p.ultimoAcuerdo.fecha) %></small><% } %>
             </td>
             <td class="fecha">

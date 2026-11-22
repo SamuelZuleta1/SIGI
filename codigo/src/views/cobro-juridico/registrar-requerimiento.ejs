@@ -1,0 +1,94 @@
+<%
+  // HU-18 (DS-08; DA-43): cobro persuasivo. Línea de tiempo de los requerimientos; el formulario es el último paso.
+  const ICONOS = {
+    hecho: '<path d="M5 12.5l4.5 4.5L19 7.5"/>',
+    requerimiento: '<path d="M4 6h16v12H4zM4 7l8 6 8-6"/>',
+    nueva: '<path d="M12 6v12M6 12h12"/>',
+    espera: '<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>',
+  };
+  const dias = (n) => (n === 1 ? '1 día' : `${n} días`);
+  const { incapacidad, demora } = cobro;
+  const ultimo = incapacidad.requerimientos.at(-1);
+  const faltan = Math.max(cobro.minimo - cobro.total, 0);
+%>
+<h1>Cobro persuasivo</h1>
+<p class="sub">Requerimientos a la entidad por el pago que sigue en demora. Se necesitan mínimo <%= cobro.minimo %> antes de trasladar a Cartera y Jurídica.</p>
+
+<div class="formulario">
+  <% if (registrado) { %>
+    <% if (cobro.cumpleMinimo) { %>
+      <p class="mensaje mensaje-ok entra" role="status">Requerimiento registrado. Ya van <%= cobro.total %>: se cumple el mínimo de <%= cobro.minimo %> antes del traslado.</p>
+    <% } else { %>
+      <p class="mensaje mensaje-aviso entra" role="status">Requerimiento registrado (<%= cobro.total %> de <%= cobro.minimo %>). Falta<%= faltan === 1 ? '' : 'n' %> <%= faltan %> para el mínimo antes del traslado.</p>
+    <% } %>
+  <% } %>
+
+  <dl class="resumen">
+    <dt>Incapacidad</dt><dd>n.º <%= incapacidad.idIncapacidad %></dd>
+    <dt>Colaborador</dt><dd><%= incapacidad.colaborador %></dd>
+    <dt>Tipo</dt><dd><%= nombresTipo[incapacidad.tipo] %> · <%= incapacidad.entidad %></dd>
+    <dt>Inicio</dt><dd><%= fechaBreve(incapacidad.fechaInicio) %> · <%= dias(incapacidad.diasIncapacidad) %></dd>
+  </dl>
+
+  <section class="radicaciones" aria-labelledby="titulo-requerimientos">
+    <h2 id="titulo-requerimientos">Requerimientos <span class="chip <%= cobro.cumpleMinimo ? 'al_dia' : 'por_vencer' %>"><%= cobro.total %> de <%= cobro.minimo %></span></h2>
+    <ol class="linea-tiempo">
+      <% if (demora) { %>
+        <li>
+          <span class="punto <%= demora.conDemora ? 'rechazo' : 'hecho' %>"><svg viewBox="0 0 24 24" aria-hidden="true"><%- ICONOS.hecho %></svg></span>
+          <div class="paso">
+            <p class="titulo"><b>Cobrada · <%= incapacidad.entidad %> aprobó</b> <span class="tenue"><%= fechaBreve(incapacidad.fechaCobrada) %></span></p>
+            <p class="tenue">Debía pagar a más tardar el <%= fechaBreve(demora.fechaPrometida) %><% if (demora.conDemora) { %> · <b><%= dias(demora.diasDemora) %> de demora</b><% } %></p>
+          </div>
+        </li>
+      <% } %>
+      <% incapacidad.requerimientos.forEach((r, i) => { %>
+        <li class="<%= registrado && r === ultimo ? 'entra' : '' %>">
+          <span class="punto hecho"><svg viewBox="0 0 24 24" aria-hidden="true"><%- ICONOS.requerimiento %></svg></span>
+          <div class="paso">
+            <p class="titulo"><b>Requerimiento <%= i + 1 %></b> <span class="tenue"><%= fechaBreve(r.dia) %></span></p>
+            <p class="fundamentos"><%= r.fundamentos %></p>
+          </div>
+        </li>
+      <% }) %>
+
+      <% if (cobro.puedeRegistrar) { %>
+        <li>
+          <span class="punto actual"><svg viewBox="0 0 24 24" aria-hidden="true"><%- ICONOS.nueva %></svg></span>
+          <div class="paso">
+            <p class="titulo"><b>Requerimiento <%= cobro.total + 1 %></b></p>
+            <p class="tenue">Escriba los fundamentos con los que le reclama el pago a <%= incapacidad.entidad %>.</p>
+            <form class="radicar" method="post" action="/incapacidades/<%= incapacidad.idIncapacidad %>/requerimiento" novalidate data-un-envio>
+              <div class="campo <%= errores.fundamentos ? 'invalido' : '' %>">
+                <label for="fundamentos">Fundamentos del requerimiento</label>
+                <textarea id="fundamentos" name="fundamentos" maxlength="<%= fundamentosMaximo %>" required placeholder="Por ejemplo: plazo vencido, norma que obliga a pagar y valor reclamado" aria-describedby="<%= errores.fundamentos ? 'error-fundamentos' : 'ayuda-fundamentos' %>"<%- errores.fundamentos ? ' aria-invalid="true" autofocus' : '' %>><%= valores.fundamentos ?? '' %></textarea>
+                <% if (errores.fundamentos) { %><span class="error" id="error-fundamentos"><%= errores.fundamentos %></span><% } else { %><span class="ayuda" id="ayuda-fundamentos">Queda en la línea de tiempo como evidencia del cobro persuasivo.</span><% } %>
+                <%# Contador en vivo (public/js/sigi.js); sin JavaScript no se muestra. %>
+                <span class="contador" data-contador hidden></span>
+              </div>
+              <div class="acciones"><button class="boton" data-enviando="Registrando…">Registrar el requerimiento</button></div>
+            </form>
+          </div>
+        </li>
+      <% } else { %>
+        <li>
+          <span class="punto"><svg viewBox="0 0 24 24" aria-hidden="true"><%- ICONOS.espera %></svg></span>
+          <div class="paso">
+            <p class="titulo"><b>Sin requerimiento nuevo</b></p>
+            <% if (errores.estado) { %>
+              <p class="mensaje mensaje-error separado" role="alert"><%= errores.estado %></p>
+            <% } else if (cobro.mensajeEstado) { %>
+              <p class="tenue"><%= cobro.mensajeEstado %></p>
+            <% } else if (demora) { %>
+              <p class="tenue">La entidad aún está dentro del plazo (hasta el <%= fechaBreve(demora.fechaPrometida) %>): el cobro persuasivo se hace cuando hay demora.</p>
+            <% } %>
+          </div>
+        </li>
+      <% } %>
+    </ol>
+  </section>
+
+  <div class="acciones">
+    <a class="boton secundario" href="/incapacidades/<%= incapacidad.idIncapacidad %>/seguimiento">Volver al seguimiento</a>
+  </div>
+</div>
