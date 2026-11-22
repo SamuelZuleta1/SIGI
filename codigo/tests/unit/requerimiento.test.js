@@ -114,6 +114,17 @@ describe('HU-18.CA2 — mínimo de dos requerimientos (se informa, DA-14)', () =
   });
 });
 
+describe('HU-18.CA2 — el total de la confirmación cuenta los requerimientos simultáneos', () => {
+  it('si otro auxiliar registró uno a la vez, el total los incluye', async () => {
+    const guardar = baseDeDatos.guardarRequerimiento.bind(baseDeDatos);
+    baseDeDatos.guardarRequerimiento = async (...args) => {
+      await guardar(1, 'Registrado por otro auxiliar a la vez.', 'id-otro');
+      return guardar(...args);
+    };
+    expect(await requerir()).toMatchObject({ total: 2, cumpleMinimo: true });
+  });
+});
+
 describe('DA-43 — validación de los fundamentos', () => {
   it.each([
     ['', 'Escriba los fundamentos del requerimiento.'],

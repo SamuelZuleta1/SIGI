@@ -88,7 +88,8 @@ export function crearControlCobroJuridico({ baseDeDatos, hoy = hoyEnColombia }) 
         const ahora = await baseDeDatos.obtenerDatosRequerimientos(actual.idIncapacidad);
         throw new ErrorDeValidacion({ estado: mensajeEstado(ahora ?? actual) });
       }
-      const total = actual.requerimientos.length + 1;
+      // El total se lee después de guardar: si otro auxiliar registró uno a la vez, la confirmación cuenta los dos.
+      const total = (await baseDeDatos.obtenerDatosRequerimientos(actual.idIncapacidad)).requerimientos.length;
       return { idIncapacidad: actual.idIncapacidad, idRequerimiento, total, cumpleMinimo: total >= REQUERIMIENTOS_MINIMOS };
     },
   };
