@@ -124,8 +124,9 @@ export function crearControlCobroJuridico({ baseDeDatos, correo, hoy = hoyEnColo
     /**
      * DS-08: trasladarACartera(id, motivo) → notificarTraslado(motivo) → guardarTraslado(motivo) — HU-19.CA1.
      * Solo con la incapacidad pendiente de pago, en demora y sin trasladar antes (DA-05, DA-44). Con menos de dos
-     * requerimientos se advierte y se permite (DA-14). Como los demás avisos (DA-31, DA-42), primero el correo a
-     * Cartera y Jurídica y después el registro: si el correo falla no queda trasladada y se puede reintentar.
+     * requerimientos se advierte y se permite (DA-14). Primero se guarda el traslado (condicionado en la base) y
+     * solo entonces se avisa a Cartera y Jurídica: si otro usuario trasladó o pagó a la vez, no sale ningún correo
+     * de más; si el correo falla, se deshace el traslado y se puede reintentar.
      * @param {{ motivo?: string }} datos
      * @returns {Promise<null | { idIncapacidad: number, requerimientos: number, advertencia: boolean }>} null si no existe.
      * @throws {ErrorDeValidacion} motivo no válido (`motivo`), o no admite traslado (`estado`).
@@ -141,7 +142,6 @@ export function crearControlCobroJuridico({ baseDeDatos, correo, hoy = hoyEnColo
       const motivo = leerMotivo(datos?.motivo);
       if (motivo.error) throw new ErrorDeValidacion({ motivo: motivo.error });
 
-      await correo.notificarTraslado(actual, motivo.valor);
       const guardado = await baseDeDatos.guardarTraslado(actual.idIncapacidad, motivo.valor, hoy());
       // Otro usuario trasladó, pagó o dio de baja entre la consulta y el registro: la transacción no lo guardó.
       if (!guardado) {
@@ -149,6 +149,12 @@ export function crearControlCobroJuridico({ baseDeDatos, correo, hoy = hoyEnColo
         throw new ErrorDeValidacion({
           estado: ahora?.motivoTraslado != null ? mensajeTrasladada(ahora) : mensajeEstado(ahora ?? actual),
         });
+      }
+      try {
+        await correo.notificarTraslado(actual, motivo.valor);
+      } catch (error) {
+        await baseDeDatos.deshacerTraslado(actual.idIncapacidad, motivo.valor).catch(() => {});
+        throw error;
       }
       const requerimientos = actual.requerimientos.length;
       return { idIncapacidad: actual.idIncapacidad, requerimientos, advertencia: requerimientos < REQUERIMIENTOS_MINIMOS };

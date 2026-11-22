@@ -90,7 +90,7 @@ describe('HU-19.CA1 — traslado con motivo y correo a Cartera y Jurídica', () 
     expect(enviados).toHaveLength(0);
   });
 
-  it('DA-44 — si el correo falla no queda trasladada y se puede reintentar', async () => {
+  it('DA-44 — si el correo falla se deshace el traslado y se puede reintentar', async () => {
     const fallido = crearControlIncapacidades({
       baseDeDatos,
       correo: { notificarTraslado: async () => { throw new Error('SMTP caído'); } },
@@ -98,6 +98,7 @@ describe('HU-19.CA1 — traslado con motivo y correo a Cartera y Jurídica', () 
     });
     await expect(fallido.trasladarACartera('1', { motivo: '180 días sin pago' })).rejects.toThrow('SMTP caído');
     expect(baseDeDatos.incapacidades[0].motivoTraslado ?? null).toBeNull();
+    expect(baseDeDatos.incapacidades[0].fechaTraslado ?? null).toBeNull();
     expect(await trasladar()).toMatchObject({ idIncapacidad: 1 });
   });
 
@@ -115,6 +116,7 @@ describe('HU-19.CA1 — traslado con motivo y correo a Cartera y Jurídica', () 
     };
     expect((await errores(trasladar())).estado).toMatch(/ya está pagada/);
     expect(baseDeDatos.incapacidades[0].motivoTraslado ?? null).toBeNull();
+    expect(enviados).toHaveLength(0); // no sale un correo de más
   });
 
   it('si otro usuario trasladó a la vez, el mensaje lo dice', async () => {
@@ -124,6 +126,7 @@ describe('HU-19.CA1 — traslado con motivo y correo a Cartera y Jurídica', () 
       return guardar(...args);
     };
     expect((await errores(trasladar())).estado).toMatch(/ya se trasladó/);
+    expect(enviados).toHaveLength(0); // no sale un correo de más
   });
 
   it('no existe o el número no es válido → null', async () => {

@@ -67,6 +67,16 @@ describe('HU-19 — traslado a Cartera y Jurídica (base de datos)', () => {
     expect(data.motivo_traslado).toBe('Primer motivo');
   });
 
+  it('DA-44 — deshacerTraslado borra motivo y fecha juntos y solo el del mismo motivo', async () => {
+    const id = await registrarCobrada();
+    await baseDeDatos.guardarTraslado(id, 'Motivo a deshacer', '2026-12-04');
+    await baseDeDatos.deshacerTraslado(id, 'Otro motivo');
+    expect((await baseDeDatos.obtenerDatosRequerimientos(id)).motivoTraslado).toBe('Motivo a deshacer');
+    await baseDeDatos.deshacerTraslado(id, 'Motivo a deshacer');
+    expect(await baseDeDatos.obtenerDatosRequerimientos(id)).toMatchObject({ motivoTraslado: null, fechaTraslado: null });
+    expect(await baseDeDatos.guardarTraslado(id, 'Motivo nuevo', '2026-12-05')).toBe(true);
+  });
+
   it('DA-05 — la función no traslada una pagada ni una dada de baja', async () => {
     const id = await registrarCobrada();
     await servidor.from('incapacidad').update({ decision: 'dar_de_baja' }).eq('id', id);

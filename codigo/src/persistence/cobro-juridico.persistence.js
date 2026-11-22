@@ -72,5 +72,16 @@ export function crearPersistenciaCobroJuridico(cliente) {
         await cliente.rpc('trasladar_a_cartera', { p_incapacidad_id: idIncapacidad, p_motivo: motivo, p_fecha: fecha }),
       ) === true;
     },
+
+    /** Deshace el traslado recién guardado (si el aviso a Cartera falló). Solo borra el que tiene ese motivo. */
+    async deshacerTraslado(idIncapacidad, motivo) {
+      comprobar(
+        await cliente
+          .from('incapacidad')
+          .update({ motivo_traslado: null, fecha_traslado: null })
+          .eq('id', idIncapacidad)
+          .eq('motivo_traslado', motivo),
+      );
+    },
   };
 }

@@ -313,6 +313,10 @@ export function crearBaseDeDatosFalsa() {
       Object.assign(incapacidad, { motivoTraslado: motivo, fechaTraslado: fecha });
       return true;
     },
+    async deshacerTraslado(idIncapacidad, motivo) {
+      const incapacidad = incapacidades.find((i) => i.idIncapacidad === idIncapacidad);
+      if (incapacidad?.motivoTraslado === motivo) Object.assign(incapacidad, { motivoTraslado: null, fechaTraslado: null });
+    },
     async consultarSeguimiento(idSeguimiento) {
       const s = seguimientos.find((x) => x.idSeguimiento === idSeguimiento);
       return s ? { idSeguimiento, idIncapacidad: s.idIncapacidad, evidencia: s.evidencia } : null;
