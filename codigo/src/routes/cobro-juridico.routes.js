@@ -1,12 +1,13 @@
 // Grupo `cobro-juridico` de la Interfaz de incapacidades — DS-08 (CU-12).
 // Operaciones de la Vista: registrarRequerimiento (HU-18) y trasladarACartera (HU-19); el pago posterior al traslado
-// usa POST /incapacidades/:id/pago con origen=cobro-juridico (HU-19.CA2). La decisión (HU-20) se agrega a este grupo.
+// usa POST /incapacidades/:id/pago con origen=cobro-juridico (HU-19.CA2). Para el rol Cartera y Jurídica: la lista
+// de trasladadas (GET /cartera) y registrarDecision (HU-20), con una pantalla de decisión por incapacidad (DA-45).
 // Diseño (DA-43): pantalla «Cobro persuasivo» con la línea de tiempo de los requerimientos y el formulario como último paso.
 import { Router } from 'express';
 import { ErrorDeValidacion } from '../controllers/error-de-validacion.js';
 import { FUNDAMENTOS_MAXIMO, MOTIVO_MAXIMO } from '../controllers/cobro-juridico.controller.js';
 import { permitir } from '../middleware/autenticacion.js';
-import { NOMBRES_TIPO_INCAPACIDAD } from '../models/incapacidad.model.js';
+import { NOMBRES_DECISION, NOMBRES_TIPO_INCAPACIDAD } from '../models/incapacidad.model.js';
 import { fechaBreve, fechaLarga } from '../servicios/dias-habiles.js';
 
 export function crearRutasCobroJuridico({ control }) {
@@ -25,6 +26,7 @@ export function crearRutasCobroJuridico({ control }) {
       nombresTipo: NOMBRES_TIPO_INCAPACIDAD,
       fundamentosMaximo: FUNDAMENTOS_MAXIMO,
       motivoMaximo: MOTIVO_MAXIMO,
+      nombresDecision: NOMBRES_DECISION,
       ...datos,
     });
 
@@ -79,6 +81,52 @@ export function crearRutasCobroJuridico({ control }) {
         errores: error.errores,
         valores: { motivo: motivo.slice(0, MOTIVO_MAXIMO + 1) },
       });
+    }
+  });
+
+  // Rol Cartera y Jurídica (HU-20): las trasladadas, con pestañas «Esperan decisión / Decididas». Solo consulta.
+  rutas.get('/cartera', permitir('registrarDecision'), async (req, res) => {
+    const datos = await control.consultarTrasladadas(String(req.query.ver ?? 'pendientes'));
+    res.pagina('cobro-juridico/consultar-trasladadas', {
+      titulo: 'Cobro jurídico',
+      ...datos,
+      fechaBreve,
+      nombresTipo: NOMBRES_TIPO_INCAPACIDAD,
+      nombresDecision: NOMBRES_DECISION,
+    });
+  });
+
+  const paginaDecision = (res, estado, datos = {}) =>
+    res.status(estado).pagina('cobro-juridico/registrar-decision', {
+      titulo: 'Decisión de Cartera y Jurídica',
+      errores: {},
+      registrada: false,
+      fechaBreve,
+      fechaLarga,
+      nombresTipo: NOMBRES_TIPO_INCAPACIDAD,
+      nombresDecision: NOMBRES_DECISION,
+      ...datos,
+    });
+
+  // Pantalla de decisión de una incapacidad. Tras registrar se vuelve con ?registrada=1; la confirmación solo
+  // aparece si de verdad hay decisión (un enlace copiado no la muestra).
+  rutas.get('/incapacidades/:id/decision', permitir('registrarDecision'), async (req, res) => {
+    const decision = await control.prepararDecision(req.params.id);
+    if (!decision) return noExiste(res);
+    await paginaDecision(res, 200, { decision, registrada: req.query.registrada === '1' && decision.incapacidad.decision != null });
+  });
+
+  // registrarDecision(decision) — HU-20.CA1. Decisión no válida: 400; sin traslado, ya decidida o no cobrada: 409.
+  rutas.post('/incapacidades/:id/decision', permitir('registrarDecision'), async (req, res) => {
+    try {
+      const resultado = await control.registrarDecision(req.params.id, { decision: String(req.body?.decision ?? '') });
+      if (!resultado) return noExiste(res);
+      res.redirect(303, `/incapacidades/${resultado.idIncapacidad}/decision?registrada=1`);
+    } catch (error) {
+      if (!(error instanceof ErrorDeValidacion)) throw error;
+      const decision = await control.prepararDecision(req.params.id);
+      if (!decision) return noExiste(res);
+      await paginaDecision(res, error.errores.estado ? 409 : 400, { decision, errores: error.errores });
     }
   });
 

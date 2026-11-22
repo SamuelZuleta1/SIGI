@@ -79,9 +79,9 @@ describe('HU-19 — traslado a Cartera y Jurídica (base de datos)', () => {
 
   it('DA-05 — la función no traslada una pagada ni una dada de baja', async () => {
     const id = await registrarCobrada();
-    await servidor.from('incapacidad').update({ decision: 'dar_de_baja' }).eq('id', id);
+    await servidor.from('incapacidad').update({ decision: 'dar_de_baja', fecha_decision: '2026-12-04' }).eq('id', id);
     expect(await baseDeDatos.guardarTraslado(id, 'Motivo de prueba', '2026-12-04')).toBe(false);
-    await servidor.from('incapacidad').update({ decision: null }).eq('id', id);
+    await servidor.from('incapacidad').update({ decision: null, fecha_decision: null }).eq('id', id);
     await control.registrarPago(id, { valor: '1.000', fechaPago: '2026-12-04' }, auxiliar);
     expect(await baseDeDatos.guardarTraslado(id, 'Motivo de prueba', '2026-12-04')).toBe(false);
     const { data } = await servidor.from('incapacidad').select('motivo_traslado, fecha_traslado').eq('id', id).single();

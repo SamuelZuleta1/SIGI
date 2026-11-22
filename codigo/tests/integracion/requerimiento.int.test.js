@@ -72,9 +72,9 @@ describe('HU-18 — requerimientos de cobro persuasivo (base de datos)', () => {
 
   it('DA-05 — la función no guarda requerimientos de una pagada ni de una dada de baja', async () => {
     const id = await registrarCobrada();
-    await servidor.from('incapacidad').update({ decision: 'dar_de_baja' }).eq('id', id);
+    await servidor.from('incapacidad').update({ decision: 'dar_de_baja', fecha_decision: '2026-12-04' }).eq('id', id);
     expect(await baseDeDatos.guardarRequerimiento(id, 'Fundamentos de prueba', auxiliar.id)).toBeNull();
-    await servidor.from('incapacidad').update({ decision: null }).eq('id', id);
+    await servidor.from('incapacidad').update({ decision: null, fecha_decision: null }).eq('id', id);
     await control.registrarPago(id, { valor: '1.000', fechaPago: '2026-12-04' }, auxiliar);
     expect(await baseDeDatos.guardarRequerimiento(id, 'Fundamentos de prueba', auxiliar.id)).toBeNull();
     const { count } = await servidor.from('requerimiento').select('id', { count: 'exact', head: true }).eq('incapacidad_id', id);

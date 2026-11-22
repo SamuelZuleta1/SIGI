@@ -32,6 +32,9 @@ export const NOMBRES_ESTADO_INCAPACIDAD = Object.freeze({
 
 export const DECISIONES = Object.freeze(['recuperar', 'dar_de_baja']);
 
+// Nombres para mostrar de la decisión de Cartera y Jurídica (HU-20).
+export const NOMBRES_DECISION = Object.freeze({ recuperar: 'Recuperar el cobro', dar_de_baja: 'Dar de baja' });
+
 export class Incapacidad {
   idIncapacidad;
   tipo;
@@ -50,6 +53,7 @@ export class Incapacidad {
   causalRechazo = null;
   motivoTraslado = null;
   fechaTraslado = null; // DA-44
+  fechaDecision = null; // DA-45
   decision = null;
   concepto = null;
   faltaConcepto = false;

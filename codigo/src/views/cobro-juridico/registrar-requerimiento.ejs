@@ -113,6 +113,16 @@
         </li>
       <% } %>
 
+      <% if (incapacidad.decision) { %>
+        <li>
+          <span class="punto <%= incapacidad.decision === 'recuperar' ? 'hecho' : 'rechazo' %>"><svg viewBox="0 0 24 24" aria-hidden="true"><%- ICONOS.traslado %></svg></span>
+          <div class="paso">
+            <p class="titulo"><b>Decisión de Cartera y Jurídica: <%= nombresDecision[incapacidad.decision] %></b> <span class="tenue"><%= fechaBreve(incapacidad.fechaDecision) %></span></p>
+            <p class="tenue"><%= incapacidad.decision === 'dar_de_baja' ? 'La acreencia sale de los pendientes de pago.' : 'El cobro sigue; si la entidad paga, regístrelo aquí.' %></p>
+          </div>
+        </li>
+      <% } %>
+
       <%# HU-19.CA2: el pago que llega después del traslado se registra con la misma operación que el cobro (HU-15). %>
       <% if (cobro.puedeRegistrarPago) { %>
         <li>

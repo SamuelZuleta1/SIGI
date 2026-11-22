@@ -51,7 +51,7 @@ describe('HU-16 — seguimiento semanal (base de datos)', () => {
     const ver = async () => (await control.consultarPendientesDePago()).pendientes.find((p) => p.idIncapacidad === id);
     expect(await ver()).toMatchObject({ fechaPrometida: '2026-12-21', ultimoSeguimiento: null, tocaSeguimiento: false });
 
-    await servidor.from('incapacidad').update({ decision: 'dar_de_baja' }).eq('id', id);
+    await servidor.from('incapacidad').update({ decision: 'dar_de_baja', fecha_decision: '2026-12-04' }).eq('id', id);
     expect(await ver()).toBeUndefined();
     expect(await baseDeDatos.guardarSeguimiento(id, { contenido: PDF, tipoMime: 'application/pdf' }, auxiliar.id)).toBeNull();
   });

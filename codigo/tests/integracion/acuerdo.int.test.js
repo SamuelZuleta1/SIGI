@@ -72,9 +72,9 @@ describe('HU-17 — retraso y acuerdo de pago (base de datos)', () => {
 
   it('DA-42 — la función no guarda acuerdos de una pagada ni de una dada de baja', async () => {
     const id = await registrarCobrada();
-    await servidor.from('incapacidad').update({ decision: 'dar_de_baja' }).eq('id', id);
+    await servidor.from('incapacidad').update({ decision: 'dar_de_baja', fecha_decision: '2026-12-04' }).eq('id', id);
     expect(await baseDeDatos.guardarAcuerdo(id, { fecha: '2026-12-15', valor: '1000.00' }, auxiliar.id)).toBeNull();
-    await servidor.from('incapacidad').update({ decision: null }).eq('id', id);
+    await servidor.from('incapacidad').update({ decision: null, fecha_decision: null }).eq('id', id);
     await control.registrarPago(id, { valor: '1.000', fechaPago: '2026-12-04' }, auxiliar);
     expect(await baseDeDatos.guardarAcuerdo(id, { fecha: '2026-12-15', valor: '1000.00' }, auxiliar.id)).toBeNull();
     const { count } = await servidor.from('acuerdo_pago').select('id', { count: 'exact', head: true }).eq('incapacidad_id', id);

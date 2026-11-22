@@ -1,7 +1,9 @@
 // Grupo `cobro-juridico` del Control de incapacidades — DS-08 (CU-12).
 // Operaciones: prepararRequerimientos (apoyo de la Vista), registrarRequerimiento → guardarRequerimiento (HU-18)
-// y trasladarACartera → guardarTraslado (HU-19). La decisión de Cartera (HU-20) se agrega a este grupo.
+// trasladarACartera → guardarTraslado (HU-19), consultarTrasladadas y prepararDecision (apoyo de la Vista) y
+// registrarDecision → guardarDecision (HU-20), la única operación del rol Cartera y Jurídica.
 import { fechaBreve, fechaEnColombia, hoyEnColombia } from '../servicios/dias-habiles.js';
+import { DECISIONES, NOMBRES_DECISION } from '../models/incapacidad.model.js';
 import { ErrorDeValidacion } from './error-de-validacion.js';
 import { esIdentificador } from './identificador.js';
 import { estaPendienteDePago, evaluarDemora } from './seguimiento.controller.js';
@@ -53,6 +55,25 @@ export function leerMotivo(texto) {
   if (/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/.test(limpio)) return { error: 'El motivo tiene caracteres no válidos.' };
   return { valor: limpio };
 }
+
+// Pestañas de la lista de Cartera y Jurídica (DA-45): las que esperan decisión y las ya decididas.
+export const FILTROS_TRASLADADAS = Object.freeze({
+  pendientes: (t) => t.decision == null,
+  decididas: (t) => t.decision != null,
+});
+
+// HU-20 (DA-45): se decide sobre una incapacidad cobrada, ya trasladada y sin decisión.
+const puedeDecidir = (incapacidad) =>
+  incapacidad.estado === 'cobrada' && incapacidad.motivoTraslado != null && incapacidad.decision == null;
+
+const mensajeDecision = (incapacidad) => {
+  if (incapacidad.decision != null) {
+    return `Ya se registró la decisión (${NOMBRES_DECISION[incapacidad.decision].toLowerCase()}) el ${fechaBreve(incapacidad.fechaDecision)}.`;
+  }
+  if (incapacidad.estado === 'cobrada') return 'Esta incapacidad aún no se ha trasladado a Cartera y Jurídica.';
+  if (incapacidad.estado === 'pagada') return 'La incapacidad ya está pagada: no hay decisión que registrar.';
+  return 'La incapacidad no está en cobro: no hay decisión que registrar.';
+};
 
 export function crearControlCobroJuridico({ baseDeDatos, correo, hoy = hoyEnColombia }) {
   const sinDemora = (demora) => ({
@@ -158,6 +179,64 @@ export function crearControlCobroJuridico({ baseDeDatos, correo, hoy = hoyEnColo
       }
       const requerimientos = actual.requerimientos.length;
       return { idIncapacidad: actual.idIncapacidad, requerimientos, advertencia: requerimientos < REQUERIMIENTOS_MINIMOS };
+    },
+
+    /**
+     * DS-08: consultarTrasladadas() — apoyo de la Vista de Cartera y Jurídica (HU-20). Las trasladadas que siguen
+     * cobradas, las más antiguas primero. Solo consulta.
+     * @param {string} ver pestaña: pendientes o decididas (otra cosa = pendientes).
+     */
+    async consultarTrasladadas(ver = 'pendientes') {
+      const fecha = hoy();
+      const trasladadas = (await baseDeDatos.consultarTrasladadas())
+        .map((t) => ({ ...t, ...evaluarDemora(t, fecha) }))
+        .sort((a, b) => a.fechaTraslado.localeCompare(b.fechaTraslado) || a.idIncapacidad - b.idIncapacidad);
+      const pestana = Object.hasOwn(FILTROS_TRASLADADAS, ver) ? ver : 'pendientes';
+      return {
+        ver: pestana,
+        trasladadas: trasladadas.filter(FILTROS_TRASLADADAS[pestana]),
+        conteos: Object.fromEntries(Object.entries(FILTROS_TRASLADADAS).map(([clave, f]) => [clave, trasladadas.filter(f).length])),
+      };
+    },
+
+    /** Datos de la pantalla de decisión de una incapacidad. Solo consulta. null si no existe. */
+    async prepararDecision(idIncapacidad) {
+      const incapacidad = esIdentificador(idIncapacidad) ? await baseDeDatos.obtenerDatosRequerimientos(Number(idIncapacidad)) : null;
+      if (!incapacidad) return null;
+      const cobrada = incapacidad.tiempoPago != null && incapacidad.fechaCobrada != null;
+      return {
+        incapacidad: {
+          ...incapacidad,
+          requerimientos: incapacidad.requerimientos.map((r) => ({ ...r, dia: fechaEnColombia(r.registrado) })),
+        },
+        demora: cobrada ? evaluarDemora(incapacidad, hoy()) : null,
+        puedeDecidir: puedeDecidir(incapacidad),
+        mensajeEstado: puedeDecidir(incapacidad) ? null : mensajeDecision(incapacidad),
+      };
+    },
+
+    /**
+     * DS-08: registrarDecision(decision) → guardarDecision(decision) — HU-20.CA1. Cartera y Jurídica decide si
+     * recupera el cobro o lo da de baja. Solo registra: no cambia el estado (HU-20.CA2) y se tramita fuera de SIGI.
+     * Una sola decisión, solo sobre una incapacidad cobrada y trasladada (DA-45).
+     * @param {{ decision?: string }} datos
+     * @returns {Promise<null | { idIncapacidad: number, decision: string }>} null si la incapacidad no existe.
+     * @throws {ErrorDeValidacion} decisión no válida (`decision`), o no admite decisión (`estado`).
+     */
+    async registrarDecision(idIncapacidad, datos) {
+      const actual = esIdentificador(idIncapacidad) ? await baseDeDatos.obtenerDatosRequerimientos(Number(idIncapacidad)) : null;
+      if (!actual) return null;
+      if (!puedeDecidir(actual)) throw new ErrorDeValidacion({ estado: mensajeDecision(actual) });
+      const decision = typeof datos?.decision === 'string' ? datos.decision : '';
+      if (!DECISIONES.includes(decision)) throw new ErrorDeValidacion({ decision: 'Escoja si recupera el cobro o lo da de baja.' });
+
+      const guardado = await baseDeDatos.guardarDecision(actual.idIncapacidad, decision, hoy());
+      // Otro usuario decidió o se pagó entre la consulta y el registro: la transacción no lo guardó.
+      if (!guardado) {
+        const ahora = await baseDeDatos.obtenerDatosRequerimientos(actual.idIncapacidad);
+        throw new ErrorDeValidacion({ estado: mensajeDecision(ahora ?? actual) });
+      }
+      return { idIncapacidad: actual.idIncapacidad, decision };
     },
   };
 }

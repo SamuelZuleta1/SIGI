@@ -293,6 +293,7 @@ export function crearBaseDeDatosFalsa() {
         fechaCobrada: guardada.fechaCobrada ?? null,
         motivoTraslado: guardada.motivoTraslado ?? null,
         fechaTraslado: guardada.fechaTraslado ?? null,
+        fechaDecision: guardada.fechaDecision ?? null,
         requerimientos: requerimientos
           .filter((r) => r.idIncapacidad === idIncapacidad)
           .map(({ idRequerimiento, fundamentos, registrado }) => ({ idRequerimiento, fundamentos, registrado })),
@@ -311,6 +312,34 @@ export function crearBaseDeDatosFalsa() {
       const incapacidad = incapacidades.find((i) => i.idIncapacidad === idIncapacidad);
       if (incapacidad?.estado !== 'cobrada' || incapacidad.decision === 'dar_de_baja' || incapacidad.motivoTraslado != null) return false;
       Object.assign(incapacidad, { motivoTraslado: motivo, fechaTraslado: fecha });
+      return true;
+    },
+    // HU-20 (DS-08): como cobro-juridico.persistence.js.
+    async consultarTrasladadas() {
+      return incapacidades
+        .filter((i) => i.estado === 'cobrada' && i.motivoTraslado != null)
+        .map((i) => ({
+          idIncapacidad: i.idIncapacidad,
+          colaborador: colaboradores.find((c) => c.id === i.colaboradorId).nombre,
+          entidad: ENTIDADES.find((e) => e.id === i.entidad).nombre,
+          tipo: i.tipo,
+          fechaInicio: i.fechaInicio,
+          diasIncapacidad: i.diasIncapacidad,
+          estado: i.estado,
+          decision: i.decision ?? null,
+          fechaDecision: i.fechaDecision ?? null,
+          tiempoPago: i.tiempoPago,
+          fechaCobrada: i.fechaCobrada,
+          motivoTraslado: i.motivoTraslado,
+          fechaTraslado: i.fechaTraslado,
+          requerimientos: requerimientos.filter((r) => r.idIncapacidad === i.idIncapacidad).length,
+        }));
+    },
+    // Como registrar_decision: solo cobrada, trasladada y sin decisión.
+    async guardarDecision(idIncapacidad, decision, fecha) {
+      const incapacidad = incapacidades.find((i) => i.idIncapacidad === idIncapacidad);
+      if (incapacidad?.estado !== 'cobrada' || incapacidad.motivoTraslado == null || incapacidad.decision != null) return false;
+      Object.assign(incapacidad, { decision, fechaDecision: fecha });
       return true;
     },
     async deshacerTraslado(idIncapacidad, motivo) {
