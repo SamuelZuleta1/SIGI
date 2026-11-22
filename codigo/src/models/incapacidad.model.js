@@ -49,6 +49,7 @@ export class Incapacidad {
   fechaCobrada = null;
   causalRechazo = null;
   motivoTraslado = null;
+  fechaTraslado = null; // DA-44
   decision = null;
   concepto = null;
   faltaConcepto = false;

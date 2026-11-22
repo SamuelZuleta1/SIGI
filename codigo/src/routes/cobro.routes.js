@@ -21,6 +21,7 @@ import { pesos } from '../servicios/moneda.js';
 export const ORIGENES_PAGO = Object.freeze({
   cobro: (id) => `/incapacidades/${id}/cobro?pagado=1`,
   seguimiento: (id) => `/incapacidades/${id}/seguimiento?pagado=1`, // HU-16.CA2
+  'cobro-juridico': (id) => `/incapacidades/${id}/requerimientos?pagado=1`, // HU-19.CA2
 });
 const leerOrigen = (valor) => (Object.hasOwn(ORIGENES_PAGO, valor) ? valor : 'cobro');
 

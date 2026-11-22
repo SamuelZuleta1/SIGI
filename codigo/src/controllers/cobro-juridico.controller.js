@@ -1,6 +1,6 @@
 // Grupo `cobro-juridico` del Control de incapacidades — DS-08 (CU-12).
-// Operaciones: prepararRequerimientos (apoyo de la Vista) y registrarRequerimiento → guardarRequerimiento (HU-18).
-// El traslado a Cartera (HU-19) y la decisión (HU-20) se agregan a este grupo.
+// Operaciones: prepararRequerimientos (apoyo de la Vista), registrarRequerimiento → guardarRequerimiento (HU-18)
+// y trasladarACartera → guardarTraslado (HU-19). La decisión de Cartera (HU-20) se agrega a este grupo.
 import { fechaBreve, fechaEnColombia, hoyEnColombia } from '../servicios/dias-habiles.js';
 import { ErrorDeValidacion } from './error-de-validacion.js';
 import { esIdentificador } from './identificador.js';
@@ -32,12 +32,29 @@ const MENSAJES_ESTADO = {
   rechazada: 'La entidad rechazó la incapacidad: no tiene cobro persuasivo, debe radicarse de nuevo.',
   pagada: 'La incapacidad ya está pagada: no necesita cobro persuasivo.',
 };
+const mensajeTrasladada = (incapacidad) =>
+  `Esta incapacidad ya se trasladó a Cartera y Jurídica el ${fechaBreve(incapacidad.fechaTraslado)}.`;
 const mensajeEstado = (incapacidad) =>
   incapacidad?.decision === 'dar_de_baja'
     ? 'Cartera y Jurídica dio de baja esta acreencia: ya no tiene cobro persuasivo.'
     : (MENSAJES_ESTADO[incapacidad?.estado ?? 'null'] ?? 'La incapacidad no admite cobro persuasivo.');
 
-export function crearControlCobroJuridico({ baseDeDatos, hoy = hoyEnColombia }) {
+// DA-44: el motivo del traslado es texto libre («180 días sin pago», «deterioro crediticio»…), como la causal (DA-39).
+export const MOTIVO_MINIMO = 3;
+export const MOTIVO_MAXIMO = 500;
+
+/** Valida el motivo del traslado (DA-44). Cuenta caracteres, no unidades UTF-16. @returns {{ valor?: string, error?: string }} */
+export function leerMotivo(texto) {
+  const limpio = typeof texto === 'string' ? texto.trim() : '';
+  if (limpio === '') return { error: 'Escriba el motivo del traslado.' };
+  const largo = [...limpio].length;
+  if (largo < MOTIVO_MINIMO) return { error: `Escriba el motivo con al menos ${MOTIVO_MINIMO} caracteres.` };
+  if (largo > MOTIVO_MAXIMO) return { error: `El motivo admite hasta ${MOTIVO_MAXIMO} caracteres.` };
+  if (/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/.test(limpio)) return { error: 'El motivo tiene caracteres no válidos.' };
+  return { valor: limpio };
+}
+
+export function crearControlCobroJuridico({ baseDeDatos, correo, hoy = hoyEnColombia }) {
   const sinDemora = (demora) => ({
     estado: `La entidad aún está dentro del plazo (hasta el ${fechaBreve(demora.fechaPrometida)}): el cobro persuasivo se hace cuando hay demora.`,
   });
@@ -51,11 +68,21 @@ export function crearControlCobroJuridico({ baseDeDatos, hoy = hoyEnColombia }) 
       const cobrada = incapacidad.tiempoPago != null && incapacidad.fechaCobrada != null;
       const demora = cobrada ? evaluarDemora(incapacidad, hoy()) : null;
       const requerimientos = incapacidad.requerimientos.map((r) => ({ ...r, dia: fechaEnColombia(r.registrado) }));
+      const trasladada = incapacidad.motivoTraslado != null;
+      const conDemora = pendiente && demora?.conDemora === true;
       return {
         incapacidad: { ...incapacidad, requerimientos },
         pendiente,
         demora,
-        puedeRegistrar: pendiente && demora?.conDemora === true,
+        trasladada,
+        hoy: hoy(),
+        // HU-18: después del traslado el cobro persuasivo terminó (DA-44).
+        puedeRegistrar: conDemora && !trasladada,
+        puedeTrasladar: conDemora && !trasladada,
+        // HU-19.CA1 (DA-14): con menos de dos requerimientos se advierte y se permite.
+        advertirMinimo: requerimientos.length < REQUERIMIENTOS_MINIMOS,
+        // HU-19.CA2: pagos posteriores al traslado, con la misma operación registrarPago (HU-15).
+        puedeRegistrarPago: pendiente && trasladada,
         total: requerimientos.length,
         minimo: REQUERIMIENTOS_MINIMOS,
         cumpleMinimo: requerimientos.length >= REQUERIMIENTOS_MINIMOS,
@@ -76,6 +103,7 @@ export function crearControlCobroJuridico({ baseDeDatos, hoy = hoyEnColombia }) 
       const actual = esIdentificador(idIncapacidad) ? await baseDeDatos.obtenerDatosRequerimientos(Number(idIncapacidad)) : null;
       if (!actual) return null;
       if (!estaPendienteDePago(actual)) throw new ErrorDeValidacion({ estado: mensajeEstado(actual) });
+      if (actual.motivoTraslado != null) throw new ErrorDeValidacion({ estado: mensajeTrasladada(actual) });
       const demora = evaluarDemora(actual, hoy());
       if (!demora.conDemora) throw new ErrorDeValidacion(sinDemora(demora));
 
@@ -91,6 +119,39 @@ export function crearControlCobroJuridico({ baseDeDatos, hoy = hoyEnColombia }) 
       // El total se lee después de guardar: si otro auxiliar registró uno a la vez, la confirmación cuenta los dos.
       const total = (await baseDeDatos.obtenerDatosRequerimientos(actual.idIncapacidad)).requerimientos.length;
       return { idIncapacidad: actual.idIncapacidad, idRequerimiento, total, cumpleMinimo: total >= REQUERIMIENTOS_MINIMOS };
+    },
+
+    /**
+     * DS-08: trasladarACartera(id, motivo) → notificarTraslado(motivo) → guardarTraslado(motivo) — HU-19.CA1.
+     * Solo con la incapacidad pendiente de pago, en demora y sin trasladar antes (DA-05, DA-44). Con menos de dos
+     * requerimientos se advierte y se permite (DA-14). Como los demás avisos (DA-31, DA-42), primero el correo a
+     * Cartera y Jurídica y después el registro: si el correo falla no queda trasladada y se puede reintentar.
+     * @param {{ motivo?: string }} datos
+     * @returns {Promise<null | { idIncapacidad: number, requerimientos: number, advertencia: boolean }>} null si no existe.
+     * @throws {ErrorDeValidacion} motivo no válido (`motivo`), o no admite traslado (`estado`).
+     */
+    async trasladarACartera(idIncapacidad, datos) {
+      const actual = esIdentificador(idIncapacidad) ? await baseDeDatos.obtenerDatosRequerimientos(Number(idIncapacidad)) : null;
+      if (!actual) return null;
+      if (!estaPendienteDePago(actual)) throw new ErrorDeValidacion({ estado: mensajeEstado(actual) });
+      if (actual.motivoTraslado != null) throw new ErrorDeValidacion({ estado: mensajeTrasladada(actual) });
+      const demora = evaluarDemora(actual, hoy());
+      if (!demora.conDemora) throw new ErrorDeValidacion(sinDemora(demora));
+
+      const motivo = leerMotivo(datos?.motivo);
+      if (motivo.error) throw new ErrorDeValidacion({ motivo: motivo.error });
+
+      await correo.notificarTraslado(actual, motivo.valor);
+      const guardado = await baseDeDatos.guardarTraslado(actual.idIncapacidad, motivo.valor, hoy());
+      // Otro usuario trasladó, pagó o dio de baja entre la consulta y el registro: la transacción no lo guardó.
+      if (!guardado) {
+        const ahora = await baseDeDatos.obtenerDatosRequerimientos(actual.idIncapacidad);
+        throw new ErrorDeValidacion({
+          estado: ahora?.motivoTraslado != null ? mensajeTrasladada(ahora) : mensajeEstado(ahora ?? actual),
+        });
+      }
+      const requerimientos = actual.requerimientos.length;
+      return { idIncapacidad: actual.idIncapacidad, requerimientos, advertencia: requerimientos < REQUERIMIENTOS_MINIMOS };
     },
   };
 }

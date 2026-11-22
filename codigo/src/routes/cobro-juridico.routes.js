@@ -1,10 +1,10 @@
 // Grupo `cobro-juridico` de la Interfaz de incapacidades — DS-08 (CU-12).
-// Operaciones de la Vista: registrarRequerimiento (HU-18). El traslado a Cartera (HU-19) y la decisión (HU-20) se
-// agregan a este grupo.
+// Operaciones de la Vista: registrarRequerimiento (HU-18) y trasladarACartera (HU-19); el pago posterior al traslado
+// usa POST /incapacidades/:id/pago con origen=cobro-juridico (HU-19.CA2). La decisión (HU-20) se agrega a este grupo.
 // Diseño (DA-43): pantalla «Cobro persuasivo» con la línea de tiempo de los requerimientos y el formulario como último paso.
 import { Router } from 'express';
 import { ErrorDeValidacion } from '../controllers/error-de-validacion.js';
-import { FUNDAMENTOS_MAXIMO } from '../controllers/cobro-juridico.controller.js';
+import { FUNDAMENTOS_MAXIMO, MOTIVO_MAXIMO } from '../controllers/cobro-juridico.controller.js';
 import { permitir } from '../middleware/autenticacion.js';
 import { NOMBRES_TIPO_INCAPACIDAD } from '../models/incapacidad.model.js';
 import { fechaBreve, fechaLarga } from '../servicios/dias-habiles.js';
@@ -18,10 +18,13 @@ export function crearRutasCobroJuridico({ control }) {
       errores: {},
       valores: {},
       registrado: false,
+      trasladadoAhora: false,
+      pagoRegistrado: false,
       fechaBreve,
       fechaLarga,
       nombresTipo: NOMBRES_TIPO_INCAPACIDAD,
       fundamentosMaximo: FUNDAMENTOS_MAXIMO,
+      motivoMaximo: MOTIVO_MAXIMO,
       ...datos,
     });
 
@@ -33,7 +36,12 @@ export function crearRutasCobroJuridico({ control }) {
   rutas.get('/incapacidades/:id/requerimientos', permitir('registrarRequerimiento'), async (req, res) => {
     const cobro = await control.prepararRequerimientos(req.params.id);
     if (!cobro) return noExiste(res);
-    await pagina(res, 200, { cobro, registrado: req.query.registrado === '1' && cobro.total > 0 });
+    await pagina(res, 200, {
+      cobro,
+      registrado: req.query.registrado === '1' && cobro.total > 0,
+      trasladadoAhora: req.query.trasladado === '1' && cobro.trasladada,
+      pagoRegistrado: req.query.pagado === '1' && cobro.incapacidad.estado === 'pagada',
+    });
   });
 
   // registrarRequerimiento(fundamentos) — HU-18.CA1. Fundamentos no válidos: 400; sin demora o no pendiente: 409.
@@ -51,6 +59,25 @@ export function crearRutasCobroJuridico({ control }) {
         cobro,
         errores: error.errores,
         valores: { fundamentos: fundamentos.slice(0, FUNDAMENTOS_MAXIMO + 1) },
+      });
+    }
+  });
+
+  // trasladarACartera(motivo) — HU-19.CA1. Motivo no válido: 400; sin demora, no pendiente o ya trasladada: 409.
+  rutas.post('/incapacidades/:id/traslado', permitir('trasladarACartera'), async (req, res) => {
+    const motivo = String(req.body?.motivo ?? '');
+    try {
+      const resultado = await control.trasladarACartera(req.params.id, { motivo });
+      if (!resultado) return noExiste(res);
+      res.redirect(303, `/incapacidades/${resultado.idIncapacidad}/requerimientos?trasladado=1`);
+    } catch (error) {
+      if (!(error instanceof ErrorDeValidacion)) throw error;
+      const cobro = await control.prepararRequerimientos(req.params.id);
+      if (!cobro) return noExiste(res);
+      await pagina(res, error.errores.estado ? 409 : 400, {
+        cobro,
+        errores: error.errores,
+        valores: { motivo: motivo.slice(0, MOTIVO_MAXIMO + 1) },
       });
     }
   });

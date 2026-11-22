@@ -291,6 +291,8 @@ export function crearBaseDeDatosFalsa() {
         decision: guardada.decision ?? null,
         tiempoPago: guardada.tiempoPago ?? null,
         fechaCobrada: guardada.fechaCobrada ?? null,
+        motivoTraslado: guardada.motivoTraslado ?? null,
+        fechaTraslado: guardada.fechaTraslado ?? null,
         requerimientos: requerimientos
           .filter((r) => r.idIncapacidad === idIncapacidad)
           .map(({ idRequerimiento, fundamentos, registrado }) => ({ idRequerimiento, fundamentos, registrado })),
@@ -303,6 +305,13 @@ export function crearBaseDeDatosFalsa() {
       const idRequerimiento = requerimientos.length + 1;
       requerimientos.push({ idRequerimiento, idIncapacidad, fundamentos, creadoPor, registrado: this.fechaSeguimiento ?? '2026-11-21T17:00:00.000Z' });
       return idRequerimiento;
+    },
+    // Como trasladar_a_cartera: solo cobrada, sin dar de baja y sin trasladar antes.
+    async guardarTraslado(idIncapacidad, motivo, fecha) {
+      const incapacidad = incapacidades.find((i) => i.idIncapacidad === idIncapacidad);
+      if (incapacidad?.estado !== 'cobrada' || incapacidad.decision === 'dar_de_baja' || incapacidad.motivoTraslado != null) return false;
+      Object.assign(incapacidad, { motivoTraslado: motivo, fechaTraslado: fecha });
+      return true;
     },
     async consultarSeguimiento(idSeguimiento) {
       const s = seguimientos.find((x) => x.idSeguimiento === idSeguimiento);
