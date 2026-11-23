@@ -42,7 +42,7 @@ describe('HU-25 — pagos consignados (rutas)', () => {
 
   it('HU-01 — sin sesión, el registro se rechaza', async () => {
     const res = await request(app).post('/pagos-consignados').type('form').send(LISTA);
-    expect([302, 303, 401]).toContain(res.status);
+    expect(res.status).toBe(401);
     expect(baseDeDatos.pagosConsignados).toHaveLength(0);
   });
 

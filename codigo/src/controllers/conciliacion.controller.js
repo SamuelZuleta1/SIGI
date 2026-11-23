@@ -33,11 +33,15 @@ const comoLista = (valor) => (Array.isArray(valor) ? valor : valor == null ? [] 
  * Las filas tal como las escribió Contabilidad, alineadas por posición y con un máximo de FILAS_MAXIMAS.
  * @returns {{ colaborador: string, dias: string, valor: string }[]}
  */
+/** Cuántas filas llegaron, sin el tope de FILAS_MAXIMAS. */
+const filasRecibidas = (datos) =>
+  Math.max(comoLista(datos?.colaborador).length, comoLista(datos?.dias).length, comoLista(datos?.valor).length);
+
 export function leerFilas(datos) {
   const colaboradores = comoLista(datos?.colaborador);
   const dias = comoLista(datos?.dias);
   const valores = comoLista(datos?.valor);
-  const cantidad = Math.min(FILAS_MAXIMAS, Math.max(colaboradores.length, dias.length, valores.length));
+  const cantidad = Math.min(FILAS_MAXIMAS, filasRecibidas(datos));
   return Array.from({ length: cantidad }, (_, i) => ({
     colaborador: (colaboradores[i] ?? '').slice(0, COLABORADOR_MAXIMO + 50),
     dias: (dias[i] ?? '').slice(0, 20),
@@ -89,7 +93,9 @@ export function validarLista(datos, entidades) {
       pagos.push({ colaborador: colaborador.valor, diasPagados: dias.valor, valor: valor.valor, centavos: valor.centavos });
     }
   });
-  if (filas.every(filaVacia)) errores.lista = 'Escriba al menos un pago: colaborador, días pagados y valor.';
+  // Más filas de las que muestra el formulario: no se guarda una parte en silencio.
+  if (filasRecibidas(datos) > FILAS_MAXIMAS) errores.lista = `Registre como máximo ${FILAS_MAXIMAS} pagos por lista: divídala en varias.`;
+  else if (filas.every(filaVacia)) errores.lista = 'Escriba al menos un pago: colaborador, días pagados y valor.';
   else if (Object.keys(errores).some((c) => c.startsWith('fila-'))) errores.lista = 'Revise las filas marcadas: no se guardó ningún pago.';
   return { entidad, pagos, errores };
 }

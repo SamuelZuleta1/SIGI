@@ -117,6 +117,14 @@ describe('HU-25 — registrar los pagos consignados', () => {
     expect(leerFilas({ colaborador: muchas })).toHaveLength(FILAS_MAXIMAS);
   });
 
+  it(`más de ${FILAS_MAXIMAS} filas: no guarda ninguna (no se pierde una parte en silencio)`, async () => {
+    const n = FILAS_MAXIMAS + 1;
+    const datos = { entidad: '2', colaborador: Array(n).fill('Ana Gómez'), dias: Array(n).fill('3'), valor: Array(n).fill('1.000') };
+    const errores = await fallaValidacion(control.registrarPagosConsignados(datos, USUARIOS.contabilidad));
+    expect(errores.lista).toBe(`Registre como máximo ${FILAS_MAXIMAS} pagos por lista: divídala en varias.`);
+    expect(baseDeDatos.pagosConsignados).toHaveLength(0);
+  });
+
   it('un valor que no es texto (objeto o número) cuenta como vacío', () => {
     const { errores } = validarLista({ entidad: '2', colaborador: [{ a: 1 }], dias: [10], valor: ['1.000'] }, ENTIDADES);
     expect(errores['fila-0-colaborador']).toBe('Escriba el nombre del colaborador.');

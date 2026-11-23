@@ -68,8 +68,10 @@ for (const formulario of document.querySelectorAll('form[data-un-envio]')) {
     boton.dataset.texto = boton.textContent;
     boton.textContent = boton.dataset.enviando;
     boton.setAttribute('aria-disabled', 'true');
-    // Se desactiva después de que el navegador tome los datos del envío.
-    setTimeout(() => { boton.disabled = true; });
+    // Se desactivan todos los botones que envían (también el oculto de la tecla Enter, HU-25), después de que el
+    // navegador tome los datos del envío: si no, otro botón del mismo formulario enviaría lo mismo dos veces.
+    const enviadores = formulario.querySelectorAll('[data-enviando]');
+    setTimeout(() => { for (const otro of enviadores) otro.disabled = true; });
   });
 }
 

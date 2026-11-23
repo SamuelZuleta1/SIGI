@@ -28,13 +28,13 @@
 
   <div class="campo <%= errores.entidad ? 'invalido' : '' %> entidad-lista">
     <label for="entidad">Entidad que consignó</label>
-    <select id="entidad" name="entidad" required<%- atributos('entidad') %>>
+    <select id="entidad" name="entidad" required<%- errores.entidad ? '' : ' aria-describedby="ayuda-entidad"' %><%- atributos('entidad') %>>
       <option value="">Elija…</option>
       <% for (const entidad of entidades) { %>
         <option value="<%= entidad.id %>" <%= entidadElegida === String(entidad.id) ? 'selected' : '' %>><%= entidad.nombre %> (<%= entidad.tipo %>)</option>
       <% } %>
     </select>
-    <% if (errores.entidad) { %><span class="error" id="error-entidad"><%= errores.entidad %></span><% } else { %><span class="ayuda">Una lista por entidad. Si consignaron varias, registre una lista por cada una.</span><% } %>
+    <% if (errores.entidad) { %><span class="error" id="error-entidad"><%= errores.entidad %></span><% } else { %><span class="ayuda" id="ayuda-entidad">Una lista por entidad. Si consignaron varias, registre una lista por cada una.</span><% } %>
   </div>
 
   <fieldset>
