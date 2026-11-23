@@ -8,7 +8,7 @@ import { ErrorDeValidacion } from '../controllers/error-de-validacion.js';
 import { responderAvisoFallido } from './aviso-fallido.js';
 import { permitir } from '../middleware/autenticacion.js';
 import { NOMBRES_TIPO_INCAPACIDAD } from '../models/incapacidad.model.js';
-import { fechaBreve } from '../servicios/dias-habiles.js';
+import { fechaBreve, fechaEnColombia } from '../servicios/dias-habiles.js';
 
 export function crearRutasMonitoreo({ control }) {
   const rutas = Router();
@@ -23,6 +23,7 @@ export function crearRutasMonitoreo({ control }) {
       suspensionConfirmada: false,
       fechaBreve,
       nombresTipo: NOMBRES_TIPO_INCAPACIDAD,
+      fechaEnColombia,
       conceptoMaximo: CONCEPTO_MAXIMO,
       diasProlongada: DIAS_PROLONGADA,
       ...datos,
@@ -80,7 +81,7 @@ export function crearRutasMonitoreo({ control }) {
   rutas.post('/incapacidades/:id/concepto', permitir('registrarConcepto'), async (req, res) => {
     const concepto = String(req.body?.concepto ?? '');
     try {
-      const resultado = await control.registrarConcepto(req.params.id, { concepto });
+      const resultado = await control.registrarConcepto(req.params.id, { concepto }, req.usuario);
       if (!resultado) return noExiste(res);
       res.redirect(303, `/incapacidades/${resultado.idIncapacidad}/prolongada?concepto=1`);
     } catch (error) {
@@ -91,7 +92,7 @@ export function crearRutasMonitoreo({ control }) {
   // registrarFaltaConcepto() — HU-23.CA1. Ya tiene concepto o la falta ya se registró: 409.
   rutas.post('/incapacidades/:id/falta-concepto', permitir('registrarFaltaConcepto'), async (req, res) => {
     try {
-      const resultado = await control.registrarFaltaConcepto(req.params.id);
+      const resultado = await control.registrarFaltaConcepto(req.params.id, req.usuario);
       if (!resultado) return noExiste(res);
       res.redirect(303, `/incapacidades/${resultado.idIncapacidad}/prolongada?falta=1`);
     } catch (error) {
@@ -102,7 +103,7 @@ export function crearRutasMonitoreo({ control }) {
   // registrarSuspensionPago() — HU-24.CA1. No supera los 180 días o ya se registró: 409.
   rutas.post('/incapacidades/:id/suspension-pago', permitir('registrarSuspensionPago'), async (req, res) => {
     try {
-      const resultado = await control.registrarSuspensionPago(req.params.id);
+      const resultado = await control.registrarSuspensionPago(req.params.id, req.usuario);
       if (!resultado) return noExiste(res);
       res.redirect(303, `/incapacidades/${resultado.idIncapacidad}/prolongada?suspension=1`);
     } catch (error) {

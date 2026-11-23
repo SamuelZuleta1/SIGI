@@ -68,9 +68,9 @@ describe('los controladores que avisan después de guardar', () => {
   });
 
   it.each([
-    ['registrarConcepto', 'comunicarConcepto', 'deshacerConcepto', (c) => c.registrarConcepto('1', { concepto: 'Concepto favorable de la entidad.' })],
-    ['registrarFaltaConcepto', 'avisarFaltaConcepto', 'deshacerFaltaConcepto', (c) => c.registrarFaltaConcepto('1')],
-    ['registrarSuspensionPago', 'notificarSuspensionPago', 'deshacerSuspensionPago', (c) => c.registrarSuspensionPago('1')],
+    ['registrarConcepto', 'comunicarConcepto', 'deshacerConcepto', (c) => c.registrarConcepto('1', { concepto: 'Concepto favorable de la entidad.' }, USUARIOS.auxiliar)],
+    ['registrarFaltaConcepto', 'avisarFaltaConcepto', 'deshacerFaltaConcepto', (c) => c.registrarFaltaConcepto('1', USUARIOS.auxiliar)],
+    ['registrarSuspensionPago', 'notificarSuspensionPago', 'deshacerSuspensionPago', (c) => c.registrarSuspensionPago('1', USUARIOS.auxiliar)],
   ])('%s: si el correo y el deshacer fallan, se registra y sube el error del correo', async (operacion, aviso, deshacer, ejecutar) => {
     const error = await ejecutar(conFallos({ [aviso]: falla }, { [deshacer]: fallaDeshacer })).catch((e) => e);
     expect(error).toMatchObject({ name: 'ErrorDeAviso', deshecho: false, operacion, idIncapacidad: 1 });

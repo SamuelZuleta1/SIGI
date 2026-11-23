@@ -47,7 +47,7 @@ export function crearRutasReconocimiento({ control }) {
   rutas.post('/incapacidades/:id/reconocimiento', permitir('calcularReconocimiento'), async (req, res) => {
     const ibc = String(req.body?.ibc ?? '');
     try {
-      const resultado = await control.calcularReconocimiento(req.params.id, { ibc });
+      const resultado = await control.calcularReconocimiento(req.params.id, { ibc }, req.usuario);
       if (!resultado) return noExiste(res);
       res.redirect(303, `/incapacidades/${resultado.idIncapacidad}/reconocimiento?calculado=1`);
     } catch (error) {

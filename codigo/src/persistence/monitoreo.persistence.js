@@ -10,7 +10,7 @@ const comprobar = ({ data, error }) => {
 };
 
 const COLUMNAS =
-  'id, tipo, fecha_inicio, dias_incapacidad, estado, concepto, falta_concepto, pago_suspendido, colaborador(nombre, correo), entidad(nombre)';
+  'id, tipo, fecha_inicio, dias_incapacidad, estado, concepto, falta_concepto, pago_suspendido, fecha_concepto, fecha_falta_concepto, fecha_suspension, colaborador(nombre, correo), entidad(nombre)';
 
 const aDatos = (f) => ({
   idIncapacidad: f.id,
@@ -24,7 +24,14 @@ const aDatos = (f) => ({
   concepto: f.concepto,
   faltaConcepto: f.falta_concepto,
   pagoSuspendido: f.pago_suspendido,
+  // Auditoría (DA-23): cuándo se registró cada cosa.
+  fechaConcepto: f.fecha_concepto,
+  fechaFaltaConcepto: f.fecha_falta_concepto,
+  fechaSuspension: f.fecha_suspension,
 });
+
+// Quién y cuándo (DA-23). `por` es el id del usuario que registra.
+const ahora = () => new Date().toISOString();
 
 export function crearPersistenciaMonitoreo(cliente) {
   return {
@@ -59,11 +66,11 @@ export function crearPersistenciaMonitoreo(cliente) {
      * resuelve la «falta del concepto». `dia` es la condición de hitos.js (DA-49): `dias_incapacidad >= dia.dias` y
      * `fecha_inicio <= dia.inicioHasta`. @returns {Promise<boolean>} false si el estado ya no lo permitía.
      */
-    async guardarConcepto(idIncapacidad, concepto, dia) {
+    async guardarConcepto(idIncapacidad, concepto, dia, por) {
       const filas = comprobar(
         await cliente
           .from('incapacidad')
-          .update({ concepto, falta_concepto: false })
+          .update({ concepto, falta_concepto: false, fecha_concepto: ahora(), concepto_por: por })
           .eq('id', idIncapacidad)
           .is('concepto', null)
           .gte('dias_incapacidad', dia.dias)
@@ -78,7 +85,7 @@ export function crearPersistenciaMonitoreo(cliente) {
       comprobar(
         await cliente
           .from('incapacidad')
-          .update({ concepto: null, falta_concepto: faltaConcepto })
+          .update({ concepto: null, falta_concepto: faltaConcepto, fecha_concepto: null, concepto_por: null })
           .eq('id', idIncapacidad)
           .eq('concepto', concepto),
       );
@@ -88,11 +95,11 @@ export function crearPersistenciaMonitoreo(cliente) {
      * DS-10: guardarFaltaConcepto() — HU-23. Solo si ya llegó al día del concepto (`dia`, como en guardarConcepto), sin
      * concepto y sin falta registrada. @returns {Promise<boolean>} false si el estado ya no lo permitía.
      */
-    async guardarFaltaConcepto(idIncapacidad, dia) {
+    async guardarFaltaConcepto(idIncapacidad, dia, por) {
       const filas = comprobar(
         await cliente
           .from('incapacidad')
-          .update({ falta_concepto: true })
+          .update({ falta_concepto: true, fecha_falta_concepto: ahora(), falta_concepto_por: por })
           .eq('id', idIncapacidad)
           .eq('falta_concepto', false)
           .is('concepto', null)
@@ -106,7 +113,11 @@ export function crearPersistenciaMonitoreo(cliente) {
     /** Deshace la falta recién guardada (si el aviso falló). */
     async deshacerFaltaConcepto(idIncapacidad) {
       comprobar(
-        await cliente.from('incapacidad').update({ falta_concepto: false }).eq('id', idIncapacidad).is('concepto', null),
+        await cliente
+          .from('incapacidad')
+          .update({ falta_concepto: false, fecha_falta_concepto: null, falta_concepto_por: null })
+          .eq('id', idIncapacidad)
+          .is('concepto', null),
       );
     },
 
@@ -114,11 +125,11 @@ export function crearPersistenciaMonitoreo(cliente) {
      * DS-10: guardarSuspensionPago() — HU-24. Solo si ya llegó al día 181 (`dia`, como en guardarConcepto) y no estaba
      * suspendido. @returns {Promise<boolean>} false si el estado ya no lo permitía.
      */
-    async guardarSuspensionPago(idIncapacidad, dia) {
+    async guardarSuspensionPago(idIncapacidad, dia, por) {
       const filas = comprobar(
         await cliente
           .from('incapacidad')
-          .update({ pago_suspendido: true })
+          .update({ pago_suspendido: true, fecha_suspension: ahora(), suspension_por: por })
           .eq('id', idIncapacidad)
           .eq('pago_suspendido', false)
           .gte('dias_incapacidad', dia.dias)
@@ -131,7 +142,11 @@ export function crearPersistenciaMonitoreo(cliente) {
     /** Deshace la suspensión recién guardada (si el aviso falló). */
     async deshacerSuspensionPago(idIncapacidad) {
       comprobar(
-        await cliente.from('incapacidad').update({ pago_suspendido: false }).eq('id', idIncapacidad).eq('pago_suspendido', true),
+        await cliente
+          .from('incapacidad')
+          .update({ pago_suspendido: false, fecha_suspension: null, suspension_por: null })
+          .eq('id', idIncapacidad)
+          .eq('pago_suspendido', true),
       );
     },
   };

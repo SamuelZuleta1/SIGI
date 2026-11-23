@@ -84,7 +84,7 @@ describe('HU-21 — validar el IBC', () => {
 describe('HU-21 — calcularReconocimiento guarda el resultado', () => {
   it('guarda el IBC, el valor de la empresa y el de la EPS y devuelve el resultado', async () => {
     await registrar(10);
-    const r = await control.calcularReconocimiento('1', { ibc: '3.000.000' });
+    const r = await control.calcularReconocimiento('1', { ibc: '3.000.000' }, USUARIOS.auxiliar);
     expect(baseDeDatos.incapacidades[0]).toMatchObject({
       ibc: '3000000.00',
       valorEmpresa: '200000.00',
@@ -96,35 +96,35 @@ describe('HU-21 — calcularReconocimiento guarda el resultado', () => {
 
   it('DA-10 — con más de 180 días guarda el trámite de pensión', async () => {
     await registrar(200);
-    await control.calcularReconocimiento('1', { ibc: '3000000' });
+    await control.calcularReconocimiento('1', { ibc: '3000000' }, USUARIOS.auxiliar);
     expect(baseDeDatos.incapacidades[0].tramitePension).toBe(true);
   });
 
   it('calcular otra vez reemplaza el cálculo anterior', async () => {
     await registrar(10);
-    await control.calcularReconocimiento('1', { ibc: '3000000' });
-    await control.calcularReconocimiento('1', { ibc: '6000000' });
+    await control.calcularReconocimiento('1', { ibc: '3000000' }, USUARIOS.auxiliar);
+    await control.calcularReconocimiento('1', { ibc: '6000000' }, USUARIOS.auxiliar);
     expect(baseDeDatos.incapacidades[0]).toMatchObject({ ibc: '6000000.00', valorEmpresa: '400000.00' });
   });
 
   it('un IBC no válido no guarda nada y explica el campo', async () => {
     await registrar(10);
-    const error = await control.calcularReconocimiento('1', { ibc: 'mucho' }).catch((e) => e);
+    const error = await control.calcularReconocimiento('1', { ibc: 'mucho' }, USUARIOS.auxiliar).catch((e) => e);
     expect(error).toBeInstanceOf(ErrorDeValidacion);
     expect(error.errores.ibc).toBeTruthy();
     expect(baseDeDatos.incapacidades[0].ibc).toBeUndefined();
   });
 
   it('una incapacidad que no existe devuelve null', async () => {
-    expect(await control.calcularReconocimiento('99', { ibc: '1000' })).toBeNull();
-    expect(await control.calcularReconocimiento('abc', { ibc: '1000' })).toBeNull();
+    expect(await control.calcularReconocimiento('99', { ibc: '1000' }, USUARIOS.auxiliar)).toBeNull();
+    expect(await control.calcularReconocimiento('abc', { ibc: '1000' }, USUARIOS.auxiliar)).toBeNull();
     expect(await control.prepararReconocimiento('99')).toBeNull();
   });
 
   it('prepararReconocimiento muestra el cálculo guardado', async () => {
     await registrar(10);
     expect((await control.prepararReconocimiento('1')).resultado).toBeNull();
-    await control.calcularReconocimiento('1', { ibc: '3000000' });
+    await control.calcularReconocimiento('1', { ibc: '3000000' }, USUARIOS.auxiliar);
     expect((await control.prepararReconocimiento('1')).resultado).toMatchObject({ valorEmpresa: 20_000_000, valorEPS: 53_600_000 });
   });
 });

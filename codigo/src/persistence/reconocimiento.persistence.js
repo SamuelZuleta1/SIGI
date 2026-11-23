@@ -19,9 +19,11 @@ const aDatos = (f) => ({
   valorEmpresa: f.valor_empresa,
   valorEPS: f.valor_eps,
   tramitePension: f.tramite_pension,
+  fechaCalculo: f.fecha_calculo,
 });
 
-const COLUMNAS = 'id, tipo, fecha_inicio, dias_incapacidad, estado, ibc, valor_empresa, valor_eps, tramite_pension, colaborador(nombre), entidad(nombre)';
+const COLUMNAS =
+  'id, tipo, fecha_inicio, dias_incapacidad, estado, ibc, valor_empresa, valor_eps, tramite_pension, fecha_calculo, colaborador(nombre), entidad(nombre)';
 
 export function crearPersistenciaReconocimiento(cliente) {
   return {
@@ -45,13 +47,20 @@ export function crearPersistenciaReconocimiento(cliente) {
 
     /**
      * DS-09: guardarCalculo(ibc, valorEmpresa, valorEPS, tramitePension) — HU-21. Los valores van como texto
-     * «1234567.50» (numeric(14,2)). Un nuevo cálculo reemplaza al anterior.
+     * «1234567.50» (numeric(14,2)). Un nuevo cálculo reemplaza al anterior y guarda quién lo hizo y cuándo (DA-23).
      */
-    async guardarCalculo(idIncapacidad, { ibc, valorEmpresa, valorEPS, tramitePension }) {
+    async guardarCalculo(idIncapacidad, { ibc, valorEmpresa, valorEPS, tramitePension }, por) {
       comprobar(
         await cliente
           .from('incapacidad')
-          .update({ ibc, valor_empresa: valorEmpresa, valor_eps: valorEPS, tramite_pension: tramitePension })
+          .update({
+            ibc,
+            valor_empresa: valorEmpresa,
+            valor_eps: valorEPS,
+            tramite_pension: tramitePension,
+            fecha_calculo: new Date().toISOString(),
+            calculo_por: por,
+          })
           .eq('id', idIncapacidad),
       );
     },

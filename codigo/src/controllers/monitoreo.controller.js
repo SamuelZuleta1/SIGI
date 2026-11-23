@@ -138,11 +138,12 @@ export function crearControlMonitoreo({ baseDeDatos, correo, hoy = hoyEnColombia
      * se avisa al colaborador: si otro usuario lo registró a la vez no sale un correo de más; si el correo falla, se
      * deshace y se puede reintentar.
      * @param {{ concepto?: string }} datos
+     * @param {{ id: string }} usuario quien lo registra (DA-23).
      * @returns {Promise<null | { idIncapacidad: number }>} null si no existe.
      * @throws {ErrorDeValidacion} concepto no válido (`concepto`), o no admite concepto (`estado`).
      * @throws {import('./error-de-aviso.js').ErrorDeAviso} el correo falló.
      */
-    async registrarConcepto(idIncapacidad, datos) {
+    async registrarConcepto(idIncapacidad, datos, usuario) {
       const actual = await leer(idIncapacidad);
       if (!actual) return null;
       const fecha = hoy();
@@ -150,7 +151,7 @@ export function crearControlMonitoreo({ baseDeDatos, correo, hoy = hoyEnColombia
       const concepto = leerConcepto(datos?.concepto);
       if (concepto.error) throw new ErrorDeValidacion({ concepto: concepto.error });
 
-      const guardado = await baseDeDatos.guardarConcepto(actual.idIncapacidad, concepto.valor, condicionDelDia(DIA_CONCEPTO, fecha));
+      const guardado = await baseDeDatos.guardarConcepto(actual.idIncapacidad, concepto.valor, condicionDelDia(DIA_CONCEPTO, fecha), usuario.id);
       if (!guardado) {
         const ahora = await leer(actual.idIncapacidad);
         throw new ErrorDeValidacion({ estado: mensajeConcepto(ahora ?? actual) });
@@ -167,17 +168,18 @@ export function crearControlMonitoreo({ baseDeDatos, correo, hoy = hoyEnColombia
     /**
      * DS-10: registrarFaltaConcepto() → guardarFaltaConcepto() → avisarFaltaConcepto() — HU-23.CA1. Deja constancia de
      * que la entidad no emitió el concepto y avisa al colaborador (mismo orden y regla que registrarConcepto).
+     * @param {{ id: string }} usuario quien la registra (DA-23).
      * @returns {Promise<null | { idIncapacidad: number }>} null si no existe.
      * @throws {ErrorDeValidacion} no admite registrar la falta (`estado`).
      * @throws {import('./error-de-aviso.js').ErrorDeAviso} el correo falló.
      */
-    async registrarFaltaConcepto(idIncapacidad) {
+    async registrarFaltaConcepto(idIncapacidad, usuario) {
       const actual = await leer(idIncapacidad);
       if (!actual) return null;
       const fecha = hoy();
       if (!situacion(actual, fecha).puedeRegistrarFalta) throw new ErrorDeValidacion({ estado: mensajeFalta(actual) });
 
-      const guardado = await baseDeDatos.guardarFaltaConcepto(actual.idIncapacidad, condicionDelDia(DIA_CONCEPTO, fecha));
+      const guardado = await baseDeDatos.guardarFaltaConcepto(actual.idIncapacidad, condicionDelDia(DIA_CONCEPTO, fecha), usuario.id);
       if (!guardado) {
         const ahora = await leer(actual.idIncapacidad);
         throw new ErrorDeValidacion({ estado: mensajeFalta(ahora ?? actual) });
@@ -195,17 +197,18 @@ export function crearControlMonitoreo({ baseDeDatos, correo, hoy = hoyEnColombia
      * DS-10: registrarSuspensionPago() → guardarSuspensionPago() → notificarSuspensionPago() — HU-24.CA1. Solo si la
      * incapacidad supera 180 días y ya llegó al día 181 (DA-49), y no se registró antes; primero se guarda y luego se
      * avisa al colaborador (mismo orden que el concepto). El reintegro de pagos de más de 180 días se gestiona fuera de SIGI.
+     * @param {{ id: string }} usuario quien la registra (DA-23).
      * @returns {Promise<null | { idIncapacidad: number }>} null si no existe.
      * @throws {ErrorDeValidacion} no admite la suspensión (`suspension`).
      * @throws {import('./error-de-aviso.js').ErrorDeAviso} el correo falló.
      */
-    async registrarSuspensionPago(idIncapacidad) {
+    async registrarSuspensionPago(idIncapacidad, usuario) {
       const actual = await leer(idIncapacidad);
       if (!actual) return null;
       const fecha = hoy();
       if (!situacion(actual, fecha).suspensionPendiente) throw new ErrorDeValidacion({ suspension: mensajeSuspension(actual) });
 
-      const guardado = await baseDeDatos.guardarSuspensionPago(actual.idIncapacidad, condicionDelDia(DIA_PENSION, fecha));
+      const guardado = await baseDeDatos.guardarSuspensionPago(actual.idIncapacidad, condicionDelDia(DIA_PENSION, fecha), usuario.id);
       if (!guardado) {
         const ahora = await leer(actual.idIncapacidad);
         throw new ErrorDeValidacion({ suspension: mensajeSuspension(ahora ?? actual) });

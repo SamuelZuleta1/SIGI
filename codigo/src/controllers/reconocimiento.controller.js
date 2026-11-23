@@ -75,10 +75,11 @@ export function crearControlReconocimiento({ baseDeDatos }) {
      * El auxiliar ingresa el IBC al calcular; el sistema aplica los tramos a los días registrados (DA-09), marca el
      * trámite de pensión desde el día 181 (DA-10) y guarda el resultado. Calcular otra vez lo reemplaza.
      * @param {{ ibc?: string }} datos
+     * @param {{ id: string }} usuario quien calcula (DA-23).
      * @returns {Promise<null | object>} null si la incapacidad no existe.
      * @throws {ErrorDeValidacion} IBC no válido (`ibc`).
      */
-    async calcularReconocimiento(idIncapacidad, datos) {
+    async calcularReconocimiento(idIncapacidad, datos, usuario) {
       const incapacidad = esIdentificador(idIncapacidad) ? await baseDeDatos.obtenerDatosReconocimiento(Number(idIncapacidad)) : null;
       if (!incapacidad) return null;
       const ibc = leerIbc(datos?.ibc);
@@ -90,7 +91,7 @@ export function crearControlReconocimiento({ baseDeDatos }) {
         valorEmpresa: centavosATexto(resultado.valorEmpresa),
         valorEPS: centavosATexto(resultado.valorEPS),
         tramitePension: resultado.tramitePension,
-      });
+      }, usuario.id);
       return { idIncapacidad: incapacidad.idIncapacidad, ...resultado };
     },
   };

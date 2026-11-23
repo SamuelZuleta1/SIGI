@@ -1,6 +1,6 @@
 // HU-22 y HU-23 — incapacidades prolongadas (DS-10: registrarConcepto, registrarFaltaConcepto), con persistencia y correo falsos.
 // Decisiones: DA-19 (reporte en vivo), DA-04 (correo del colaborador), DA-47 y DA-49 (hitos por fecha).
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { crearControlIncapacidades } from '../../src/controllers/control-incapacidades.js';
 import { ErrorDeValidacion } from '../../src/controllers/error-de-validacion.js';
 import { condicionDelDia } from '../../src/controllers/hitos.js';
@@ -56,8 +56,8 @@ describe('HU-22.CA1 — reporte de prolongadas en vivo (DA-19)', () => {
     await registrar(130);
     await registrar(130);
     await registrar(130);
-    await control.registrarConcepto('1', { concepto: CONCEPTO });
-    await control.registrarFaltaConcepto('2');
+    await control.registrarConcepto('1', { concepto: CONCEPTO }, USUARIOS.auxiliar);
+    await control.registrarFaltaConcepto('2', USUARIOS.auxiliar);
     expect((await control.consultarReporteProlongadas('con_concepto')).prolongadas.map((p) => p.idIncapacidad)).toEqual([1]);
     expect((await control.consultarReporteProlongadas('falta')).prolongadas.map((p) => p.idIncapacidad)).toEqual([2]);
     expect((await control.consultarReporteProlongadas('accion')).prolongadas.map((p) => p.idIncapacidad)).toEqual([3]);
@@ -72,7 +72,7 @@ describe('HU-22.CA1 — reporte de prolongadas en vivo (DA-19)', () => {
 describe('HU-22.CA2 — registrar el concepto', () => {
   it('lo guarda y lo comunica por correo al colaborador', async () => {
     await registrar(130);
-    expect(await control.registrarConcepto('1', { concepto: `  ${CONCEPTO}  ` })).toEqual({ idIncapacidad: 1 });
+    expect(await control.registrarConcepto('1', { concepto: `  ${CONCEPTO}  ` }, USUARIOS.auxiliar)).toEqual({ idIncapacidad: 1 });
     expect(baseDeDatos.incapacidades[0].concepto).toBe(CONCEPTO);
     expect(enviados).toHaveLength(1);
     expect(enviados[0].to).toBe('ana.gomez@sigi.test');
@@ -81,27 +81,27 @@ describe('HU-22.CA2 — registrar el concepto', () => {
 
   it('el correo no lleva adjuntos (DA-12)', async () => {
     await registrar(130);
-    await control.registrarConcepto('1', { concepto: CONCEPTO });
+    await control.registrarConcepto('1', { concepto: CONCEPTO }, USUARIOS.auxiliar);
     expect(enviados[0].attachments).toBeUndefined();
   });
 
   it('solo una vez: un segundo concepto se rechaza y no sale otro correo', async () => {
     await registrar(130);
-    await control.registrarConcepto('1', { concepto: CONCEPTO });
-    expect((await errores(control.registrarConcepto('1', { concepto: CONCEPTO }))).estado).toMatch(/ya tiene el concepto/);
+    await control.registrarConcepto('1', { concepto: CONCEPTO }, USUARIOS.auxiliar);
+    expect((await errores(control.registrarConcepto('1', { concepto: CONCEPTO }, USUARIOS.auxiliar))).estado).toMatch(/ya tiene el concepto/);
     expect(enviados).toHaveLength(1);
   });
 
   it('una incapacidad de 90 días o menos no es prolongada', async () => {
     await registrar(90);
-    expect((await errores(control.registrarConcepto('1', { concepto: CONCEPTO }))).estado).toMatch(/más de 90 días/);
+    expect((await errores(control.registrarConcepto('1', { concepto: CONCEPTO }, USUARIOS.auxiliar))).estado).toMatch(/más de 90 días/);
     expect(enviados).toHaveLength(0);
     expect(await control.prepararProlongada('1')).toBeNull();
   });
 
   it.each(['', '   ', 'corto', 'x'.repeat(2001), `texto válido largo\u0000`])('rechaza el concepto %j', async (concepto) => {
     await registrar(130);
-    expect((await errores(control.registrarConcepto('1', { concepto }))).concepto).toBeTruthy();
+    expect((await errores(control.registrarConcepto('1', { concepto }, USUARIOS.auxiliar))).concepto).toBeTruthy();
     expect(baseDeDatos.incapacidades[0].concepto).toBeUndefined();
     expect(enviados).toHaveLength(0);
   });
@@ -112,33 +112,33 @@ describe('HU-22.CA2 — registrar el concepto', () => {
       baseDeDatos,
       correo: { ...correo, comunicarConcepto: async () => { throw new Error('SMTP caído'); } },
     });
-    await expect(fallido.registrarConcepto('1', { concepto: CONCEPTO })).rejects.toMatchObject({ name: 'ErrorDeAviso', deshecho: true, cause: expect.objectContaining({ message: 'SMTP caído' }) });
+    await expect(fallido.registrarConcepto('1', { concepto: CONCEPTO }, USUARIOS.auxiliar)).rejects.toMatchObject({ name: 'ErrorDeAviso', deshecho: true, cause: expect.objectContaining({ message: 'SMTP caído' }) });
     expect(baseDeDatos.incapacidades[0].concepto).toBeNull();
-    await control.registrarConcepto('1', { concepto: CONCEPTO });
+    await control.registrarConcepto('1', { concepto: CONCEPTO }, USUARIOS.auxiliar);
     expect(baseDeDatos.incapacidades[0].concepto).toBe(CONCEPTO);
   });
 
   it('registrar el concepto resuelve la falta del concepto', async () => {
     await registrar(130);
-    await control.registrarFaltaConcepto('1');
-    await control.registrarConcepto('1', { concepto: CONCEPTO });
+    await control.registrarFaltaConcepto('1', USUARIOS.auxiliar);
+    await control.registrarConcepto('1', { concepto: CONCEPTO }, USUARIOS.auxiliar);
     expect(baseDeDatos.incapacidades[0]).toMatchObject({ concepto: CONCEPTO, faltaConcepto: false });
   });
 
   it('si el correo falla tras una falta, la falta se conserva', async () => {
     await registrar(130);
-    await control.registrarFaltaConcepto('1');
+    await control.registrarFaltaConcepto('1', USUARIOS.auxiliar);
     const fallido = crearControlIncapacidades({
       baseDeDatos,
       correo: { ...correo, comunicarConcepto: async () => { throw new Error('SMTP caído'); } },
     });
-    await expect(fallido.registrarConcepto('1', { concepto: CONCEPTO })).rejects.toThrow();
+    await expect(fallido.registrarConcepto('1', { concepto: CONCEPTO }, USUARIOS.auxiliar)).rejects.toThrow();
     expect(baseDeDatos.incapacidades[0]).toMatchObject({ concepto: null, faltaConcepto: true });
   });
 
   it('una incapacidad que no existe devuelve null', async () => {
-    expect(await control.registrarConcepto('9', { concepto: CONCEPTO })).toBeNull();
-    expect(await control.registrarConcepto('abc', { concepto: CONCEPTO })).toBeNull();
+    expect(await control.registrarConcepto('9', { concepto: CONCEPTO }, USUARIOS.auxiliar)).toBeNull();
+    expect(await control.registrarConcepto('abc', { concepto: CONCEPTO }, USUARIOS.auxiliar)).toBeNull();
   });
 });
 
@@ -149,12 +149,12 @@ describe('DA-47 — el concepto se registra solo si dura 120 días o más', () =
     expect((await control.prepararProlongada('1')).puedeRegistrarConcepto).toBe(llega);
     expect((await control.prepararProlongada('1')).puedeRegistrarFalta).toBe(llega);
     if (llega) {
-      await control.registrarFaltaConcepto('1');
-      await control.registrarConcepto('1', { concepto: CONCEPTO });
+      await control.registrarFaltaConcepto('1', USUARIOS.auxiliar);
+      await control.registrarConcepto('1', { concepto: CONCEPTO }, USUARIOS.auxiliar);
       expect(enviados).toHaveLength(2);
     } else {
-      expect((await errores(control.registrarConcepto('1', { concepto: CONCEPTO }))).estado).toMatch(/no llega al día 120/);
-      expect((await errores(control.registrarFaltaConcepto('1'))).estado).toMatch(/no llega al día 120/);
+      expect((await errores(control.registrarConcepto('1', { concepto: CONCEPTO }, USUARIOS.auxiliar))).estado).toMatch(/no llega al día 120/);
+      expect((await errores(control.registrarFaltaConcepto('1', USUARIOS.auxiliar))).estado).toMatch(/no llega al día 120/);
       expect(enviados).toHaveLength(0);
       expect(baseDeDatos.incapacidades[0].concepto).toBeUndefined();
       expect(baseDeDatos.incapacidades[0].faltaConcepto).toBeUndefined();
@@ -172,8 +172,8 @@ describe('DA-49 — el día 120 y el 181 se cumplen por calendario, como las ale
     await registrar(150, '2026-11-22');
     const prolongada = await control.prepararProlongada('1');
     expect(prolongada).toMatchObject({ dia: 2, fechaDia120: '2027-03-21', puedeRegistrarConcepto: false, puedeRegistrarFalta: false });
-    expect((await errores(control.registrarConcepto('1', { concepto: CONCEPTO }))).estado).toMatch(/llega al día 120 el 21 mar 2027/);
-    expect((await errores(control.registrarFaltaConcepto('1'))).estado).toMatch(/llega al día 120/);
+    expect((await errores(control.registrarConcepto('1', { concepto: CONCEPTO }, USUARIOS.auxiliar))).estado).toMatch(/llega al día 120 el 21 mar 2027/);
+    expect((await errores(control.registrarFaltaConcepto('1', USUARIOS.auxiliar))).estado).toMatch(/llega al día 120/);
     expect(enviados).toHaveLength(0);
     expect((await control.consultarReporteProlongadas('espera')).prolongadas.map((p) => p.idIncapacidad)).toEqual([1]);
     expect((await control.consultarReporteProlongadas('accion')).prolongadas).toHaveLength(0);
@@ -185,8 +185,8 @@ describe('DA-49 — el día 120 y el 181 se cumplen por calendario, como las ale
   ])('empezó el %s: ¿admite el concepto hoy? %s', async (inicio, admite) => {
     await registrar(130, inicio);
     expect((await control.prepararProlongada('1')).puedeRegistrarConcepto).toBe(admite);
-    if (admite) expect(await control.registrarFaltaConcepto('1')).toEqual({ idIncapacidad: 1 });
-    else expect((await errores(control.registrarFaltaConcepto('1'))).estado).toMatch(/llega al día 120/);
+    if (admite) expect(await control.registrarFaltaConcepto('1', USUARIOS.auxiliar)).toEqual({ idIncapacidad: 1 });
+    else expect((await errores(control.registrarFaltaConcepto('1', USUARIOS.auxiliar))).estado).toMatch(/llega al día 120/);
   });
 
   it.each([
@@ -196,22 +196,22 @@ describe('DA-49 — el día 120 y el 181 se cumplen por calendario, como las ale
     await registrar(200, inicio);
     const prolongada = await control.prepararProlongada('1');
     expect(prolongada).toMatchObject({ suspensionPendiente: admite, tramitePension: admite, mostrarSuspension: true });
-    if (admite) expect(await control.registrarSuspensionPago('1')).toEqual({ idIncapacidad: 1 });
-    else expect((await errores(control.registrarSuspensionPago('1'))).suspension).toMatch(/supera los 180 días el 24 nov 2026/);
+    if (admite) expect(await control.registrarSuspensionPago('1', USUARIOS.auxiliar)).toEqual({ idIncapacidad: 1 });
+    else expect((await errores(control.registrarSuspensionPago('1', USUARIOS.auxiliar))).suspension).toMatch(/supera los 180 días el 24 nov 2026/);
   });
 
   it('la escritura condicionada de la base aplica la misma regla aunque el control se salte la comprobación', async () => {
     await registrar(150, '2026-11-22');
-    expect(await baseDeDatos.guardarConcepto(1, CONCEPTO, condicionDelDia(120, HOY))).toBe(false);
-    expect(await baseDeDatos.guardarFaltaConcepto(1, condicionDelDia(120, HOY))).toBe(false);
-    expect(await baseDeDatos.guardarConcepto(1, CONCEPTO, condicionDelDia(120, '2027-03-21'))).toBe(true);
+    expect(await baseDeDatos.guardarConcepto(1, CONCEPTO, condicionDelDia(120, HOY), USUARIOS.auxiliar.id)).toBe(false);
+    expect(await baseDeDatos.guardarFaltaConcepto(1, condicionDelDia(120, HOY), USUARIOS.auxiliar.id)).toBe(false);
+    expect(await baseDeDatos.guardarConcepto(1, CONCEPTO, condicionDelDia(120, '2027-03-21'), USUARIOS.auxiliar.id)).toBe(true);
   });
 });
 
 describe('HU-23.CA1 — registrar la falta del concepto', () => {
   it('la guarda y avisa por correo al colaborador', async () => {
     await registrar(130);
-    expect(await control.registrarFaltaConcepto('1')).toEqual({ idIncapacidad: 1 });
+    expect(await control.registrarFaltaConcepto('1', USUARIOS.auxiliar)).toEqual({ idIncapacidad: 1 });
     expect(baseDeDatos.incapacidades[0].faltaConcepto).toBe(true);
     expect(enviados).toHaveLength(1);
     expect(enviados[0].to).toBe('ana.gomez@sigi.test');
@@ -220,20 +220,20 @@ describe('HU-23.CA1 — registrar la falta del concepto', () => {
 
   it('solo una vez: repetirla se rechaza y no sale otro correo', async () => {
     await registrar(130);
-    await control.registrarFaltaConcepto('1');
-    expect((await errores(control.registrarFaltaConcepto('1'))).estado).toMatch(/Ya se registró la falta/);
+    await control.registrarFaltaConcepto('1', USUARIOS.auxiliar);
+    expect((await errores(control.registrarFaltaConcepto('1', USUARIOS.auxiliar))).estado).toMatch(/Ya se registró la falta/);
     expect(enviados).toHaveLength(1);
   });
 
   it('con concepto ya registrado no hay falta que registrar', async () => {
     await registrar(130);
-    await control.registrarConcepto('1', { concepto: CONCEPTO });
-    expect((await errores(control.registrarFaltaConcepto('1'))).estado).toMatch(/no hay falta/);
+    await control.registrarConcepto('1', { concepto: CONCEPTO }, USUARIOS.auxiliar);
+    expect((await errores(control.registrarFaltaConcepto('1', USUARIOS.auxiliar))).estado).toMatch(/no hay falta/);
   });
 
   it('una incapacidad que no es prolongada se rechaza', async () => {
     await registrar(60);
-    expect((await errores(control.registrarFaltaConcepto('1'))).estado).toMatch(/más de 90 días/);
+    expect((await errores(control.registrarFaltaConcepto('1', USUARIOS.auxiliar))).estado).toMatch(/más de 90 días/);
     expect(enviados).toHaveLength(0);
   });
 
@@ -243,9 +243,9 @@ describe('HU-23.CA1 — registrar la falta del concepto', () => {
       baseDeDatos,
       correo: { ...correo, avisarFaltaConcepto: async () => { throw new Error('SMTP caído'); } },
     });
-    await expect(fallido.registrarFaltaConcepto('1')).rejects.toMatchObject({ name: 'ErrorDeAviso', deshecho: true, cause: expect.objectContaining({ message: 'SMTP caído' }) });
+    await expect(fallido.registrarFaltaConcepto('1', USUARIOS.auxiliar)).rejects.toMatchObject({ name: 'ErrorDeAviso', deshecho: true, cause: expect.objectContaining({ message: 'SMTP caído' }) });
     expect(baseDeDatos.incapacidades[0].faltaConcepto).toBe(false);
-    await control.registrarFaltaConcepto('1');
+    await control.registrarFaltaConcepto('1', USUARIOS.auxiliar);
     expect(baseDeDatos.incapacidades[0].faltaConcepto).toBe(true);
   });
 });
@@ -261,7 +261,7 @@ describe('leerConcepto', () => {
 describe('HU-24.CA1 — registrar la suspensión del pago (más de 180 días)', () => {
   it('la guarda y avisa por correo al colaborador', async () => {
     await registrar(200);
-    expect(await control.registrarSuspensionPago('1')).toEqual({ idIncapacidad: 1 });
+    expect(await control.registrarSuspensionPago('1', USUARIOS.auxiliar)).toEqual({ idIncapacidad: 1 });
     expect(baseDeDatos.incapacidades[0].pagoSuspendido).toBe(true);
     expect(enviados).toHaveLength(1);
     expect(enviados[0].to).toBe('ana.gomez@sigi.test');
@@ -271,20 +271,20 @@ describe('HU-24.CA1 — registrar la suspensión del pago (más de 180 días)', 
 
   it.each([130, 180])('con %i días no se puede suspender el pago', async (dias) => {
     await registrar(dias);
-    expect((await errores(control.registrarSuspensionPago('1'))).suspension).toMatch(/supera los 180 días/);
+    expect((await errores(control.registrarSuspensionPago('1', USUARIOS.auxiliar))).suspension).toMatch(/supera los 180 días/);
     expect(baseDeDatos.incapacidades[0].pagoSuspendido).toBeFalsy();
   });
 
   it('con 181 días sí se puede', async () => {
     await registrar(181);
-    expect(await control.registrarSuspensionPago('1')).toEqual({ idIncapacidad: 1 });
+    expect(await control.registrarSuspensionPago('1', USUARIOS.auxiliar)).toEqual({ idIncapacidad: 1 });
   });
 
   it('se registra una sola vez y no sale un segundo correo', async () => {
     await registrar(200);
-    await control.registrarSuspensionPago('1');
+    await control.registrarSuspensionPago('1', USUARIOS.auxiliar);
     const antes = enviados.length;
-    expect((await errores(control.registrarSuspensionPago('1'))).suspension).toMatch(/Ya se registró/);
+    expect((await errores(control.registrarSuspensionPago('1', USUARIOS.auxiliar))).suspension).toMatch(/Ya se registró/);
     expect(enviados).toHaveLength(antes);
   });
 
@@ -292,14 +292,47 @@ describe('HU-24.CA1 — registrar la suspensión del pago (más de 180 días)', 
     await registrar(200);
     const original = correo.notificarSuspensionPago;
     correo.notificarSuspensionPago = async () => { throw new Error('SMTP caído'); };
-    await expect(control.registrarSuspensionPago('1')).rejects.toMatchObject({ name: 'ErrorDeAviso', deshecho: true, cause: expect.objectContaining({ message: 'SMTP caído' }) });
+    await expect(control.registrarSuspensionPago('1', USUARIOS.auxiliar)).rejects.toMatchObject({ name: 'ErrorDeAviso', deshecho: true, cause: expect.objectContaining({ message: 'SMTP caído' }) });
     expect(baseDeDatos.incapacidades[0].pagoSuspendido).toBe(false);
     correo.notificarSuspensionPago = original;
-    expect(await control.registrarSuspensionPago('1')).toEqual({ idIncapacidad: 1 });
+    expect(await control.registrarSuspensionPago('1', USUARIOS.auxiliar)).toEqual({ idIncapacidad: 1 });
   });
 
   it('una incapacidad inexistente o con identificador inválido devuelve null', async () => {
-    expect(await control.registrarSuspensionPago('99')).toBeNull();
-    expect(await control.registrarSuspensionPago('abc')).toBeNull();
+    expect(await control.registrarSuspensionPago('99', USUARIOS.auxiliar)).toBeNull();
+    expect(await control.registrarSuspensionPago('abc', USUARIOS.auxiliar)).toBeNull();
+  });
+});
+
+describe('DA-23 — auditoría del concepto, la falta y la suspensión', () => {
+  it('guarda quién y cuándo; el deshacer lo limpia', async () => {
+    await registrar(200);
+    await control.registrarFaltaConcepto('1', USUARIOS.auxiliar);
+    expect(baseDeDatos.incapacidades[0]).toMatchObject({ faltaConceptoPor: USUARIOS.auxiliar.id, fechaFaltaConcepto: expect.any(String) });
+    await control.registrarConcepto('1', { concepto: CONCEPTO }, USUARIOS.auxiliar);
+    // La constancia de la falta se conserva aunque el concepto la resuelva.
+    expect(baseDeDatos.incapacidades[0]).toMatchObject({ conceptoPor: USUARIOS.auxiliar.id, fechaConcepto: expect.any(String), fechaFaltaConcepto: expect.any(String) });
+    await control.registrarSuspensionPago('1', USUARIOS.auxiliar);
+    expect(baseDeDatos.incapacidades[0]).toMatchObject({ suspensionPor: USUARIOS.auxiliar.id, fechaSuspension: expect.any(String) });
+    expect(await control.prepararProlongada('1')).toMatchObject({ incapacidad: { fechaConcepto: expect.any(String), fechaSuspension: expect.any(String) } });
+  });
+
+  it('si el correo falla, el deshacer también limpia la fecha y el usuario', async () => {
+    await registrar(200);
+    const fallido = crearControlIncapacidades({
+      baseDeDatos,
+      correo: { ...correo, comunicarConcepto: async () => { throw new Error('SMTP caído'); }, avisarFaltaConcepto: async () => { throw new Error('SMTP caído'); }, notificarSuspensionPago: async () => { throw new Error('SMTP caído'); } },
+      hoy: () => HOY,
+    });
+    const silencio = vi.spyOn(console, 'error').mockImplementation(() => {});
+    await fallido.registrarFaltaConcepto('1', USUARIOS.auxiliar).catch(() => {});
+    await fallido.registrarConcepto('1', { concepto: CONCEPTO }, USUARIOS.auxiliar).catch(() => {});
+    await fallido.registrarSuspensionPago('1', USUARIOS.auxiliar).catch(() => {});
+    silencio.mockRestore();
+    expect(baseDeDatos.incapacidades[0]).toMatchObject({
+      concepto: null, fechaConcepto: null, conceptoPor: null,
+      faltaConcepto: false, fechaFaltaConcepto: null, faltaConceptoPor: null,
+      pagoSuspendido: false, fechaSuspension: null, suspensionPor: null,
+    });
   });
 });

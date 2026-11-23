@@ -416,10 +416,11 @@ export function crearBaseDeDatosFalsa() {
         valorEmpresa: i.valorEmpresa ?? null,
         valorEPS: i.valorEPS ?? null,
         tramitePension: i.tramitePension ?? false,
+        fechaCalculo: i.fechaCalculo ?? null,
       };
     },
-    async guardarCalculo(idIncapacidad, calculo) {
-      Object.assign(incapacidades.find((i) => i.idIncapacidad === idIncapacidad), calculo);
+    async guardarCalculo(idIncapacidad, calculo, por) {
+      Object.assign(incapacidades.find((i) => i.idIncapacidad === idIncapacidad), calculo, { fechaCalculo: new Date().toISOString(), calculoPor: por });
     },
     // HU-22 y HU-23 (DS-10): como monitoreo.persistence.js (escrituras condicionadas).
     async obtenerDatosProlongada(idIncapacidad) {
@@ -438,41 +439,44 @@ export function crearBaseDeDatosFalsa() {
         concepto: i.concepto ?? null,
         faltaConcepto: i.faltaConcepto ?? false,
         pagoSuspendido: i.pagoSuspendido ?? false,
+        fechaConcepto: i.fechaConcepto ?? null,
+        fechaFaltaConcepto: i.fechaFaltaConcepto ?? null,
+        fechaSuspension: i.fechaSuspension ?? null,
       };
     },
     async consultarProlongadas(dias) {
       const ids = incapacidades.filter((i) => i.diasIncapacidad > dias).sort((a, b) => b.diasIncapacidad - a.diasIncapacidad || a.idIncapacidad - b.idIncapacidad);
       return Promise.all(ids.map((i) => this.obtenerDatosProlongada(i.idIncapacidad)));
     },
-    async guardarConcepto(idIncapacidad, concepto, dia) {
+    async guardarConcepto(idIncapacidad, concepto, dia, por) {
       const i = incapacidades.find((x) => x.idIncapacidad === idIncapacidad);
       if (!i || !cumpleDia(i, dia) || i.concepto != null) return false;
-      Object.assign(i, { concepto, faltaConcepto: false });
+      Object.assign(i, { concepto, faltaConcepto: false, fechaConcepto: new Date().toISOString(), conceptoPor: por });
       return true;
     },
     async deshacerConcepto(idIncapacidad, concepto, faltaConcepto) {
       const i = incapacidades.find((x) => x.idIncapacidad === idIncapacidad);
-      if (i?.concepto === concepto) Object.assign(i, { concepto: null, faltaConcepto });
+      if (i?.concepto === concepto) Object.assign(i, { concepto: null, faltaConcepto, fechaConcepto: null, conceptoPor: null });
     },
-    async guardarFaltaConcepto(idIncapacidad, dia) {
+    async guardarFaltaConcepto(idIncapacidad, dia, por) {
       const i = incapacidades.find((x) => x.idIncapacidad === idIncapacidad);
       if (!i || !cumpleDia(i, dia) || i.concepto != null || i.faltaConcepto) return false;
-      i.faltaConcepto = true;
+      Object.assign(i, { faltaConcepto: true, fechaFaltaConcepto: new Date().toISOString(), faltaConceptoPor: por });
       return true;
     },
     async deshacerFaltaConcepto(idIncapacidad) {
       const i = incapacidades.find((x) => x.idIncapacidad === idIncapacidad);
-      if (i && i.concepto == null) i.faltaConcepto = false;
+      if (i && i.concepto == null) Object.assign(i, { faltaConcepto: false, fechaFaltaConcepto: null, faltaConceptoPor: null });
     },
-    async guardarSuspensionPago(idIncapacidad, dia) {
+    async guardarSuspensionPago(idIncapacidad, dia, por) {
       const i = incapacidades.find((x) => x.idIncapacidad === idIncapacidad);
       if (!i || !cumpleDia(i, dia) || i.pagoSuspendido) return false;
-      i.pagoSuspendido = true;
+      Object.assign(i, { pagoSuspendido: true, fechaSuspension: new Date().toISOString(), suspensionPor: por });
       return true;
     },
     async deshacerSuspensionPago(idIncapacidad) {
       const i = incapacidades.find((x) => x.idIncapacidad === idIncapacidad);
-      if (i) i.pagoSuspendido = false;
+      if (i?.pagoSuspendido) Object.assign(i, { pagoSuspendido: false, fechaSuspension: null, suspensionPor: null });
     },
     // HU-12 (DS-14): como alertas.persistence.js (sin radicar, aviso pendiente o 90 días o más).
     async consultarPlazos() {

@@ -9,6 +9,8 @@
   };
   const dias = (n) => (n === 1 ? '1 día' : `${n} días`);
   const { incapacidad, hito } = prolongada;
+  // Auditoría (DA-23): el día (en Colombia) en que se registró cada cosa.
+  const registradoEl = (instante) => (instante ? `el ${fechaBreve(fechaEnColombia(instante))}` : '');
 %>
 <h1>Incapacidad prolongada</h1>
 <p class="sub">Registre el concepto de rehabilitación que emitió la entidad o deje constancia de que no lo ha emitido. En ambos casos se avisa por correo al colaborador.</p>
@@ -49,10 +51,19 @@
     <% if (errores.estado) { %><p class="mensaje mensaje-error" role="alert"><%= errores.estado %></p><% } %>
     <ol class="linea-tiempo">
       <% if (incapacidad.concepto != null) { %>
+        <% if (incapacidad.fechaFaltaConcepto) { %>
+          <li>
+            <span class="punto rechazo"><svg viewBox="0 0 24 24" aria-hidden="true"><%- ICONOS.falta %></svg></span>
+            <div class="paso">
+              <p class="titulo"><b>Se registró la falta del concepto</b><span class="tenue"><%= registradoEl(incapacidad.fechaFaltaConcepto) %></span></p>
+              <p class="tenue">Se avisó al colaborador; después la entidad emitió el concepto.</p>
+            </div>
+          </li>
+        <% } %>
         <li class="<%= conceptoRegistrado ? 'entra' : '' %>">
           <span class="punto hecho"><svg viewBox="0 0 24 24" aria-hidden="true"><%- ICONOS.concepto %></svg></span>
           <div class="paso">
-            <p class="titulo"><b>Concepto registrado</b></p>
+            <p class="titulo"><b>Concepto registrado</b><span class="tenue"><%= registradoEl(incapacidad.fechaConcepto) %></span></p>
             <p class="fundamentos"><%= incapacidad.concepto %></p>
           </div>
         </li>
@@ -61,7 +72,7 @@
           <li class="<%= faltaRegistrada ? 'entra' : '' %>">
             <span class="punto rechazo"><svg viewBox="0 0 24 24" aria-hidden="true"><%- ICONOS.falta %></svg></span>
             <div class="paso">
-              <p class="titulo"><b>La entidad no ha emitido el concepto</b></p>
+              <p class="titulo"><b>La entidad no ha emitido el concepto</b><span class="tenue"><%= registradoEl(incapacidad.fechaFaltaConcepto) %></span></p>
               <p class="tenue">Se avisó al colaborador. Cuando la entidad lo emita, regístrelo aquí.</p>
             </div>
           </li>
@@ -117,7 +128,7 @@
         <li class="<%= suspensionConfirmada ? 'entra' : '' %>">
           <span class="punto hecho"><svg viewBox="0 0 24 24" aria-hidden="true"><%- ICONOS.suspension %></svg></span>
           <div class="paso">
-            <p class="titulo"><b>Pago suspendido</b></p>
+            <p class="titulo"><b>Pago suspendido</b><span class="tenue"><%= registradoEl(incapacidad.fechaSuspension) %></span></p>
             <p class="tenue">Se avisó al colaborador. El reintegro de pagos de más de 180 días se gestiona fuera de SIGI.</p>
           </div>
         </li>
