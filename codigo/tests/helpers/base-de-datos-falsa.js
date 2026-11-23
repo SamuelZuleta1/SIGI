@@ -397,11 +397,10 @@ export function crearBaseDeDatosFalsa() {
       );
     },
     // HU-21 (DS-09): como reconocimiento.persistence.js.
-    async consultarParaReconocimiento(limite, busqueda = null) {
-      const nombreDe = (i) => colaboradores.find((c) => c.id === i.colaboradorId).nombre.toLowerCase();
+    async consultarParaReconocimiento(limite, filtro = null) {
       const filas = incapacidades
-        .filter((i) => !busqueda?.id || i.idIncapacidad === busqueda.id)
-        .filter((i) => !busqueda?.nombre || nombreDe(i).includes(busqueda.nombre.toLowerCase()))
+        .filter((i) => !filtro?.id || i.idIncapacidad === filtro.id)
+        .filter((i) => !filtro?.colaboradores || filtro.colaboradores.includes(i.colaboradorId))
         .sort((a, b) => b.fechaInicio.localeCompare(a.fechaInicio) || b.idIncapacidad - a.idIncapacidad);
       return { total: filas.length, filas: await Promise.all(filas.slice(0, limite).map((i) => this.obtenerDatosReconocimiento(i.idIncapacidad))) };
     },

@@ -206,6 +206,12 @@ describe('Lista de reconocimiento — búsqueda (rutas)', () => {
     expect(res.text).not.toContain('<script>x');
   });
 
+  it('sin tildes: «gil» y «GÍL» encuentran a «Luis Gil»', async () => {
+    await control.registrarIncapacidad(formularioDeRegistro({ colaborador: 'Luis Gil', correoColaborador: 'luis@sigi.test' }), USUARIOS.receptor);
+    const agente = await agenteCon(request, app, 'auxiliar');
+    expect((await agente.get('/reconocimiento?q=G%C3%8DL')).text).toContain('href="/incapacidades/2/reconocimiento"');
+  });
+
   it('?q repetido toma el primero', async () => {
     const agente = await agenteCon(request, app, 'auxiliar');
     expect((await agente.get('/reconocimiento?q=1&q=2')).text).toContain('href="/incapacidades/1/reconocimiento"');

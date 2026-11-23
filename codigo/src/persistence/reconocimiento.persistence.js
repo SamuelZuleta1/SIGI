@@ -30,15 +30,13 @@ export function crearPersistenciaReconocimiento(cliente) {
   return {
     /**
      * Las incapacidades más recientes con su cálculo (si lo tienen), para elegir una. `total` cuenta todas las que
-     * coinciden. `busqueda`: { id } = n.º exacto; { nombre } = parte del nombre del colaborador, sin distinguir
-     * mayúsculas (los comodines que escribió el usuario se escapan).
+     * coinciden. `filtro`: { id } = n.º exacto; { colaboradores } = ids de los colaboradores que el Control encontró por
+     * nombre (sin tildes, como HU-11).
      */
-    async consultarParaReconocimiento(limite, busqueda = null) {
-      let consulta = cliente
-        .from('incapacidad')
-        .select(busqueda?.nombre ? COLUMNAS.replace('colaborador(nombre)', 'colaborador!inner(nombre)') : COLUMNAS, { count: 'exact' });
-      if (busqueda?.id) consulta = consulta.eq('id', busqueda.id);
-      if (busqueda?.nombre) consulta = consulta.ilike('colaborador.nombre', `%${busqueda.nombre.replace(/[\\%_]/g, '\\$&')}%`);
+    async consultarParaReconocimiento(limite, filtro = null) {
+      let consulta = cliente.from('incapacidad').select(COLUMNAS, { count: 'exact' });
+      if (filtro?.id) consulta = consulta.eq('id', filtro.id);
+      if (filtro?.colaboradores) consulta = consulta.in('colaborador_id', filtro.colaboradores);
       const respuesta = await consulta
         .order('fecha_inicio', { ascending: false })
         .order('id', { ascending: false })

@@ -66,23 +66,32 @@ const mensajePago = (estado) => MENSAJES_PAGO[estado ?? 'null'] ?? 'La incapacid
 // numeric(14,2): hasta 12 cifras enteras (DA-40).
 export const VALOR_MAXIMO_CIFRAS = 12;
 
+// Mensajes del valor del pago (HU-15). Otro campo en pesos, como el IBC (HU-21), pasa los suyos.
+export const MENSAJES_VALOR = Object.freeze({
+  vacio: 'Escriba el valor que pagó la entidad.',
+  formato: 'Escriba el valor en pesos, por ejemplo 1.250.000 o 1.250.000,50.',
+  grande: 'El valor es demasiado grande.',
+  cero: 'El valor debe ser mayor que cero.',
+});
+
 /**
- * Valida el valor del pago en pesos (DA-40). Admite «1234567», «1.234.567», «1.234.567,50» y el signo «$».
+ * Valida un valor en pesos (DA-40). Admite «1234567», «1.234.567», «1.234.567,50» y el signo «$».
  * El punto es separador de miles y la coma, de decimales (uso colombiano).
+ * @param {{ vacio: string, formato: string, grande: string, cero: string }} [mensajes] los del pago por omisión.
  * @returns {{ valor?: string, centavos?: number, error?: string }} valor como texto para numeric(14,2).
  */
-export function leerValor(texto) {
-  const limpio = typeof texto === 'string' ? texto.replace(/[\s\u00a0$]/g, '') : '';
-  if (limpio === '') return { error: 'Escriba el valor que pagó la entidad.' };
+export function leerValor(texto, mensajes = MENSAJES_VALOR) {
+  const limpio = typeof texto === 'string' ? texto.replace(/[\s\u00a0\u202f$]/g, '') : '';
+  if (limpio === '') return { error: mensajes.vacio };
   const conMiles = /^\d{1,3}(\.\d{3})+(,\d{1,2})?$/.test(limpio);
   if (!conMiles && !/^\d+(,\d{1,2})?$/.test(limpio)) {
-    return { error: 'Escriba el valor en pesos, por ejemplo 1.250.000 o 1.250.000,50.' };
+    return { error: mensajes.formato };
   }
   const [enteros, decimales = ''] = limpio.replace(/\./g, '').split(',');
   const sinCeros = enteros.replace(/^0+(?=\d)/, '');
-  if (sinCeros.length > VALOR_MAXIMO_CIFRAS) return { error: 'El valor es demasiado grande.' };
+  if (sinCeros.length > VALOR_MAXIMO_CIFRAS) return { error: mensajes.grande };
   const centavos = Number(sinCeros) * 100 + Number(decimales.padEnd(2, '0'));
-  if (centavos <= 0) return { error: 'El valor debe ser mayor que cero.' };
+  if (centavos <= 0) return { error: mensajes.cero };
   return { valor: centavosATexto(centavos), centavos };
 }
 

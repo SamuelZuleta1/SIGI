@@ -14,11 +14,18 @@
     <button class="boton">Buscar</button>
     <% if (busqueda) { %><a class="boton secundario" href="/reconocimiento">Quitar</a><% } %>
   </div>
-  <span class="ayuda" id="ayuda-q">Solo cifras: el n.º exacto. Si no, parte del nombre del colaborador.</span>
+  <span class="ayuda" id="ayuda-q">Solo cifras: el n.º exacto. Si no, parte del nombre del colaborador (con o sin tildes).</span>
 </form>
 
 <section class="resultado" aria-label="Incapacidades">
-  <% if (filas.length === 0 && busqueda) { %>
+  <% if (locals.demasiados) { %>
+    <div class="tabla-envuelta">
+      <div class="vacio">
+        <b>Hay demasiados colaboradores con «<%= busqueda %>».</b>
+        <p>Escriba más del nombre o busque por el n.º de la incapacidad.</p>
+      </div>
+    </div>
+  <% } else if (filas.length === 0 && busqueda) { %>
     <div class="tabla-envuelta">
       <div class="vacio">
         <b>Ninguna incapacidad coincide con «<%= busqueda %>».</b>

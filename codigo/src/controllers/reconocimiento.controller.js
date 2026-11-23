@@ -5,6 +5,7 @@ import { aCentavos, centavosATexto, pesos } from '../servicios/moneda.js';
 import { advertenciaIbc } from '../servicios/smmlv.js';
 import { ErrorDeValidacion } from './error-de-validacion.js';
 import { leerValor } from './cobro.controller.js';
+import { MAXIMO_COLABORADORES_COINCIDENTES, normalizarTexto } from './estados.controller.js';
 import { esIdentificador } from './identificador.js';
 
 // DA-09: tramos del procedimiento. IBC diario = IBC ÷ 30. A los demás tipos (ARL, licencias, tránsito) se les aplican
@@ -24,11 +25,10 @@ export const BUSQUEDA_MAXIMA = 60;
 
 /**
  * Lee la búsqueda de la lista. Solo cifras = n.º exacto de la incapacidad; si no, parte del nombre del colaborador.
- * El asterisco se quita porque la API lo usa como comodín.
  * @returns {null | { texto: string, id?: number, nombre?: string }} null si no hay búsqueda.
  */
 export function leerBusqueda(valor) {
-  const texto = typeof valor === 'string' ? valor.replace(/\*/g, ' ').replace(/\s+/g, ' ').trim().slice(0, BUSQUEDA_MAXIMA) : '';
+  const texto = typeof valor === 'string' ? valor.replace(/\s+/g, ' ').trim().slice(0, BUSQUEDA_MAXIMA) : '';
   if (texto === '') return null;
   // Un número que no puede ser un id (cero, demasiado largo) no coincide con nada.
   if (/^\d+$/.test(texto)) return { texto, id: esIdentificador(texto) ? Number(texto) : 0 };
@@ -63,11 +63,12 @@ export function calcularTramos(dias, ibcCentavos) {
   };
 }
 
-// Los mensajes de leerValor hablan del pago (HU-15); el IBC tiene los suyos.
-const ERROR_FORMATO_IBC = 'Escriba el IBC en pesos, por ejemplo 2.800.000 o 2.800.000,50.';
-const ERRORES_IBC = Object.freeze({
-  'El valor debe ser mayor que cero.': 'El IBC debe ser mayor que cero.',
-  'El valor es demasiado grande.': `El IBC no puede superar ${pesos(IBC_MAXIMO)}.`,
+// Los mensajes de leerValor hablan del pago (HU-15); el IBC pasa los suyos.
+const MENSAJES_IBC = Object.freeze({
+  vacio: 'Escriba el IBC de la incapacidad.',
+  formato: 'Escriba el IBC en pesos, por ejemplo 2.800.000 o 2.800.000,50.',
+  grande: `El IBC no puede superar ${pesos(IBC_MAXIMO)}.`,
+  cero: 'El IBC debe ser mayor que cero.',
 });
 
 /**
@@ -76,11 +77,9 @@ const ERRORES_IBC = Object.freeze({
  * @returns {{ valor?: string, centavos?: number, error?: string }}
  */
 export function leerIbc(texto) {
-  const limpio = typeof texto === 'string' ? texto.replace(/[\s\u00a0\u202f$]/g, '') : '';
-  if (limpio === '') return { error: 'Escriba el IBC de la incapacidad.' };
-  const valor = leerValor(limpio);
-  if (valor.error) return { error: ERRORES_IBC[valor.error] ?? ERROR_FORMATO_IBC };
-  if (valor.centavos > IBC_MAXIMO * 100) return { error: `El IBC no puede superar ${pesos(IBC_MAXIMO)}.` };
+  const valor = leerValor(typeof texto === 'string' ? texto : '', MENSAJES_IBC);
+  if (valor.error) return valor;
+  if (valor.centavos > IBC_MAXIMO * 100) return { error: MENSAJES_IBC.grande };
   return valor;
 }
 
@@ -112,13 +111,25 @@ export function crearControlReconocimiento({ baseDeDatos }) {
   return {
     /**
      * Apoyo de la Vista: las incapacidades más recientes con su cálculo, si lo tienen, o las que coinciden con la
-     * búsqueda (n.º o nombre del colaborador). Solo consulta.
+     * búsqueda (n.º o nombre del colaborador, sin tildes ni mayúsculas). Solo consulta.
      * @param {string} [q] lo que escribió el auxiliar.
      */
     async consultarReconocimientos(q) {
       const busqueda = leerBusqueda(q);
-      if (busqueda?.id === 0) return { total: 0, filas: [], limite: LISTA_MAXIMA, busqueda: busqueda.texto };
-      const { total, filas } = await baseDeDatos.consultarParaReconocimiento(LISTA_MAXIMA, busqueda);
+      const vacia = (extra = {}) => ({ total: 0, filas: [], limite: LISTA_MAXIMA, busqueda: busqueda.texto, ...extra });
+      if (busqueda?.id === 0) return vacia();
+      let filtro = busqueda?.id ? { id: busqueda.id } : null;
+      if (busqueda?.nombre) {
+        // Sin tildes ni mayúsculas, como la consulta de estados (HU-11): «gomez» encuentra a «Gómez».
+        const buscado = normalizarTexto(busqueda.nombre);
+        const colaboradores = (await baseDeDatos.consultarColaboradores())
+          .filter((c) => normalizarTexto(c.nombre).includes(buscado))
+          .map((c) => c.id);
+        if (colaboradores.length === 0) return vacia();
+        if (colaboradores.length > MAXIMO_COLABORADORES_COINCIDENTES) return vacia({ demasiados: true });
+        filtro = { colaboradores };
+      }
+      const { total, filas } = await baseDeDatos.consultarParaReconocimiento(LISTA_MAXIMA, filtro);
       return { total, filas, limite: LISTA_MAXIMA, busqueda: busqueda?.texto ?? '' };
     },
 

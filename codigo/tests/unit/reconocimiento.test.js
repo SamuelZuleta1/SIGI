@@ -247,7 +247,6 @@ describe('Lista de reconocimiento — búsqueda por n.º o colaborador', () => {
     ['   ', null],
     ['104', { texto: '104', id: 104 }],
     ['  Gómez  ', { texto: 'Gómez', nombre: 'Gómez' }],
-    ['ana*', { texto: 'ana', nombre: 'ana' }],
     ['0', { texto: '0', id: 0 }],
     ['9'.repeat(30), { texto: '9'.repeat(30), id: 0 }],
   ])('leerBusqueda(%j)', (texto, esperado) => expect(leerBusqueda(texto)).toEqual(esperado));
@@ -262,8 +261,28 @@ describe('Lista de reconocimiento — búsqueda por n.º o colaborador', () => {
     await control.registrarIncapacidad(formularioDeRegistro({ colaborador: 'Luis Gil', correoColaborador: 'luis@sigi.test' }), USUARIOS.receptor);
     expect((await control.consultarReconocimientos('2')).filas.map((f) => f.idIncapacidad)).toEqual([2]);
     expect((await control.consultarReconocimientos('restre')).filas.map((f) => f.colaborador)).toEqual(['Ana Restrepo']);
+    expect((await control.consultarReconocimientos('RESTREPÓ')).filas.map((f) => f.colaborador)).toEqual(['Ana Restrepo']);
     expect(await control.consultarReconocimientos('nadie')).toMatchObject({ total: 0, filas: [], busqueda: 'nadie' });
     expect(await control.consultarReconocimientos('0')).toMatchObject({ total: 0, filas: [] });
     expect((await control.consultarReconocimientos('')).filas).toHaveLength(2);
+  });
+});
+
+describe('Observaciones del code-review', () => {
+  it('la búsqueda por nombre no distingue tildes: «gomez» encuentra a «Gómez»', async () => {
+    await control.registrarIncapacidad(formularioDeRegistro({ colaborador: 'Ana María Gómez', correoColaborador: 'ana@sigi.test' }), USUARIOS.receptor);
+    expect((await control.consultarReconocimientos('maria gomez')).filas).toHaveLength(1);
+  });
+
+  it('si el nombre coincide con más de 200 colaboradores pide escribir más', async () => {
+    const base = { ...baseDeDatos, consultarColaboradores: async () => Array.from({ length: 201 }, (_, i) => ({ id: i + 1, nombre: `Ana ${i}` })) };
+    const c = crearControlIncapacidades({ baseDeDatos: base, correo: crearCorreoFalso().correo });
+    expect(await c.consultarReconocimientos('ana')).toMatchObject({ demasiados: true, filas: [] });
+  });
+
+  it('leerIbc usa sus propios mensajes, no traduce los del pago', () => {
+    expect(leerIbc('0').error).toBe('El IBC debe ser mayor que cero.');
+    expect(leerIbc('abc').error).toBe('Escriba el IBC en pesos, por ejemplo 2.800.000 o 2.800.000,50.');
+    expect(leerIbc('9'.repeat(20)).error).toMatch(/^El IBC no puede superar/);
   });
 });

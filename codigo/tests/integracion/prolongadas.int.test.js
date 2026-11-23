@@ -81,18 +81,18 @@ describe('HU-21 — reconocimiento económico (base de datos)', () => {
 });
 
 describe('Lista de reconocimiento — búsqueda (base de datos)', () => {
-  it('busca por n.º exacto y por parte del nombre del colaborador (sin distinguir mayúsculas)', async () => {
+  it('busca por n.º exacto y por parte del nombre del colaborador (sin tildes ni mayúsculas)', async () => {
     const id = await registrar(5);
     const porNumero = await baseDeDatos.consultarParaReconocimiento(200, { id });
     expect(porNumero.filas.map((f) => f.idIncapacidad)).toEqual([id]);
-    const porNombre = await baseDeDatos.consultarParaReconocimiento(200, { nombre: 'ANA MARÍA' });
+    // Sin tildes ni mayúsculas, como HU-11: el Control filtra los colaboradores y la base recibe sus ids.
+    const porNombre = await control.consultarReconocimientos('ANA MARIA GOMEZ');
     expect(porNombre.filas.some((f) => f.idIncapacidad === id)).toBe(true);
-    expect(porNombre.filas.every((f) => /ana maría/i.test(f.colaborador))).toBe(true);
+    expect(porNombre.filas.every((f) => /ana maría gómez/i.test(f.colaborador))).toBe(true);
   });
 
-  it('los comodines que escribe el usuario no comodinean', async () => {
-    const { filas } = await baseDeDatos.consultarParaReconocimiento(200, { nombre: '%_%' });
-    expect(filas).toEqual([]);
+  it('los comodines que escribe el usuario son texto, no comodines', async () => {
+    expect((await control.consultarReconocimientos('%_%')).filas).toEqual([]);
   });
 });
 
