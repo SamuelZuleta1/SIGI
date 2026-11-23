@@ -7,6 +7,7 @@ import { crearRutasCobro } from './cobro.routes.js';
 import { crearRutasCobroJuridico } from './cobro-juridico.routes.js';
 import { crearRutasEstados } from './estados.routes.js';
 import { crearRutasRadicacion } from './radicacion.routes.js';
+import { crearRutasReconocimiento } from './reconocimiento.routes.js';
 import { crearRutasReemplazo } from './reemplazo.routes.js';
 import { crearRutasRegistro } from './registro.routes.js';
 import { crearRutasSeguimiento } from './seguimiento.routes.js';
@@ -38,6 +39,7 @@ export function crearRutas(dependencias) {
     rutas.use(crearRutasCobro(dependencias));
     rutas.use(crearRutasSeguimiento(dependencias));
     rutas.use(crearRutasCobroJuridico(dependencias));
+    rutas.use(crearRutasReconocimiento(dependencias));
   }
 
   // Solo para las pruebas: rutas de ensayo detrás de la sesión.

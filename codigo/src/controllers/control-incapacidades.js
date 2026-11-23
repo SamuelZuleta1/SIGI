@@ -5,6 +5,7 @@ import { crearControlCobro } from './cobro.controller.js';
 import { crearControlCobroJuridico } from './cobro-juridico.controller.js';
 import { crearControlEstados } from './estados.controller.js';
 import { crearControlRadicacion } from './radicacion.controller.js';
+import { crearControlReconocimiento } from './reconocimiento.controller.js';
 import { crearControlReemplazo } from './reemplazo.controller.js';
 import { crearControlRegistro } from './registro.controller.js';
 import { crearControlSeguimiento } from './seguimiento.controller.js';
@@ -22,5 +23,6 @@ export function crearControlIncapacidades(dependencias) {
     ...crearControlCobro(dependencias),
     ...crearControlSeguimiento(dependencias),
     ...crearControlCobroJuridico(dependencias),
+    ...crearControlReconocimiento(dependencias),
   };
 }

@@ -393,6 +393,31 @@ export function crearBaseDeDatosFalsa() {
         ]),
       );
     },
+    // HU-21 (DS-09): como reconocimiento.persistence.js.
+    async consultarParaReconocimiento(limite) {
+      const filas = [...incapacidades].sort((a, b) => b.fechaInicio.localeCompare(a.fechaInicio) || b.idIncapacidad - a.idIncapacidad);
+      return { total: filas.length, filas: await Promise.all(filas.slice(0, limite).map((i) => this.obtenerDatosReconocimiento(i.idIncapacidad))) };
+    },
+    async obtenerDatosReconocimiento(idIncapacidad) {
+      const i = incapacidades.find((x) => x.idIncapacidad === idIncapacidad);
+      if (!i) return null;
+      return {
+        idIncapacidad,
+        colaborador: colaboradores.find((c) => c.id === i.colaboradorId).nombre,
+        entidad: ENTIDADES.find((e) => e.id === i.entidad).nombre,
+        tipo: i.tipo,
+        fechaInicio: i.fechaInicio,
+        diasIncapacidad: i.diasIncapacidad,
+        estado: i.estado,
+        ibc: i.ibc ?? null,
+        valorEmpresa: i.valorEmpresa ?? null,
+        valorEPS: i.valorEPS ?? null,
+        tramitePension: i.tramitePension ?? false,
+      };
+    },
+    async guardarCalculo(idIncapacidad, calculo) {
+      Object.assign(incapacidades.find((i) => i.idIncapacidad === idIncapacidad), calculo);
+    },
     // HU-12 (DS-14): como alertas.persistence.js (sin radicar, aviso pendiente o 90 días o más).
     async consultarPlazos() {
       return incapacidades

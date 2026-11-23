@@ -92,6 +92,14 @@
         </a>
       </li>
       <% } %>
+      <% if (puede('calcularReconocimiento')) { %>
+      <li>
+        <a href="/reconocimiento" <%- ruta === '/reconocimiento' || /^\/incapacidades\/\d+\/reconocimiento$/.test(ruta) ? 'aria-current="page"' : '' %>>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="3.5" width="14" height="17" rx="1.5"/><path d="M8.5 7.5h7M8.5 12h.01M12 12h.01M15.5 12h.01M8.5 16h.01M12 16h.01M15.5 16h.01"/></svg>
+          Reconocimiento
+        </a>
+      </li>
+      <% } %>
       <% if (puede('registrarReemplazo')) { %>
       <li>
         <a href="/reemplazo" <%- ruta === '/reemplazo' || /^\/incapacidades\/\d+\/reemplazo$/.test(ruta) ? 'aria-current="page"' : '' %>>

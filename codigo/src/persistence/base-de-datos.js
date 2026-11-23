@@ -6,6 +6,7 @@ import { crearPersistenciaCobro } from './cobro.persistence.js';
 import { crearPersistenciaCobroJuridico } from './cobro-juridico.persistence.js';
 import { crearPersistenciaEstados } from './estados.persistence.js';
 import { crearPersistenciaRadicacion } from './radicacion.persistence.js';
+import { crearPersistenciaReconocimiento } from './reconocimiento.persistence.js';
 import { crearPersistenciaReemplazo } from './reemplazo.persistence.js';
 import { crearPersistenciaSeguimiento } from './seguimiento.persistence.js';
 import { crearPersistenciaRegistro } from './registro.persistence.js';
@@ -22,5 +23,6 @@ export function crearBaseDeDatos(cliente = crearClienteServidor()) {
     ...crearPersistenciaCobro(cliente),
     ...crearPersistenciaSeguimiento(cliente),
     ...crearPersistenciaCobroJuridico(cliente),
+    ...crearPersistenciaReconocimiento(cliente),
   };
 }

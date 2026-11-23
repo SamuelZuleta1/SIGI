@@ -461,6 +461,9 @@ input[type='file']::file-selector-button {
 .estados td { padding: 9px 12px; border-bottom: 1px solid var(--raya); vertical-align: middle; }
 .estados tr:last-child td { border-bottom: 0; }
 .estados .num { text-align: right; }
+.estados tfoot th, .estados tfoot td { padding: 9px 12px; border-top: 1px solid var(--borde); font-size: 0.84rem; }
+.estados tfoot th { color: var(--texto); font-weight: 500; }
+.estados tr.sin-dias td { color: var(--tenue); }
 .estados td a { font-weight: 600; text-decoration: none; }
 .estados td a:hover { text-decoration: underline; }
 @media (hover: hover) { .estados tbody tr:hover td { background: color-mix(in srgb, var(--raya) 60%, transparent); } }
