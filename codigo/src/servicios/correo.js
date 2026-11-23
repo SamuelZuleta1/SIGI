@@ -102,12 +102,12 @@ export function crearServicioCorreo({ transporte, remitente, destinatarios }) {
         ...resumen(incapacidad),
       ]),
 
-    // DS-10 → Colaborador
-    comunicarConcepto: (incapacidad, concepto) =>
+    // DS-10 → Colaborador. Solo el aviso: el texto del concepto es información clínica y no va en el correo (DA-52).
+    comunicarConcepto: (incapacidad) =>
       enviar(incapacidad.correoColaborador, 'Concepto de rehabilitación de su incapacidad', [
         `Hola, ${incapacidad.colaborador}.`,
-        'Se registró el concepto de rehabilitación de su incapacidad:',
-        concepto,
+        'Se registró en SIGI el concepto de rehabilitación que emitió la entidad para su incapacidad.',
+        'Si necesita conocerlo, consúltelo con Gestión Humana.',
         '',
         `Incapacidad n.º ${incapacidad.idIncapacidad} · Fecha de inicio: ${incapacidad.fechaInicio}`,
       ]),

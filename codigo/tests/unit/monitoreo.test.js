@@ -70,7 +70,7 @@ describe('HU-22.CA2 — registrar el concepto', () => {
     expect(baseDeDatos.incapacidades[0].concepto).toBe(CONCEPTO);
     expect(enviados).toHaveLength(1);
     expect(enviados[0].to).toBe('ana.gomez@sigi.test');
-    expect(enviados[0].text).toContain(CONCEPTO);
+    expect(enviados[0].text).not.toContain(CONCEPTO); // solo el aviso (DA-52)
   });
 
   it('el correo no lleva adjuntos (DA-12)', async () => {

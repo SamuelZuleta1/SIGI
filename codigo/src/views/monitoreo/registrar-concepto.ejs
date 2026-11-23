@@ -18,7 +18,7 @@
     <p class="mensaje mensaje-error" role="alert" tabindex="-1" autofocus><%= errores.aviso %></p>
   <% } %>
   <% if (conceptoRegistrado) { %>
-    <p class="mensaje mensaje-ok entra" role="status">Concepto registrado y comunicado al colaborador. Recuerde enviarlo a la AFP fuera de SIGI.</p>
+    <p class="mensaje mensaje-ok entra" role="status">Concepto registrado y colaborador avisado por correo. Recuerde enviarlo a la AFP fuera de SIGI.</p>
   <% } %>
   <% if (faltaRegistrada) { %>
     <p class="mensaje mensaje-ok entra" role="status">Falta del concepto registrada y colaborador avisado.</p>
@@ -80,7 +80,7 @@
                 <div class="campo <%= errores.concepto ? 'invalido' : '' %>">
                   <label for="concepto">Concepto de rehabilitación</label>
                   <textarea id="concepto" name="concepto" maxlength="<%= conceptoMaximo %>" required aria-describedby="<%= errores.concepto ? 'error-concepto' : 'ayuda-concepto' %>"<%- errores.concepto ? ' aria-invalid="true" autofocus' : '' %>><%= valores.concepto ?? '' %></textarea>
-                  <% if (errores.concepto) { %><span class="error" id="error-concepto"><%= errores.concepto %></span><% } else { %><span class="ayuda" id="ayuda-concepto">Como lo emitió la entidad. Se comunica por correo al colaborador.</span><% } %>
+                  <% if (errores.concepto) { %><span class="error" id="error-concepto"><%= errores.concepto %></span><% } else { %><span class="ayuda" id="ayuda-concepto">Como lo emitió la entidad. Al colaborador solo le llega por correo el aviso de que se registró, sin el texto.</span><% } %>
                   <span class="contador" data-contador hidden></span>
                 </div>
                 <div class="acciones"><button class="boton" data-enviando="Registrando…">Registrar el concepto</button></div>

@@ -13,7 +13,7 @@ const casos = [
   ['notificarCitacion', (c) => c.notificarCitacion({ ...inc, faltantes: ['Epicrisis'] }), DESTINATARIOS.coordinacion],
   ['notificarRetraso', (c) => c.notificarRetraso({ ...inc, tiempoPago: 30 }), DESTINATARIOS.coordinacion],
   ['notificarTraslado', (c) => c.notificarTraslado(inc, '180 días sin pago'), DESTINATARIOS.cartera],
-  ['comunicarConcepto', (c) => c.comunicarConcepto(inc, 'Favorable'), inc.correoColaborador],
+  ['comunicarConcepto', (c) => c.comunicarConcepto(inc), inc.correoColaborador],
   ['avisarFaltaConcepto', (c) => c.avisarFaltaConcepto(inc), inc.correoColaborador],
   ['notificarSuspensionPago', (c) => c.notificarSuspensionPago(inc), inc.correoColaborador],
   ['notificarPagosPorIdentificar', (c) => c.notificarPagosPorIdentificar('Nueva EPS', 2), DESTINATARIOS.auxiliar],
@@ -64,9 +64,17 @@ describe('T-00d — servicio de correo', () => {
     expect(enviados[0].text).toContain('Deterioro crediticio de la entidad');
   });
 
+  it('el aviso del concepto no lleva el texto clínico del concepto (DA-52, CAR-11)', async () => {
+    const { correo, enviados } = crearCorreoFalso();
+    await correo.comunicarConcepto(inc, 'Concepto desfavorable: secuelas neurológicas');
+    expect(enviados[0].text).not.toContain('secuelas');
+    expect(enviados[0].html).not.toContain('secuelas');
+    expect(enviados[0].text).toContain('Gestión Humana');
+  });
+
   it('escapa el HTML de los datos escritos por los usuarios', async () => {
     const { correo, enviados } = crearCorreoFalso();
-    await correo.comunicarConcepto(inc, '<script>alert(1)</script>');
+    await correo.notificarTraslado(inc, '<script>alert(1)</script>');
     expect(enviados[0].html).not.toContain('<script>');
     expect(enviados[0].html).toContain('&lt;script&gt;');
   });

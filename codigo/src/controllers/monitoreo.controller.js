@@ -133,7 +133,7 @@ export function crearControlMonitoreo({ baseDeDatos, correo }) {
       await avisarODeshacer({
         operacion: 'registrarConcepto',
         idIncapacidad: actual.idIncapacidad,
-        avisar: () => correo.comunicarConcepto(actual, concepto.valor),
+        avisar: () => correo.comunicarConcepto(actual),
         deshacer: () => baseDeDatos.deshacerConcepto(actual.idIncapacidad, concepto.valor, actual.faltaConcepto),
       });
       return { idIncapacidad: actual.idIncapacidad };

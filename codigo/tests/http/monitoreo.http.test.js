@@ -69,7 +69,7 @@ describe('HU-22.CA2 — registrar el concepto (rutas)', () => {
     expect(res.status).toBe(303);
     expect(res.headers.location).toBe('/incapacidades/1/prolongada?concepto=1');
     const pagina = await agente.get(res.headers.location);
-    expect(pagina.text).toContain('Concepto registrado y comunicado al colaborador.');
+    expect(pagina.text).toContain('Concepto registrado y colaborador avisado por correo.');
     expect(pagina.text).toContain(CONCEPTO);
     expect(pagina.text).not.toContain('name="concepto"');
     expect(enviados).toHaveLength(1);
