@@ -41,15 +41,50 @@ export function calcularTramos(dias, ibcCentavos) {
   };
 }
 
-/** Valida el IBC en pesos (mismo formato colombiano del pago, DA-40). @returns {{ valor?: string, centavos?: number, error?: string }} */
+// Los mensajes de leerValor hablan del pago (HU-15); el IBC tiene los suyos.
+const ERROR_FORMATO_IBC = 'Escriba el IBC en pesos, por ejemplo 2.800.000 o 2.800.000,50.';
+const ERRORES_IBC = Object.freeze({
+  'El valor debe ser mayor que cero.': 'El IBC debe ser mayor que cero.',
+  'El valor es demasiado grande.': `El IBC no puede superar ${pesos(IBC_MAXIMO)}.`,
+});
+
+/**
+ * Valida el IBC en pesos (mismo formato colombiano del pago, DA-40). Los espacios, también el duro (U+00A0) y el
+ * estrecho (U+202F) que deja el formato de moneda, cuentan como espacio.
+ * @returns {{ valor?: string, centavos?: number, error?: string }}
+ */
 export function leerIbc(texto) {
-  if (typeof texto !== 'string' || texto.replace(/[\s $]/g, '') === '') return { error: 'Escriba el IBC de la incapacidad.' };
-  const valor = leerValor(texto);
+  const limpio = typeof texto === 'string' ? texto.replace(/[\s  $]/g, '') : '';
+  if (limpio === '') return { error: 'Escriba el IBC de la incapacidad.' };
+  const valor = leerValor(limpio);
+  if (valor.error) return { error: ERRORES_IBC[valor.error] ?? ERROR_FORMATO_IBC };
   if (valor.centavos > IBC_MAXIMO * 100) return { error: `El IBC no puede superar ${pesos(IBC_MAXIMO)}.` };
   return valor;
 }
 
 const aResultado = (dias, ibc) => ({ ibc, dias, ...calcularTramos(dias, aCentavos(ibc)) });
+
+/**
+ * Lo que está guardado (HU-21): los totales y el trámite de pensión tal como quedaron en la base. El detalle por tramo
+ * se recalcula solo como desglose y se compara con lo guardado: si la regla cambió desde el cálculo, se avisa.
+ */
+function resultadoGuardado(i) {
+  if (i.ibc == null) return null;
+  const desglose = calcularTramos(i.diasIncapacidad, aCentavos(i.ibc));
+  const valorEmpresa = aCentavos(i.valorEmpresa);
+  const valorEPS = aCentavos(i.valorEPS);
+  return {
+    ibc: i.ibc,
+    dias: i.diasIncapacidad,
+    valorEmpresa,
+    valorEPS,
+    tramitePension: i.tramitePension,
+    fechaCalculo: i.fechaCalculo,
+    tramos: desglose.tramos,
+    diasPension: desglose.diasPension,
+    desgloseCoincide: desglose.valorEmpresa === valorEmpresa && desglose.valorEPS === valorEPS,
+  };
+}
 
 export function crearControlReconocimiento({ baseDeDatos }) {
   return {
@@ -59,13 +94,13 @@ export function crearControlReconocimiento({ baseDeDatos }) {
       return { total, filas, limite: LISTA_MAXIMA };
     },
 
-    /** Datos de la pantalla de cálculo: la incapacidad y, si ya se calculó, el resultado. null si no existe. */
+    /** Datos de la pantalla de cálculo: la incapacidad y, si ya se calculó, lo guardado. null si no existe. */
     async prepararReconocimiento(idIncapacidad) {
       const incapacidad = esIdentificador(idIncapacidad) ? await baseDeDatos.obtenerDatosReconocimiento(Number(idIncapacidad)) : null;
       if (!incapacidad) return null;
       return {
         incapacidad,
-        resultado: incapacidad.ibc == null ? null : aResultado(incapacidad.diasIncapacidad, incapacidad.ibc),
+        resultado: resultadoGuardado(incapacidad),
         tramos: TRAMOS,
       };
     },

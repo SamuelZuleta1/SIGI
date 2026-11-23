@@ -128,3 +128,43 @@ describe('HU-21 — calcularReconocimiento guarda el resultado', () => {
     expect((await control.prepararReconocimiento('1')).resultado).toMatchObject({ valorEmpresa: 20_000_000, valorEPS: 53_600_000 });
   });
 });
+
+describe('Auditoría T-21 a T-24 — el IBC y la pantalla del cálculo', () => {
+  it.each([' ', '  ', '   '])('un campo con solo espacios duros %j pide el IBC', (texto) => {
+    expect(leerIbc(texto).error).toBe('Escriba el IBC de la incapacidad.');
+  });
+
+  it('acepta el espacio duro y el estrecho que deja el formato de moneda', () => {
+    expect(leerIbc('$ 2.800.000').valor).toBe('2800000.00');
+    expect(leerIbc('$ 2.800.000,50').valor).toBe('2800000.50');
+  });
+
+  it.each(['abc', '0', '-5', '1,2,3', '9'.repeat(20)])('ningún error del IBC habla del pago de la entidad (%j)', (texto) => {
+    const { error } = leerIbc(texto);
+    expect(error).toMatch(/IBC/);
+    expect(error).not.toMatch(/pagó|entidad|valor/);
+  });
+
+  it('muestra los totales guardados, no los recalculados con la fórmula vigente', async () => {
+    await registrar(10);
+    await control.calcularReconocimiento('1', { ibc: '3.000.000' }, USUARIOS.auxiliar);
+    // Simula un cálculo guardado con una regla anterior.
+    Object.assign(baseDeDatos.incapacidades[0], { valorEmpresa: '210000.00', valorEPS: '500000.00' });
+    const { resultado } = await control.prepararReconocimiento('1');
+    expect(resultado).toMatchObject({ valorEmpresa: 21_000_000, valorEPS: 50_000_000, desgloseCoincide: false, fechaCalculo: expect.any(String) });
+    expect(resultado.tramos.map((t) => t.valor)).toEqual([20_000_000, 53_600_000, 0]); // solo el desglose
+  });
+
+  it('el trámite de pensión es el guardado', async () => {
+    await registrar(200);
+    await control.calcularReconocimiento('1', { ibc: '3000000' }, USUARIOS.auxiliar);
+    baseDeDatos.incapacidades[0].tramitePension = false;
+    expect((await control.prepararReconocimiento('1')).resultado.tramitePension).toBe(false);
+  });
+
+  it('si coincide no avisa', async () => {
+    await registrar(10);
+    await control.calcularReconocimiento('1', { ibc: '3.000.000' }, USUARIOS.auxiliar);
+    expect((await control.prepararReconocimiento('1')).resultado.desgloseCoincide).toBe(true);
+  });
+});

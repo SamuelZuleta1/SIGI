@@ -33,7 +33,10 @@
 
   <% if (resultado) { %>
     <section class="radicaciones <%= calculado ? 'entra' : '' %>" aria-labelledby="titulo-resultado">
-      <h2 id="titulo-resultado">Resultado</h2>
+      <h2 id="titulo-resultado">Resultado<% if (resultado.fechaCalculo) { %> <span class="tenue">· calculado el <%= fechaBreve(fechaEnColombia(resultado.fechaCalculo)) %></span><% } %></h2>
+      <% if (!resultado.desgloseCoincide) { %>
+        <p class="mensaje mensaje-aviso" role="status">Los totales son los guardados. El detalle por tramo se recalculó con la regla actual y no coincide con ellos: vuelva a calcular para actualizarlo.</p>
+      <% } %>
       <div class="tabla-envuelta">
         <table class="estados calculo">
           <caption class="oculto">Reconocimiento por tramos con un IBC de <%= pesos(resultado.ibc) %></caption>

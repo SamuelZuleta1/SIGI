@@ -74,7 +74,7 @@ describe('HU-21 — reconocimiento económico (rutas)', () => {
     const agente = await agenteCon(request, app, 'auxiliar');
     const res = await calcular(agente, 'mucho');
     expect(res.status).toBe(400);
-    expect(res.text).toContain('Escriba el valor en pesos');
+    expect(res.text).toContain('Escriba el IBC en pesos');
     expect(res.text).toContain('value="mucho"');
     expect(baseDeDatos.incapacidades[0].ibc).toBeUndefined();
   });
@@ -110,5 +110,24 @@ describe('HU-21 — reconocimiento económico (rutas)', () => {
   it('sin sesión: GET redirige al inicio de sesión y POST responde 401', async () => {
     expect((await request(app).get('/reconocimiento')).status).toBe(302);
     expect((await request(app).post('/incapacidades/1/reconocimiento').type('form').send({ ibc: '1' })).status).toBe(401);
+  });
+});
+
+describe('Auditoría T-21 a T-24 — la pantalla muestra lo guardado', () => {
+  it('si la regla cambió desde el cálculo, muestra los totales guardados y avisa', async () => {
+    const agente = await agenteCon(request, app, 'auxiliar');
+    await calcular(agente, '3.000.000');
+    Object.assign(baseDeDatos.incapacidades[0], { valorEmpresa: '210000.00' });
+    const pagina = await agente.get('/incapacidades/1/reconocimiento');
+    expect(pagina.text).toContain('$ 210.000');
+    expect(pagina.text).toContain('no coincide');
+    expect(pagina.text).toMatch(/calculado el \d{1,2} \w+ \d{4}/);
+  });
+
+  it('un IBC con solo un espacio duro: 400 que pide el IBC', async () => {
+    const agente = await agenteCon(request, app, 'auxiliar');
+    const res = await calcular(agente, ' ');
+    expect(res.status).toBe(400);
+    expect(res.text).toContain('Escriba el IBC de la incapacidad.');
   });
 });

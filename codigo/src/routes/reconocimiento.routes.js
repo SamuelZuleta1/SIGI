@@ -5,7 +5,7 @@ import { Router } from 'express';
 import { ErrorDeValidacion } from '../controllers/error-de-validacion.js';
 import { permitir } from '../middleware/autenticacion.js';
 import { NOMBRES_TIPO_INCAPACIDAD } from '../models/incapacidad.model.js';
-import { fechaBreve } from '../servicios/dias-habiles.js';
+import { fechaBreve, fechaEnColombia } from '../servicios/dias-habiles.js';
 import { pesos } from '../servicios/moneda.js';
 
 export function crearRutasReconocimiento({ control }) {
@@ -18,6 +18,7 @@ export function crearRutasReconocimiento({ control }) {
       valores: {},
       calculado: false,
       fechaBreve,
+      fechaEnColombia,
       pesos,
       nombresTipo: NOMBRES_TIPO_INCAPACIDAD,
       ...datos,
