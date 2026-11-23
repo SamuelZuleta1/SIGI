@@ -408,6 +408,7 @@ export function crearBaseDeDatosFalsa() {
         idIncapacidad,
         colaborador: colaboradores.find((c) => c.id === i.colaboradorId).nombre,
         entidad: ENTIDADES.find((e) => e.id === i.entidad).nombre,
+        entidadTipo: ENTIDADES.find((e) => e.id === i.entidad).tipo,
         tipo: i.tipo,
         fechaInicio: i.fechaInicio,
         diasIncapacidad: i.diasIncapacidad,

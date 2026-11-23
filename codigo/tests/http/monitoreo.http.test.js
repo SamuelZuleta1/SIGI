@@ -69,6 +69,7 @@ describe('HU-22 — reporte de prolongadas (rutas)', () => {
     expect(res.status).toBe(200);
     expect(res.text).toContain('name="concepto"');
     expect(res.text).toContain('action="/incapacidades/1/falta-concepto"');
+    expect(res.text).toContain('No se suman las anteriores (por validar)'); // DA-50
   });
 
   it('una incapacidad que no es prolongada o no existe: 404', async () => {

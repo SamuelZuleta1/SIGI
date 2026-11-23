@@ -11,6 +11,7 @@ const aDatos = (f) => ({
   idIncapacidad: f.id,
   colaborador: f.colaborador.nombre,
   entidad: f.entidad.nombre,
+  entidadTipo: f.entidad.tipo,
   tipo: f.tipo,
   fechaInicio: f.fecha_inicio,
   diasIncapacidad: f.dias_incapacidad,
@@ -23,7 +24,7 @@ const aDatos = (f) => ({
 });
 
 const COLUMNAS =
-  'id, tipo, fecha_inicio, dias_incapacidad, estado, ibc, valor_empresa, valor_eps, tramite_pension, fecha_calculo, colaborador(nombre), entidad(nombre)';
+  'id, tipo, fecha_inicio, dias_incapacidad, estado, ibc, valor_empresa, valor_eps, tramite_pension, fecha_calculo, colaborador(nombre), entidad(nombre, tipo)';
 
 export function crearPersistenciaReconocimiento(cliente) {
   return {

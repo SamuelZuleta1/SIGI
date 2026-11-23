@@ -146,3 +146,41 @@ describe('DA-53 — incapacidad pagada (rutas)', () => {
     expect(res.text).toContain('su reconocimiento ya no se calcula ni se cambia');
   });
 });
+
+describe('DA-50 y DA-51 — advertencias junto a su dato (rutas)', () => {
+  it('ARL: la tabla dice «A cargo de la ARL», marca la regla por validar y explica por qué', async () => {
+    await control.registrarIncapacidad(formularioDeRegistro({ tipo: 'accidente_laboral', entidad: '1', diasIncapacidad: '30' }), USUARIOS.receptor);
+    const agente = await agenteCon(request, app, 'auxiliar');
+    await calcular(agente, '3.000.000', 2);
+    const pagina = await agente.get('/incapacidades/2/reconocimiento');
+    expect(pagina.text).toContain('A cargo de la ARL');
+    expect(pagina.text).not.toContain('A cargo de la EPS');
+    expect(pagina.text).toContain('Regla por validar');
+    expect(pagina.text).toContain('a accidente laboral se le aplican los tramos de la EPS');
+  });
+
+  it('enfermedad general: sin «Regla por validar», con la nota de las prórrogas', async () => {
+    const agente = await agenteCon(request, app, 'auxiliar');
+    await calcular(agente, '3.000.000');
+    const pagina = await agente.get('/incapacidades/1/reconocimiento');
+    expect(pagina.text).not.toContain('Regla por validar');
+    expect(pagina.text).toContain('No se suman prórrogas anteriores (por validar)');
+  });
+
+  it.each([
+    ['1.000.000', 'IBC por debajo de 1 SMMLV de 2026 ($ 1.750.905)'],
+    ['50.000.000', 'IBC por encima de 25 SMMLV de 2026 ($ 43.772.625, tope de cotización)'],
+  ])('IBC %s: se guarda y advierte bajo el campo', async (ibc, aviso) => {
+    const agente = await agenteCon(request, app, 'auxiliar');
+    expect((await calcular(agente, ibc)).status).toBe(303);
+    const pagina = await agente.get('/incapacidades/1/reconocimiento');
+    expect(pagina.text).toContain(aviso);
+    expect(pagina.text).toContain('aria-describedby="ayuda-ibc advertencia-ibc"');
+  });
+
+  it('un IBC dentro del rango no advierte', async () => {
+    const agente = await agenteCon(request, app, 'auxiliar');
+    await calcular(agente, '3.000.000');
+    expect((await agente.get('/incapacidades/1/reconocimiento')).text).not.toContain('SMMLV');
+  });
+});

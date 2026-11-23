@@ -3,7 +3,7 @@
   const dias = (n) => (n === 1 ? '1 día' : `${n} días`);
 %>
 <h1>Reconocimiento económico</h1>
-<p class="sub">Calcule cuánto paga la empresa y cuánto la EPS. Abra una incapacidad e ingrese su IBC.</p>
+<p class="sub">Calcule cuánto paga la empresa y cuánto la entidad (EPS o ARL). Abra una incapacidad e ingrese su IBC.</p>
 
 <section class="resultado" aria-label="Incapacidades">
   <% if (filas.length === 0) { %>
@@ -21,7 +21,7 @@
     <div class="tabla-envuelta">
       <table class="estados">
         <thead>
-          <tr><th scope="col">N.º</th><th scope="col">Colaborador</th><th scope="col">Entidad</th><th scope="col">Días</th><th scope="col" class="num">Empresa</th><th scope="col" class="num">EPS</th><th scope="col">Cálculo</th></tr>
+          <tr><th scope="col">N.º</th><th scope="col">Colaborador</th><th scope="col">Entidad</th><th scope="col">Días</th><th scope="col" class="num">Empresa</th><th scope="col" class="num">Entidad</th><th scope="col">Cálculo</th></tr>
         </thead>
         <tbody>
           <% for (const f of filas) { %>

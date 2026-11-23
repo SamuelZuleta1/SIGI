@@ -206,3 +206,37 @@ describe('DA-53 — no se recalcula una incapacidad pagada', () => {
     expect(baseDeDatos.incapacidades[0].ibc).toBeUndefined();
   });
 });
+
+describe('DA-50 y DA-51 — ARL, licencias, SMMLV y prórrogas', () => {
+  const registrarComo = (tipo, entidad) =>
+    control.registrarIncapacidad(formularioDeRegistro({ tipo, entidad: String(entidad), diasIncapacidad: '30' }), USUARIOS.receptor);
+
+  it('enfermedad general con EPS: a cargo de la EPS y sin regla por validar', async () => {
+    await registrarComo('enfermedad_general', 2);
+    expect(await control.prepararReconocimiento('1')).toMatchObject({ aCargoDe: 'EPS', reglaPorValidar: false });
+  });
+
+  it('accidente laboral con ARL: a cargo de la ARL y con la regla por validar', async () => {
+    await registrarComo('accidente_laboral', 1);
+    expect(await control.prepararReconocimiento('1')).toMatchObject({ aCargoDe: 'ARL', reglaPorValidar: true });
+  });
+
+  it('una licencia aplica los mismos tramos con la regla por validar', async () => {
+    await registrarComo('licencia_maternidad', 2);
+    const r = await control.calcularReconocimiento('1', { ibc: '3.000.000' }, USUARIOS.auxiliar);
+    expect(r).toMatchObject({ valorEmpresa: 20_000_000, valorEPS: calcularTramos(30, 300_000_000).valorEPS });
+    expect((await control.prepararReconocimiento('1')).reglaPorValidar).toBe(true);
+  });
+
+  it('un IBC por debajo de 1 SMMLV se calcula igual y advierte', async () => {
+    await registrar(10); // inicia en 2026
+    await control.calcularReconocimiento('1', { ibc: '1.000.000' }, USUARIOS.auxiliar);
+    expect(baseDeDatos.incapacidades[0].ibc).toBe('1000000.00');
+    expect((await control.prepararReconocimiento('1')).advertenciaIbc).toMatchObject({ tipo: 'bajo', anio: 2026 });
+  });
+
+  it('sin cálculo no hay advertencia del IBC', async () => {
+    await registrar(10);
+    expect((await control.prepararReconocimiento('1')).advertenciaIbc).toBeNull();
+  });
+});

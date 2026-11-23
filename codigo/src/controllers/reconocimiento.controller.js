@@ -2,12 +2,14 @@
 // Operaciones: consultarReconocimientos y prepararReconocimiento (apoyo de la Vista) y
 // calcularReconocimiento(ibc) → guardarCalculo (HU-21).
 import { aCentavos, centavosATexto, pesos } from '../servicios/moneda.js';
+import { advertenciaIbc } from '../servicios/smmlv.js';
 import { ErrorDeValidacion } from './error-de-validacion.js';
 import { leerValor } from './cobro.controller.js';
 import { esIdentificador } from './identificador.js';
 
-// DA-09: tramos del procedimiento. IBC diario = IBC ÷ 30; el mismo cálculo sirve para ARL y licencias
-// (suposición marcada, pendiente de validar con el cliente).
+// DA-09: tramos del procedimiento. IBC diario = IBC ÷ 30. A los demás tipos (ARL, licencias, tránsito) se les aplican
+// los mismos tramos, con una advertencia visible: es una suposición por validar con el cliente (DA-51). Las prórrogas
+// no se acumulan: cada certificado cuenta sus días desde 1 (DA-50, por validar).
 export const DIAS_DEL_MES = 30;
 export const TRAMOS = Object.freeze([
   { clave: 'empresa', nombre: 'Días 1 y 2', desde: 1, hasta: 2, porcentaje: 100, aCargo: 'empresa' },
@@ -20,6 +22,9 @@ export const LISTA_MAXIMA = 200;
 // numeric(14,2) guarda hasta 12 cifras enteras y la EPS llega a ~3,5 veces el IBC: con este tope ningún valor desborda.
 export const IBC_MAXIMO = 10_000_000_000;
 // DA-53: el reconocimiento se puede recalcular en cualquier estado menos «pagada».
+// DA-51: los tramos de DA-09 son los del procedimiento para la enfermedad general.
+export const TIPO_CON_REGLA = 'enfermedad_general';
+
 export const MENSAJE_PAGADA = 'La incapacidad está pagada: su reconocimiento ya no se calcula ni se cambia.';
 
 /**
@@ -100,10 +105,15 @@ export function crearControlReconocimiento({ baseDeDatos }) {
     async prepararReconocimiento(idIncapacidad) {
       const incapacidad = esIdentificador(idIncapacidad) ? await baseDeDatos.obtenerDatosReconocimiento(Number(idIncapacidad)) : null;
       if (!incapacidad) return null;
+      const resultado = resultadoGuardado(incapacidad);
       return {
         incapacidad,
-        resultado: resultadoGuardado(incapacidad),
+        resultado,
         tramos: TRAMOS,
+        // DA-51: quién paga los días 3 a 180 según la entidad, y si la regla de tramos está por validar para el tipo.
+        aCargoDe: incapacidad.entidadTipo === 'ARL' ? 'ARL' : 'EPS',
+        reglaPorValidar: incapacidad.tipo !== TIPO_CON_REGLA,
+        advertenciaIbc: resultado ? advertenciaIbc(aCentavos(resultado.ibc), incapacidad.fechaInicio) : null,
       };
     },
 

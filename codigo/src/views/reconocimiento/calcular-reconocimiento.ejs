@@ -1,11 +1,12 @@
 <%
   // HU-21 (DS-09; DA-09, DA-10): el auxiliar ingresa el IBC y el sistema aplica los tramos del procedimiento.
   const dias = (n) => (n === 1 ? '1 día' : `${n} días`);
-  const { incapacidad, resultado } = reconocimiento;
-  const cargo = { empresa: 'Empresa', eps: 'EPS' };
+  // DA-50 y DA-51 (opción C): cada advertencia va junto a su dato.
+  const { incapacidad, resultado, aCargoDe, reglaPorValidar, advertenciaIbc } = reconocimiento;
+  const cargo = { empresa: 'Empresa', eps: aCargoDe };
 %>
 <h1>Reconocimiento económico</h1>
-<p class="sub">Ingrese el IBC y calcule cuánto paga la empresa y cuánto la EPS.</p>
+<p class="sub">Ingrese el IBC y calcule cuánto paga la empresa y cuánto la <%= aCargoDe %>.</p>
 
 <div class="formulario">
   <% if (calculado) { %>
@@ -28,9 +29,14 @@
       <label for="ibc">IBC (pesos)</label>
       <div class="con-prefijo">
         <span aria-hidden="true">$</span>
-        <input id="ibc" name="ibc" type="text" inputmode="decimal" maxlength="20" value="<%= valores.ibc ?? (incapacidad.ibc != null ? pesos(incapacidad.ibc).replace(/^\$\s?/, '') : '') %>" autocomplete="off" required data-pesos aria-describedby="<%= errores.ibc ? 'error-ibc' : 'ayuda-ibc' %>"<%- errores.ibc ? ' aria-invalid="true" autofocus' : '' %>>
+        <input id="ibc" name="ibc" type="text" inputmode="decimal" maxlength="20" value="<%= valores.ibc ?? (incapacidad.ibc != null ? pesos(incapacidad.ibc).replace(/^\$\s?/, '') : '') %>" autocomplete="off" required data-pesos aria-describedby="<%= errores.ibc ? 'error-ibc' : advertenciaIbc ? 'ayuda-ibc advertencia-ibc' : 'ayuda-ibc' %>"<%- errores.ibc ? ' aria-invalid="true" autofocus' : '' %>>
       </div>
       <% if (errores.ibc) { %><span class="error" id="error-ibc"><%= errores.ibc %></span><% } else { %><span class="ayuda" id="ayuda-ibc">Ingreso base de cotización mensual, por ejemplo 2.800.000. El valor por día es el IBC ÷ 30.</span><% } %>
+      <% if (advertenciaIbc && !errores.ibc) { %>
+        <span class="advierte" id="advertencia-ibc"><%= advertenciaIbc.tipo === 'bajo'
+          ? `IBC por debajo de 1 SMMLV de ${advertenciaIbc.anio} (${pesos(advertenciaIbc.limite)}). Revise el valor: se calculó igual.`
+          : `IBC por encima de 25 SMMLV de ${advertenciaIbc.anio} (${pesos(advertenciaIbc.limite)}, tope de cotización). Revise el valor: se calculó igual.` %></span>
+      <% } %>
     </div>
     <div class="acciones"><button class="boton" data-enviando="Calculando…"><%= resultado ? 'Calcular de nuevo' : 'Calcular' %></button></div>
   </form>
@@ -54,17 +60,21 @@
               <td><%= t.nombre %></td>
               <td class="num cifra"><%= t.dias %></td>
               <td class="num cifra"><%= t.porcentaje %> %</td>
-              <td><%= cargo[t.aCargo] %></td>
+              <td><%= cargo[t.aCargo] %><% if (t.aCargo === 'eps' && reglaPorValidar) { %> <span class="chip por_vencer">Regla por validar</span><% } %></td>
               <td class="num cifra"><%= pesos(t.valor / 100) %></td>
             </tr>
             <% } %>
           </tbody>
           <tfoot>
             <tr><th scope="row" colspan="4">A cargo de la empresa</th><td class="num cifra"><b><%= pesos(resultado.valorEmpresa / 100) %></b></td></tr>
-            <tr><th scope="row" colspan="4">A cargo de la EPS</th><td class="num cifra"><b><%= pesos(resultado.valorEPS / 100) %></b></td></tr>
+            <tr><th scope="row" colspan="4">A cargo de la <%= aCargoDe %></th><td class="num cifra"><b><%= pesos(resultado.valorEPS / 100) %></b></td></tr>
           </tfoot>
         </table>
       </div>
+      <% if (reglaPorValidar) { %>
+        <p class="nota-tabla">Regla por validar: a <%= (nombresTipo[incapacidad.tipo] ?? incapacidad.tipo).toLowerCase() %> se le aplican los tramos de la EPS para la enfermedad general.</p>
+      <% } %>
+      <p class="nota-tabla">No se suman prórrogas anteriores (por validar): los días cuentan desde 1 en este certificado.</p>
       <% if (resultado.tramitePension) { %>
         <p class="mensaje mensaje-aviso separado" role="status">Trámite de pensión: la incapacidad supera los 180 días (<%= dias(resultado.diasPension) %> desde el día 181). Esos días no se incluyen en el cálculo.</p>
       <% } %>
