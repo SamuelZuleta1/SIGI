@@ -2,6 +2,7 @@
 // Operaciones: consultarReporteProlongadas (HU-22, en vivo: DA-19), prepararProlongada (apoyo de la Vista),
 // registrarConcepto → guardarConcepto + comunicarConcepto (HU-22) y registrarFaltaConcepto → guardarFaltaConcepto +
 // avisarFaltaConcepto (HU-23), y registrarSuspensionPago → guardarSuspensionPago + notificarSuspensionPago (HU-24). El envío del concepto a la AFP lo hace el auxiliar fuera de SIGI.
+import { avisarODeshacer } from './error-de-aviso.js';
 import { ErrorDeValidacion } from './error-de-validacion.js';
 import { esIdentificador } from './identificador.js';
 
@@ -129,12 +130,12 @@ export function crearControlMonitoreo({ baseDeDatos, correo }) {
         const ahora = await leer(actual.idIncapacidad);
         throw new ErrorDeValidacion({ estado: mensajeConcepto(ahora ?? actual) });
       }
-      try {
-        await correo.comunicarConcepto(actual, concepto.valor);
-      } catch (error) {
-        await baseDeDatos.deshacerConcepto(actual.idIncapacidad, concepto.valor, actual.faltaConcepto).catch(() => {});
-        throw error;
-      }
+      await avisarODeshacer({
+        operacion: 'registrarConcepto',
+        idIncapacidad: actual.idIncapacidad,
+        avisar: () => correo.comunicarConcepto(actual, concepto.valor),
+        deshacer: () => baseDeDatos.deshacerConcepto(actual.idIncapacidad, concepto.valor, actual.faltaConcepto),
+      });
       return { idIncapacidad: actual.idIncapacidad };
     },
 
@@ -154,12 +155,12 @@ export function crearControlMonitoreo({ baseDeDatos, correo }) {
         const ahora = await leer(actual.idIncapacidad);
         throw new ErrorDeValidacion({ estado: mensajeFalta(ahora ?? actual) });
       }
-      try {
-        await correo.avisarFaltaConcepto(actual);
-      } catch (error) {
-        await baseDeDatos.deshacerFaltaConcepto(actual.idIncapacidad).catch(() => {});
-        throw error;
-      }
+      await avisarODeshacer({
+        operacion: 'registrarFaltaConcepto',
+        idIncapacidad: actual.idIncapacidad,
+        avisar: () => correo.avisarFaltaConcepto(actual),
+        deshacer: () => baseDeDatos.deshacerFaltaConcepto(actual.idIncapacidad),
+      });
       return { idIncapacidad: actual.idIncapacidad };
     },
 
@@ -180,12 +181,12 @@ export function crearControlMonitoreo({ baseDeDatos, correo }) {
         const ahora = await leer(actual.idIncapacidad);
         throw new ErrorDeValidacion({ suspension: mensajeSuspension(ahora ?? actual) });
       }
-      try {
-        await correo.notificarSuspensionPago(actual);
-      } catch (error) {
-        await baseDeDatos.deshacerSuspensionPago(actual.idIncapacidad).catch(() => {});
-        throw error;
-      }
+      await avisarODeshacer({
+        operacion: 'registrarSuspensionPago',
+        idIncapacidad: actual.idIncapacidad,
+        avisar: () => correo.notificarSuspensionPago(actual),
+        deshacer: () => baseDeDatos.deshacerSuspensionPago(actual.idIncapacidad),
+      });
       return { idIncapacidad: actual.idIncapacidad };
     },
   };

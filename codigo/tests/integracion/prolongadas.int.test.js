@@ -107,9 +107,9 @@ describe('HU-22 y HU-23 — prolongadas (base de datos)', () => {
       baseDeDatos,
       correo: { ...correo, comunicarConcepto: async () => { throw new Error('SMTP caído'); }, avisarFaltaConcepto: async () => { throw new Error('SMTP caído'); } },
     });
-    await expect(fallido.registrarFaltaConcepto(id)).rejects.toThrow('SMTP caído');
+    await expect(fallido.registrarFaltaConcepto(id)).rejects.toMatchObject({ name: 'ErrorDeAviso', deshecho: true, cause: expect.objectContaining({ message: 'SMTP caído' }) });
     expect((await fila(id)).falta_concepto).toBe(false);
-    await expect(fallido.registrarConcepto(id, { concepto: CONCEPTO })).rejects.toThrow('SMTP caído');
+    await expect(fallido.registrarConcepto(id, { concepto: CONCEPTO })).rejects.toMatchObject({ name: 'ErrorDeAviso', deshecho: true, cause: expect.objectContaining({ message: 'SMTP caído' }) });
     expect(await fila(id)).toMatchObject({ concepto: null, falta_concepto: false });
   });
 });
@@ -130,7 +130,7 @@ describe('HU-24 — suspensión del pago (base de datos)', () => {
     const id = await registrar(200);
     const original = correo.notificarSuspensionPago;
     correo.notificarSuspensionPago = async () => { throw new Error('SMTP caído'); };
-    await expect(control.registrarSuspensionPago(id)).rejects.toThrow('SMTP caído');
+    await expect(control.registrarSuspensionPago(id)).rejects.toMatchObject({ name: 'ErrorDeAviso', deshecho: true, cause: expect.objectContaining({ message: 'SMTP caído' }) });
     expect((await fila(id)).pago_suspendido).toBe(false);
     correo.notificarSuspensionPago = original;
     await control.registrarSuspensionPago(id);

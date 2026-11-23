@@ -4,6 +4,7 @@
 // registrarDecision → guardarDecision (HU-20), la única operación del rol Cartera y Jurídica.
 import { fechaBreve, fechaEnColombia, hoyEnColombia } from '../servicios/dias-habiles.js';
 import { DECISIONES, NOMBRES_DECISION } from '../models/incapacidad.model.js';
+import { avisarODeshacer } from './error-de-aviso.js';
 import { ErrorDeValidacion } from './error-de-validacion.js';
 import { esIdentificador } from './identificador.js';
 import { estaPendienteDePago, evaluarDemora } from './seguimiento.controller.js';
@@ -171,12 +172,12 @@ export function crearControlCobroJuridico({ baseDeDatos, correo, hoy = hoyEnColo
           estado: ahora?.motivoTraslado != null ? mensajeTrasladada(ahora) : mensajeEstado(ahora ?? actual),
         });
       }
-      try {
-        await correo.notificarTraslado(actual, motivo.valor);
-      } catch (error) {
-        await baseDeDatos.deshacerTraslado(actual.idIncapacidad, motivo.valor).catch(() => {});
-        throw error;
-      }
+      await avisarODeshacer({
+        operacion: 'trasladarACartera',
+        idIncapacidad: actual.idIncapacidad,
+        avisar: () => correo.notificarTraslado(actual, motivo.valor),
+        deshacer: () => baseDeDatos.deshacerTraslado(actual.idIncapacidad, motivo.valor),
+      });
       const requerimientos = actual.requerimientos.length;
       return { idIncapacidad: actual.idIncapacidad, requerimientos, advertencia: requerimientos < REQUERIMIENTOS_MINIMOS };
     },

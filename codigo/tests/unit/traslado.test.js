@@ -96,7 +96,7 @@ describe('HU-19.CA1 — traslado con motivo y correo a Cartera y Jurídica', () 
       correo: { notificarTraslado: async () => { throw new Error('SMTP caído'); } },
       hoy: () => hoy,
     });
-    await expect(fallido.trasladarACartera('1', { motivo: '180 días sin pago' })).rejects.toThrow('SMTP caído');
+    await expect(fallido.trasladarACartera('1', { motivo: '180 días sin pago' })).rejects.toMatchObject({ name: 'ErrorDeAviso', deshecho: true, cause: expect.objectContaining({ message: 'SMTP caído' }) });
     expect(baseDeDatos.incapacidades[0].motivoTraslado ?? null).toBeNull();
     expect(baseDeDatos.incapacidades[0].fechaTraslado ?? null).toBeNull();
     expect(await trasladar()).toMatchObject({ idIncapacidad: 1 });

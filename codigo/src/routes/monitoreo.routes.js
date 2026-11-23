@@ -3,7 +3,9 @@
 // registrarConcepto (HU-22) y registrarFaltaConcepto (HU-23) y registrarSuspensionPago (HU-24), desde una pantalla por incapacidad prolongada (DA-46).
 import { Router } from 'express';
 import { CONCEPTO_MAXIMO, DIAS_PROLONGADA } from '../controllers/monitoreo.controller.js';
+import { ErrorDeAviso } from '../controllers/error-de-aviso.js';
 import { ErrorDeValidacion } from '../controllers/error-de-validacion.js';
+import { responderAvisoFallido } from './aviso-fallido.js';
 import { permitir } from '../middleware/autenticacion.js';
 import { NOMBRES_TIPO_INCAPACIDAD } from '../models/incapacidad.model.js';
 import { fechaBreve } from '../servicios/dias-habiles.js';
@@ -56,10 +58,22 @@ export function crearRutasMonitoreo({ control }) {
     });
   });
 
-  const volverConErrores = async (req, res, error, valores = {}) => {
+  const volverAlFormulario = async (req, res, estado, errores, valores = {}) => {
     const prolongada = await control.prepararProlongada(req.params.id);
     if (!prolongada) return noExiste(res);
-    await pagina(res, error.errores.estado || error.errores.suspension ? 409 : 400, { prolongada, errores: error.errores, valores });
+    await pagina(res, estado, { prolongada, errores, valores });
+  };
+
+  // Datos no válidos: 400; el estado no lo admite: 409; el correo falló: 502 (deshecho) o 500 (ver aviso-fallido.js).
+  const volverConErrores = (req, res, error, valores = {}) => {
+    if (error instanceof ErrorDeAviso) {
+      return responderAvisoFallido(res, error, {
+        destinatario: 'al colaborador',
+        volverAlFormulario: (estado, errores) => volverAlFormulario(req, res, estado, errores, valores),
+      });
+    }
+    if (!(error instanceof ErrorDeValidacion)) throw error;
+    return volverAlFormulario(req, res, error.errores.estado || error.errores.suspension ? 409 : 400, error.errores, valores);
   };
 
   // registrarConcepto(concepto) — HU-22.CA2. Concepto no válido: 400; ya registrado o no prolongada: 409.
@@ -70,7 +84,6 @@ export function crearRutasMonitoreo({ control }) {
       if (!resultado) return noExiste(res);
       res.redirect(303, `/incapacidades/${resultado.idIncapacidad}/prolongada?concepto=1`);
     } catch (error) {
-      if (!(error instanceof ErrorDeValidacion)) throw error;
       await volverConErrores(req, res, error, { concepto: concepto.slice(0, CONCEPTO_MAXIMO + 1) });
     }
   });
@@ -82,7 +95,6 @@ export function crearRutasMonitoreo({ control }) {
       if (!resultado) return noExiste(res);
       res.redirect(303, `/incapacidades/${resultado.idIncapacidad}/prolongada?falta=1`);
     } catch (error) {
-      if (!(error instanceof ErrorDeValidacion)) throw error;
       await volverConErrores(req, res, error);
     }
   });
@@ -94,7 +106,6 @@ export function crearRutasMonitoreo({ control }) {
       if (!resultado) return noExiste(res);
       res.redirect(303, `/incapacidades/${resultado.idIncapacidad}/prolongada?suspension=1`);
     } catch (error) {
-      if (!(error instanceof ErrorDeValidacion)) throw error;
       await volverConErrores(req, res, error);
     }
   });

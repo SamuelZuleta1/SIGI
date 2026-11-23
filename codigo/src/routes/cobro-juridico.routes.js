@@ -4,7 +4,9 @@
 // de trasladadas (GET /cartera) y registrarDecision (HU-20), con una pantalla de decisión por incapacidad (DA-45).
 // Diseño (DA-43): pantalla «Cobro persuasivo» con la línea de tiempo de los requerimientos y el formulario como último paso.
 import { Router } from 'express';
+import { ErrorDeAviso } from '../controllers/error-de-aviso.js';
 import { ErrorDeValidacion } from '../controllers/error-de-validacion.js';
+import { responderAvisoFallido } from './aviso-fallido.js';
 import { FUNDAMENTOS_MAXIMO, MOTIVO_MAXIMO } from '../controllers/cobro-juridico.controller.js';
 import { permitir } from '../middleware/autenticacion.js';
 import { NOMBRES_DECISION, NOMBRES_TIPO_INCAPACIDAD } from '../models/incapacidad.model.js';
@@ -73,14 +75,15 @@ export function crearRutasCobroJuridico({ control }) {
       if (!resultado) return noExiste(res);
       res.redirect(303, `/incapacidades/${resultado.idIncapacidad}/requerimientos?trasladado=1`);
     } catch (error) {
+      const volverAlFormulario = async (estado, errores) => {
+        const cobro = await control.prepararRequerimientos(req.params.id);
+        if (!cobro) return noExiste(res);
+        await pagina(res, estado, { cobro, errores, valores: { motivo: motivo.slice(0, MOTIVO_MAXIMO + 1) } });
+      };
+      // El correo a Cartera y Jurídica falló: 502 si se deshizo el traslado, 500 si no (ver aviso-fallido.js).
+      if (error instanceof ErrorDeAviso) return responderAvisoFallido(res, error, { destinatario: 'a Cartera y Jurídica', volverAlFormulario });
       if (!(error instanceof ErrorDeValidacion)) throw error;
-      const cobro = await control.prepararRequerimientos(req.params.id);
-      if (!cobro) return noExiste(res);
-      await pagina(res, error.errores.estado ? 409 : 400, {
-        cobro,
-        errores: error.errores,
-        valores: { motivo: motivo.slice(0, MOTIVO_MAXIMO + 1) },
-      });
+      await volverAlFormulario(error.errores.estado ? 409 : 400, error.errores);
     }
   });
 

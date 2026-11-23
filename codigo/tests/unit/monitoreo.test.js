@@ -106,7 +106,7 @@ describe('HU-22.CA2 — registrar el concepto', () => {
       baseDeDatos,
       correo: { ...correo, comunicarConcepto: async () => { throw new Error('SMTP caído'); } },
     });
-    await expect(fallido.registrarConcepto('1', { concepto: CONCEPTO })).rejects.toThrow('SMTP caído');
+    await expect(fallido.registrarConcepto('1', { concepto: CONCEPTO })).rejects.toMatchObject({ name: 'ErrorDeAviso', deshecho: true, cause: expect.objectContaining({ message: 'SMTP caído' }) });
     expect(baseDeDatos.incapacidades[0].concepto).toBeNull();
     await control.registrarConcepto('1', { concepto: CONCEPTO });
     expect(baseDeDatos.incapacidades[0].concepto).toBe(CONCEPTO);
@@ -196,7 +196,7 @@ describe('HU-23.CA1 — registrar la falta del concepto', () => {
       baseDeDatos,
       correo: { ...correo, avisarFaltaConcepto: async () => { throw new Error('SMTP caído'); } },
     });
-    await expect(fallido.registrarFaltaConcepto('1')).rejects.toThrow('SMTP caído');
+    await expect(fallido.registrarFaltaConcepto('1')).rejects.toMatchObject({ name: 'ErrorDeAviso', deshecho: true, cause: expect.objectContaining({ message: 'SMTP caído' }) });
     expect(baseDeDatos.incapacidades[0].faltaConcepto).toBe(false);
     await control.registrarFaltaConcepto('1');
     expect(baseDeDatos.incapacidades[0].faltaConcepto).toBe(true);
@@ -245,7 +245,7 @@ describe('HU-24.CA1 — registrar la suspensión del pago (más de 180 días)', 
     await registrar(200);
     const original = correo.notificarSuspensionPago;
     correo.notificarSuspensionPago = async () => { throw new Error('SMTP caído'); };
-    await expect(control.registrarSuspensionPago('1')).rejects.toThrow('SMTP caído');
+    await expect(control.registrarSuspensionPago('1')).rejects.toMatchObject({ name: 'ErrorDeAviso', deshecho: true, cause: expect.objectContaining({ message: 'SMTP caído' }) });
     expect(baseDeDatos.incapacidades[0].pagoSuspendido).toBe(false);
     correo.notificarSuspensionPago = original;
     expect(await control.registrarSuspensionPago('1')).toEqual({ idIncapacidad: 1 });

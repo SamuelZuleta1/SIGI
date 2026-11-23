@@ -17,6 +17,9 @@
 <p class="sub">Requerimientos a la entidad por el pago que sigue en demora. Lo habitual es hacer mínimo <%= cobro.minimo %> antes de trasladar a Cartera y Jurídica.</p>
 
 <div class="formulario">
+  <% if (errores.aviso) { %>
+    <p class="mensaje mensaje-error" role="alert" tabindex="-1" autofocus><%= errores.aviso %></p>
+  <% } %>
   <% if (trasladadoAhora) { %>
     <p class="mensaje <%= cobro.advertirMinimo ? 'mensaje-aviso' : 'mensaje-ok' %> entra" role="status">Incapacidad trasladada a Cartera y Jurídica; se les avisó por correo.<% if (cobro.advertirMinimo) { %> Se trasladó con <%= cobro.total %> de <%= cobro.minimo %> requerimientos.<% } %></p>
   <% } %>

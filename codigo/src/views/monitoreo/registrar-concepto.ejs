@@ -14,6 +14,9 @@
 <p class="sub">Registre el concepto de rehabilitación que emitió la entidad o deje constancia de que no lo ha emitido. En ambos casos se avisa por correo al colaborador.</p>
 
 <div class="formulario">
+  <% if (errores.aviso) { %>
+    <p class="mensaje mensaje-error" role="alert" tabindex="-1" autofocus><%= errores.aviso %></p>
+  <% } %>
   <% if (conceptoRegistrado) { %>
     <p class="mensaje mensaje-ok entra" role="status">Concepto registrado y comunicado al colaborador. Recuerde enviarlo a la AFP fuera de SIGI.</p>
   <% } %>
