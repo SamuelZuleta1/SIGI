@@ -2,6 +2,7 @@
 // Los grupos se agregan módulo por módulo.
 import { crearControlAlertas } from './alertas.controller.js';
 import { crearControlCobro } from './cobro.controller.js';
+import { crearControlConciliacion } from './conciliacion.controller.js';
 import { crearControlCobroJuridico } from './cobro-juridico.controller.js';
 import { crearControlEstados } from './estados.controller.js';
 import { crearControlMonitoreo } from './monitoreo.controller.js';
@@ -26,5 +27,6 @@ export function crearControlIncapacidades(dependencias) {
     ...crearControlCobroJuridico(dependencias),
     ...crearControlReconocimiento(dependencias),
     ...crearControlMonitoreo(dependencias),
+    ...crearControlConciliacion(dependencias),
   };
 }

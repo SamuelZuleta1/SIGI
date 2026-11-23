@@ -3,6 +3,7 @@
 import { crearClienteServidor } from '../config/supabase.js';
 import { crearPersistenciaAlertas } from './alertas.persistence.js';
 import { crearPersistenciaCobro } from './cobro.persistence.js';
+import { crearPersistenciaConciliacion } from './conciliacion.persistence.js';
 import { crearPersistenciaCobroJuridico } from './cobro-juridico.persistence.js';
 import { crearPersistenciaEstados } from './estados.persistence.js';
 import { crearPersistenciaMonitoreo } from './monitoreo.persistence.js';
@@ -26,5 +27,6 @@ export function crearBaseDeDatos(cliente = crearClienteServidor()) {
     ...crearPersistenciaCobroJuridico(cliente),
     ...crearPersistenciaReconocimiento(cliente),
     ...crearPersistenciaMonitoreo(cliente),
+    ...crearPersistenciaConciliacion(cliente),
   };
 }

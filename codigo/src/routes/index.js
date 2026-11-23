@@ -5,6 +5,7 @@ import { NOMBRES_DE_ROL } from '../config/permisos.js';
 import { crearRutasAlertas } from './alertas.routes.js';
 import { crearRutasCobro } from './cobro.routes.js';
 import { crearRutasCobroJuridico } from './cobro-juridico.routes.js';
+import { crearRutasConciliacion } from './conciliacion.routes.js';
 import { crearRutasEstados } from './estados.routes.js';
 import { crearRutasMonitoreo } from './monitoreo.routes.js';
 import { crearRutasRadicacion } from './radicacion.routes.js';
@@ -42,6 +43,7 @@ export function crearRutas(dependencias) {
     rutas.use(crearRutasCobroJuridico(dependencias));
     rutas.use(crearRutasReconocimiento(dependencias));
     rutas.use(crearRutasMonitoreo(dependencias));
+    rutas.use(crearRutasConciliacion(dependencias));
   }
 
   // Solo para las pruebas: rutas de ensayo detrás de la sesión.

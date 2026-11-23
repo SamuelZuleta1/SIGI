@@ -38,7 +38,9 @@ export function crearBaseDeDatosFalsa() {
   const seguimientos = [];
   const acuerdos = [];
   const requerimientos = [];
+  const pagosConsignados = [];
   return {
+    pagosConsignados,
     radicaciones,
     pagos,
     seguimientos,
@@ -507,6 +509,27 @@ export function crearBaseDeDatosFalsa() {
             entidad: { nombre, plazoTranscripcion, plazoTranscripcionTransito },
           };
         });
+    },
+    // HU-25 (DS-11): como conciliacion.persistence.js.
+    async guardarPagosConsignados(entidadId, pagos, por) {
+      const creadoEn = new Date().toISOString();
+      return pagos.map((p) => {
+        const id = pagosConsignados.length + 1;
+        pagosConsignados.push({ id, entidadId, ...p, creadoPor: por, creadoEn });
+        return id;
+      });
+    },
+    async eliminarPagosConsignados(ids) {
+      for (const id of ids) {
+        const i = pagosConsignados.findIndex((p) => p.id === id);
+        if (i >= 0) pagosConsignados.splice(i, 1);
+      }
+    },
+    async consultarPagosConsignados(limite) {
+      return [...pagosConsignados]
+        .sort((a, b) => b.creadoEn.localeCompare(a.creadoEn) || b.id - a.id)
+        .slice(0, limite)
+        .map((p) => ({ ...p, entidad: ENTIDADES.find((e) => e.id === p.entidadId).nombre }));
     },
     async consultarReemplazo(idIncapacidad) {
       return reemplazos.find((r) => r.idIncapacidad === idIncapacidad)?.reemplazo ?? null;

@@ -598,3 +598,15 @@ input[type='file']::file-selector-button {
   .otro-pago[open] > .radicar { animation: none; }
   @keyframes aparece { from { opacity: 0; } }
 }
+
+/* ---------- pagos consignados (HU-25): lista editable de una entidad ---------- */
+.pagos-consignados .entidad-lista { max-width: 360px; }
+.filas-pagos td { padding: 6px 8px; vertical-align: top; }
+.filas-pagos td:first-child { padding-top: 15px; width: 2.5rem; }
+.filas-pagos td:nth-child(3) { width: 8rem; }
+.filas-pagos td:nth-child(4) { width: 12rem; }
+.filas-pagos .campo input { height: 34px; }
+.filas-pagos tr.invalida td { background: var(--mal-f); }
+@media (hover: hover) { .filas-pagos tbody tr:hover td { background: transparent; } .filas-pagos tbody tr.invalida:hover td { background: var(--mal-f); } }
+.recientes { display: grid; gap: 8px; max-width: var(--ancho); margin-top: 28px; }
+.recientes h2 { margin: 0; }
