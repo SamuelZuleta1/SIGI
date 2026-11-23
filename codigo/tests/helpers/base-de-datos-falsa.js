@@ -619,6 +619,25 @@ export function crearBaseDeDatosFalsa() {
           estado: i.estado,
         }));
     },
+    // HU-28 (DS-12): como reportes.persistence.js.
+    async consultarDatosProlongadas(dias, hasta) {
+      return incapacidades
+        .filter((i) => i.diasIncapacidad > dias && i.fechaInicio <= hasta)
+        .sort((a, b) => a.idIncapacidad - b.idIncapacidad)
+        .map((i) => ({
+          idIncapacidad: i.idIncapacidad,
+          idColaborador: i.colaboradorId,
+          colaborador: colaboradores.find((c) => c.id === i.colaboradorId).nombre,
+          tipo: i.tipo,
+          entidad: nombreEntidad(i.entidad),
+          fechaInicio: i.fechaInicio,
+          diasIncapacidad: i.diasIncapacidad,
+          estado: i.estado,
+          concepto: i.concepto == null ? null : true,
+          faltaConcepto: i.faltaConcepto ?? false,
+          pagoSuspendido: i.pagoSuspendido ?? false,
+        }));
+    },
     async guardarReporte(tipo, periodo, contenido, por) {
       const id = (reportes.at(-1)?.id ?? 0) + 1;
       reportes.push({ id, tipo, periodo, contenido: structuredClone(contenido), creadoPor: por, creadoEn: new Date().toISOString() });

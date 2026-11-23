@@ -1,7 +1,7 @@
 // Grupo `reportes` de la Base de datos — DS-12 (CU-16).
 // Operaciones: consultarDatosReporte y guardarReporte(tipo) (HU-27), con eliminarReporte para deshacer si el envío
-// al SG-SST falla; y de apoyo, consultarReportes y consultarReporte. Sin migración: la tabla `reporte` ya tiene
-// `contenido` (DA-21).
+// al SG-SST falla; consultarDatosProlongadas (HU-28, DA-58); y de apoyo, consultarReportes y consultarReporte. Sin
+// migración: la tabla `reporte` ya tiene `contenido` (DA-21) y admite el tipo «prolongadas».
 import { BLOQUE } from './alertas.persistence.js';
 import { sumarIntervalo } from '../servicios/dias-habiles.js';
 
@@ -56,6 +56,44 @@ export function crearPersistenciaReportes(cliente) {
         fechaInicio: f.fecha_inicio,
         diasIncapacidad: f.dias_incapacidad,
         estado: f.estado,
+      }));
+    },
+
+    /**
+     * DS-12: consultarDatosReporte del reporte de prolongadas (HU-28) — las incapacidades de más de `dias` días que
+     * empiezan hasta `hasta`. El Control deja las que tocan el mes y las clasifica por hito. Del concepto solo se
+     * necesita saber si existe (no se copia su texto al reporte). En bloques, por el máximo de filas.
+     */
+    async consultarDatosProlongadas(dias, hasta) {
+      const filas = [];
+      for (;;) {
+        const inicio = filas.length;
+        const bloque = comprobar(
+          await cliente
+            .from('incapacidad')
+            .select(
+              'id, colaborador_id, tipo, fecha_inicio, dias_incapacidad, estado, concepto, falta_concepto, pago_suspendido, colaborador(nombre), entidad(nombre)',
+            )
+            .gt('dias_incapacidad', dias)
+            .lte('fecha_inicio', hasta)
+            .order('id')
+            .range(inicio, inicio + BLOQUE - 1),
+        );
+        if (bloque.length === 0) break;
+        filas.push(...bloque);
+      }
+      return filas.map((f) => ({
+        idIncapacidad: f.id,
+        idColaborador: f.colaborador_id,
+        colaborador: f.colaborador.nombre,
+        tipo: f.tipo,
+        entidad: f.entidad.nombre,
+        fechaInicio: f.fecha_inicio,
+        diasIncapacidad: f.dias_incapacidad,
+        estado: f.estado,
+        concepto: f.concepto == null ? null : true,
+        faltaConcepto: f.falta_concepto,
+        pagoSuspendido: f.pago_suspendido,
       }));
     },
 

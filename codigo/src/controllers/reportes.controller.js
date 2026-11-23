@@ -1,10 +1,13 @@
 // Grupo `reportes` del Control de incapacidades — DS-12 (CU-16).
 // Operación: generarReporte(tipo, periodo) → consultarDatosReporte → consolidarDatos() → guardarReporte(tipo) →
-// enviarReporteAusentismo (HU-27, DA-21, DA-57). Apoyo de la Vista: prepararReportes y consultarReporte.
-// El reporte de prolongadas (alternativa A1, clasificarPorHito) llega con HU-28 (T-28).
+// enviarReporteAusentismo (HU-27, DA-21, DA-57); alternativa A1 (HU-28, DA-19, DA-58): consultarDatosProlongadas →
+// clasificarPorHito() → guardarReporte(prolongadas), sin correo. Apoyo de la Vista: prepararReportes y consultarReporte.
 import { avisarODeshacer } from './error-de-aviso.js';
 import { ErrorDeValidacion } from './error-de-validacion.js';
-import { diasCalendario, hoyEnColombia, sumarIntervalo } from '../servicios/dias-habiles.js';
+import { DIAS_PROLONGADA, HITOS, diaActual, fechaDelDia, llegoAlDia } from './hitos.js';
+import { estadoConcepto } from './monitoreo.controller.js';
+import { diasCalendario, fechaEnColombia, hoyEnColombia, sumarIntervalo } from '../servicios/dias-habiles.js';
+import { TIPOS_REPORTE } from '../models/reporte.model.js';
 
 // DA-57: el primer periodo que se puede pedir (antes no hay datos en SIGI) y cuántos reportes recientes se listan.
 export const PERIODO_MINIMO = '2020-01';
@@ -82,7 +85,9 @@ export function totalesDelReporte(contenido) {
 
 /** Lo que identifica el contenido de un reporte, sin depender del orden de las claves (jsonb las reordena). */
 const firma = (contenido) =>
-  JSON.stringify(contenido.map((f) => [f.idIncapacidad, f.colaborador, f.tipo, f.entidad, f.fechaInicio, f.diasIncapacidad, f.diasEnPeriodo, f.estado]));
+  JSON.stringify(contenido, (_, v) =>
+    v && typeof v === 'object' && !Array.isArray(v) ? Object.fromEntries(Object.entries(v).sort(([a], [b]) => a.localeCompare(b))) : v,
+  );
 
 /** Días de ausencia por tipo de incapacidad, de más a menos días. */
 export function diasPorTipo(contenido) {
@@ -96,6 +101,81 @@ export function diasPorTipo(contenido) {
   return [...tipos.values()].sort((a, b) => b.dias - a.dias || a.tipo.localeCompare(b.tipo));
 }
 
+// HU-28 (DA-58): grupos del reporte de prolongadas, del hito más alto al más bajo. `antes_90` son las que duran más
+// de 90 días pero al corte aún no llegan al día 90 (empezaron hace poco o empiezan más adelante en el mes).
+export const GRUPOS_HITO = Object.freeze([
+  ...[...HITOS].reverse().map((dia) => Object.freeze({ clave: `dia_${dia}`, dia, nombre: `Día ${dia}` })),
+  Object.freeze({ clave: 'antes_90', dia: null, nombre: `Aún no llega al día ${HITOS[0]}` }),
+]);
+
+/**
+ * El corte del reporte de prolongadas: el último día del mes o, si el mes está en curso, el día en que se generó.
+ * @param {string} periodo AAAA-MM
+ * @param {string} hoy AAAA-MM-DD (para un reporte guardado: el día en Colombia en que se generó)
+ */
+export function corteDelPeriodo(periodo, hoy) {
+  const { hasta } = limitesDelPeriodo(periodo);
+  return hasta < hoy ? hasta : hoy;
+}
+
+/** El corte de un reporte guardado (se calcula con su fecha de generación; no se guarda aparte). */
+export const corteDelReporte = (reporte) => corteDelPeriodo(reporte.periodo, fechaEnColombia(reporte.creadoEn));
+
+/** El hito más alto al que llegó la incapacidad en `corte` (por fecha, DA-49); null si aún no llega al día 90. */
+export const hitoAlCorte = (i, corte) => [...HITOS].reverse().find((n) => llegoAlDia(i, n, corte)) ?? null;
+
+/**
+ * DS-12: clasificarPorHito() — HU-28, DA-19, DA-58. Las prolongadas (más de 90 días por duración, DA-47) con al menos
+ * un día en el mes. De cada una: colaborador, tipo, entidad, fechas, día en que va al corte, hito alcanzado al corte, los
+ * hitos que caen dentro del mes (con su fecha), el estado del concepto y si el pago está suspendido (al generar).
+ * Ordenadas del hito más alto al más bajo y, dentro de cada hito, por el día en que van.
+ * @param {{ idIncapacidad, idColaborador, colaborador, tipo, entidad, fechaInicio, diasIncapacidad, estado, concepto, faltaConcepto, pagoSuspendido }[]} incapacidades
+ * @param {string} periodo AAAA-MM
+ * @param {string} hoy AAAA-MM-DD
+ */
+export function clasificarPorHito(incapacidades, periodo, hoy) {
+  const { desde, hasta } = limitesDelPeriodo(periodo);
+  const corte = corteDelPeriodo(periodo, hoy);
+  const orden = (h) => (h == null ? -1 : h);
+  return incapacidades
+    .filter((i) => i.diasIncapacidad > DIAS_PROLONGADA)
+    .map((i) => ({ ...i, fechaFin: sumarIntervalo(i.fechaInicio, { dias: i.diasIncapacidad - 1 }) }))
+    .filter((i) => i.fechaInicio <= hasta && i.fechaFin >= desde)
+    .map((i) => ({
+      idIncapacidad: i.idIncapacidad,
+      idColaborador: i.idColaborador,
+      colaborador: i.colaborador,
+      tipo: i.tipo,
+      entidad: i.entidad,
+      fechaInicio: i.fechaInicio,
+      fechaFin: i.fechaFin,
+      diasIncapacidad: i.diasIncapacidad,
+      diaAlCorte: diaActual(i, corte),
+      hito: hitoAlCorte(i, corte),
+      hitosEnPeriodo: HITOS.filter((n) => i.diasIncapacidad >= n)
+        .map((n) => ({ dia: n, fecha: fechaDelDia(i.fechaInicio, n) }))
+        .filter((h) => h.fecha >= desde && h.fecha <= hasta),
+      estadoConcepto: estadoConcepto(i),
+      pagoSuspendido: Boolean(i.pagoSuspendido),
+      estado: i.estado ?? 'registrada',
+    }))
+    .sort(
+      (a, b) =>
+        orden(b.hito) - orden(a.hito) || b.diaAlCorte - a.diaAlCorte || a.fechaInicio.localeCompare(b.fechaInicio) || a.idIncapacidad - b.idIncapacidad,
+    );
+}
+
+/** Las filas del reporte de prolongadas agrupadas por hito (GRUPOS_HITO), con los grupos vacíos. */
+export const porHito = (contenido) =>
+  GRUPOS_HITO.map((g) => ({ ...g, filas: contenido.filter((f) => (f.hito ?? null) === g.dia) }));
+
+/** Totales del reporte de prolongadas: incapacidades, colaboradores (por id) y las que cumplen algún hito en el mes. */
+export const totalesProlongadas = (contenido) => ({
+  incapacidades: contenido.length,
+  colaboradores: new Set(contenido.map((f) => f.idColaborador ?? f.colaborador)).size,
+  conHitoEnMes: contenido.filter((f) => f.hitosEnPeriodo.length > 0).length,
+});
+
 export function crearControlReportes({ baseDeDatos, correo, ahora = Date.now }) {
   return {
     /** Apoyo de la Vista: el mes sugerido (el anterior), el mes en curso (máximo) y los reportes recientes. */
@@ -105,6 +185,7 @@ export function crearControlReportes({ baseDeDatos, correo, ahora = Date.now }) 
         periodoMinimo: PERIODO_MINIMO,
         periodoMaximo: mesDe(hoy),
         recientes: await baseDeDatos.consultarReportes('ausentismo', REPORTES_RECIENTES),
+        recientesProlongadas: await baseDeDatos.consultarReportes('prolongadas', REPORTES_RECIENTES),
       };
     },
 
@@ -114,38 +195,49 @@ export function crearControlReportes({ baseDeDatos, correo, ahora = Date.now }) 
     },
 
     /**
-     * DS-12: generarReporte(tipo, periodo) — HU-27 (tipo «ausentismo»). Consulta las incapacidades, consolida las
-     * del periodo, guarda el reporte con su contenido (DA-21; DA-23: quién lo generó) y lo envía al SG-SST. Si el
-     * correo falla, borra el reporte y se puede reintentar (DA-44/DA-47). Un periodo sin incapacidades no se guarda.
+     * DS-12: generarReporte(tipo, periodo).
+     * - «ausentismo» (HU-27): consulta las incapacidades, consolida las del periodo, guarda el reporte con su contenido
+     *   (DA-21; DA-23: quién lo generó) y lo envía al SG-SST. Si el correo falla, borra el reporte y se puede reintentar
+     *   (DA-44/DA-47).
+     * - «prolongadas» (HU-28, alternativa A1): consulta las prolongadas, las clasifica por hito al corte del mes, guarda
+     *   el reporte y lo muestra; no se envía a nadie (DA-58).
+     * Un periodo sin datos no se guarda. Un doble envío (mismo mes y contenido en menos de DOBLE_ENVIO_MS) devuelve el
+     * reporte ya generado.
      * @param {{ periodo?: string }} datos
      * @param {{ id: string }} usuario
      * @returns {Promise<{ idReporte: number, periodo: string, cantidad: number }>}
      * @throws {ErrorDeValidacion} | {ErrorDeAviso}
      */
     async generarReporte(tipo, datos, usuario, hoy = hoyEnColombia()) {
-      if (tipo !== 'ausentismo') throw new Error(`Tipo de reporte no disponible: ${tipo}`);
+      if (!TIPOS_REPORTE.includes(tipo)) throw new Error(`Tipo de reporte no disponible: ${tipo}`);
       const periodo = leerPeriodo(datos?.periodo, hoy);
       if (periodo.error) throw new ErrorDeValidacion({ periodo: periodo.error });
 
       const { desde, hasta } = limitesDelPeriodo(periodo.valor);
-      const contenido = consolidarDatos(await baseDeDatos.consultarDatosReporte(desde, hasta), periodo.valor);
+      const contenido =
+        tipo === 'ausentismo'
+          ? consolidarDatos(await baseDeDatos.consultarDatosReporte(desde, hasta), periodo.valor)
+          : clasificarPorHito(await baseDeDatos.consultarDatosProlongadas(DIAS_PROLONGADA, hasta), periodo.valor, hoy);
       if (contenido.length === 0) {
-        throw new ErrorDeValidacion({ periodo: `No hay incapacidades en ${periodo.valor}: no se generó el reporte.` });
+        const que = tipo === 'ausentismo' ? 'incapacidades' : 'incapacidades prolongadas';
+        throw new ErrorDeValidacion({ periodo: `No hay ${que} en ${periodo.valor}: no se generó el reporte.` });
       }
 
-      // Doble envío: el mismo reporte del mismo mes, recién generado, ya se guardó y se envió.
+      // Doble envío: el mismo reporte del mismo mes, recién generado, ya se guardó (y, si es de ausentismo, se envió).
       const ultimo = await baseDeDatos.consultarUltimoReporte(tipo, periodo.valor);
       if (ultimo && ahora() - Date.parse(ultimo.creadoEn) < DOBLE_ENVIO_MS && firma(ultimo.contenido) === firma(contenido)) {
         return { idReporte: ultimo.id, periodo: periodo.valor, cantidad: contenido.length };
       }
 
       const idReporte = await baseDeDatos.guardarReporte(tipo, periodo.valor, contenido, usuario.id);
-      await avisarODeshacer({
-        operacion: 'reporte de ausentismo',
-        asunto: `reporte n.º ${idReporte} de ${periodo.valor}`,
-        avisar: () => correo.enviarReporteAusentismo(periodo.valor, contenido),
-        deshacer: () => baseDeDatos.eliminarReporte(idReporte),
-      });
+      if (tipo === 'ausentismo') {
+        await avisarODeshacer({
+          operacion: 'reporte de ausentismo',
+          asunto: `reporte n.º ${idReporte} de ${periodo.valor}`,
+          avisar: () => correo.enviarReporteAusentismo(periodo.valor, contenido),
+          deshacer: () => baseDeDatos.eliminarReporte(idReporte),
+        });
+      }
       return { idReporte, periodo: periodo.valor, cantidad: contenido.length };
     },
   };

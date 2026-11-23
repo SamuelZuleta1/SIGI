@@ -124,3 +124,68 @@ describe('HU-27 — reporte de ausentismo (rutas)', () => {
     expect(baseDeDatos.reportes).toHaveLength(0);
   });
 });
+
+// HU-28 — reporte mensual de prolongadas por hito (DS-12 A1; DA-19, DA-58).
+const generarProlongadas = (agente, periodo) => agente.post('/reportes/prolongadas').type('form').send({ periodo });
+
+describe('HU-28 — reporte de prolongadas (rutas)', () => {
+  beforeEach(async () => {
+    await baseDeDatos.guardarIncapacidad(
+      { colaborador: { nombre: 'Marta <i>Ríos</i>', correo: 'marta@sigi.test' }, entidad: 2, tipo: 'enfermedad_general', fechaInicio: '2026-05-01', diasIncapacidad: 200, fechaRecepcion: '2026-05-02' },
+      'id-receptor',
+    );
+  });
+
+  it('la pantalla de reportes tiene los dos formularios, cada uno con su campo', async () => {
+    const agente = await agenteCon(request, app, 'auxiliar');
+    const res = await agente.get('/reportes');
+    expect(res.text).toContain('action="/reportes/prolongadas"');
+    expect(res.text).toContain('id="periodo-prolongadas"');
+    expect(res.text).toContain('Aún no hay reportes de prolongadas.');
+  });
+
+  it('HU-28.CA1 — genera, guarda y muestra el reporte clasificado por hito, sin enviar correos', async () => {
+    const agente = await agenteCon(request, app, 'auxiliar');
+    const res = await generarProlongadas(agente, '2026-10');
+    expect(res.status).toBe(303);
+    expect(res.headers.location).toBe('/reportes/1?generado=1');
+    expect(baseDeDatos.reportes.map((r) => r.tipo)).toEqual(['prolongadas']);
+    expect(enviados).toHaveLength(0);
+
+    const reporte = await agente.get(res.headers.location);
+    expect(reporte.status).toBe(200);
+    expect(reporte.text).toContain('Reporte de prolongadas 2026-10');
+    expect(reporte.text).toContain('Reporte guardado: <strong>1</strong> incapacidad prolongada en 2026-10, clasificadas por hito.');
+    expect(reporte.text).toContain('id="hito-dia_180"');
+    expect(reporte.text).toContain('Día 184');
+    expect(reporte.text).toContain('href="/incapacidades/3/prolongada"');
+    expect(reporte.text).toContain('Marta &lt;i&gt;Ríos&lt;/i&gt;');
+    expect(reporte.text).not.toContain('<i>Ríos</i>');
+    expect(reporte.text).not.toContain('id="hito-dia_150"'); // grupos vacíos solo en el resumen
+
+    const lista = await agente.get('/reportes');
+    expect(lista.text).toContain('Reportes de prolongadas recientes');
+    expect(lista.text).toContain('href="/reportes/1"');
+  });
+
+  it('un mes sin prolongadas vuelve con el error en su propio formulario (400)', async () => {
+    const agente = await agenteCon(request, app, 'auxiliar');
+    const res = await generarProlongadas(agente, '2026-01');
+    expect(res.status).toBe(400);
+    expect(res.text).toContain('<span class="error" id="error-periodo-prolongadas">No hay incapacidades prolongadas en 2026-01: no se generó el reporte.</span>');
+    expect(res.text).toContain('id="periodo-prolongadas" name="periodo" type="month" value="2026-01"');
+    expect(res.text).not.toContain('id="error-periodo"');
+    expect(baseDeDatos.reportes).toHaveLength(0);
+  });
+
+  it.each(['receptor', 'lider', 'contabilidad', 'cartera'])('DA-02 — %s no puede generarlo (403)', async (rol) => {
+    const agente = await agenteCon(request, app, rol);
+    expect((await generarProlongadas(agente, '2026-10')).status).toBe(403);
+    expect(baseDeDatos.reportes).toHaveLength(0);
+  });
+
+  it('HU-01 — sin sesión, se rechaza', async () => {
+    const res = await request(app).post('/reportes/prolongadas').type('form').send({ periodo: '2026-10' });
+    expect(res.status).toBe(401);
+  });
+});

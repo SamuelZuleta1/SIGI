@@ -642,3 +642,5 @@ input[type='file']::file-selector-button {
 .resumen-reporte { max-width: 420px; margin-top: 10px; }
 .estados caption { caption-side: top; text-align: left; padding: 9px 12px; font-weight: 600; font-size: 0.84rem; }
 .recientes .tabla-envuelta + .tabla-envuelta { margin-top: 10px; }
+/* HU-28: hitos del mes en el reporte de prolongadas, uno debajo de otro si no caben. */
+.hitos-mes { display: flex; flex-wrap: wrap; gap: 4px; }

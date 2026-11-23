@@ -1,5 +1,6 @@
 // HU-27 contra Supabase (nube): consultarDatosReporte (en bloques), guardarReporte con su contenido (jsonb, DA-21,
-// DA-23), consultarReporte/consultarReportes y, si el envío al SG-SST falla, eliminarReporte.
+// DA-23), consultarReporte/consultarReportes y, si el envío al SG-SST falla, eliminarReporte. HU-28: consultarDatosProlongadas
+// y el reporte de prolongadas por hito (DA-58).
 // Requisitos: proyecto vinculado, migraciones aplicadas y `npm run db:usuarios`.
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { crearClienteServidor } from '../../src/config/supabase.js';
@@ -91,5 +92,31 @@ describe('HU-27 — reporte de ausentismo (persistencia real)', () => {
 
   it('un reporte que no existe es null', async () => {
     expect(await baseDeDatos.consultarReporte(999_999_999)).toBeNull();
+  });
+});
+
+describe('HU-28 — reporte de prolongadas (persistencia real)', () => {
+  it('HU-28.CA1 — lee las prolongadas, las clasifica por hito al corte, guarda el reporte y no envía correos', async () => {
+    const { error } = await servidor
+      .from('incapacidad')
+      .update({ concepto: 'Concepto favorable de rehabilitación', fecha_concepto: new Date().toISOString(), concepto_por: auxiliar.id })
+      .eq('id', ids[2]);
+    expect(error).toBeNull();
+    const antes = enviados.length;
+    const { idReporte } = await control.generarReporte('prolongadas', { periodo: PERIODO }, auxiliar);
+    reportes.push(idReporte);
+    expect(enviados.length).toBe(antes);
+
+    const { data: fila } = await servidor.from('reporte').select('tipo, periodo, contenido, creado_por').eq('id', idReporte).single();
+    expect(fila).toMatchObject({ tipo: 'prolongadas', periodo: PERIODO, creado_por: auxiliar.id });
+    const propias = fila.contenido.filter((f) => ids.includes(f.idIncapacidad));
+    // Solo la de 500 días es prolongada; al 2021-03-31 va en el día 447 y su último hito fue el 180 (2020-07-07).
+    expect(propias).toEqual([
+      expect.objectContaining({ idIncapacidad: ids[2], diaAlCorte: 447, hito: 180, hitosEnPeriodo: [], estadoConcepto: 'registrado', pagoSuspendido: false }),
+    ]);
+    expect(JSON.stringify(fila.contenido)).not.toContain('Concepto favorable');
+
+    const { recientesProlongadas } = await control.prepararReportes();
+    expect(recientesProlongadas.some((r) => r.id === idReporte)).toBe(true);
   });
 });
