@@ -39,8 +39,29 @@ export function crearBaseDeDatosFalsa() {
   const acuerdos = [];
   const requerimientos = [];
   const pagosConsignados = [];
+  const conciliaciones = [];
+  const nombreEntidad = (id) => ENTIDADES.find((e) => e.id === id).nombre;
+  // Como registrar_conciliacion (DA-56): comprueba que lo comparado sigue igual y lo guarda todo junto.
+  const registrarConciliacion = (entidadId, { consignadosVistos, pares, detalle, saldos }, por) => {
+    const pendientes = pagosConsignados.filter((p) => p.entidadId === entidadId && p.conciliacionId == null).map((p) => p.id).sort((a, b) => a - b);
+    if (JSON.stringify(pendientes) !== JSON.stringify([...consignadosVistos].sort((a, b) => a - b))) return null;
+    const libres = pares.every(({ consignado, pago }) => {
+      const p = pagos.find((x) => x.idPago === pago);
+      const i = p && incapacidades.find((x) => x.idIncapacidad === p.idIncapacidad);
+      return consignadosVistos.includes(consignado) && p && !p.conciliado && i.entidad === entidadId;
+    });
+    if (!libres) return null;
+    const id = conciliaciones.length + 1;
+    conciliaciones.push({ id, entidadId, detalle, saldosPendientes: saldos, creadoPor: por, creadoEn: new Date().toISOString() });
+    for (const { consignado, pago } of pares) {
+      pagosConsignados.find((p) => p.id === consignado).conciliacionId = id;
+      Object.assign(pagos.find((p) => p.idPago === pago), { conciliado: true, conciliacionId: id });
+    }
+    return id;
+  };
   return {
     pagosConsignados,
+    conciliaciones,
     radicaciones,
     pagos,
     seguimientos,
@@ -530,6 +551,55 @@ export function crearBaseDeDatosFalsa() {
         .sort((a, b) => b.creadoEn.localeCompare(a.creadoEn) || b.id - a.id)
         .slice(0, limite)
         .map((p) => ({ ...p, entidad: ENTIDADES.find((e) => e.id === p.entidadId).nombre }));
+    },
+    // HU-26 (DS-11): como conciliacion.persistence.js.
+    async obtenerPagosConsignados(entidadId) {
+      return pagosConsignados
+        .filter((p) => p.entidadId === entidadId && p.conciliacionId == null)
+        .sort((a, b) => a.id - b.id)
+        .map((p) => ({ ...p, entidad: nombreEntidad(p.entidadId) }));
+    },
+    async consultarPagosPorConciliar(entidadId) {
+      return pagos
+        .filter((p) => !p.conciliado && incapacidades.find((i) => i.idIncapacidad === p.idIncapacidad)?.entidad === entidadId)
+        .sort((a, b) => a.fechaPago.localeCompare(b.fechaPago) || a.idPago - b.idPago)
+        .map((p) => {
+          const i = incapacidades.find((x) => x.idIncapacidad === p.idIncapacidad);
+          return {
+            idPago: p.idPago,
+            idIncapacidad: p.idIncapacidad,
+            colaborador: colaboradores.find((c) => c.id === i.colaboradorId).nombre,
+            valor: p.valor,
+            fechaPago: p.fechaPago,
+          };
+        });
+    },
+    async contarPorIdentificar() {
+      return pagosConsignados
+        .filter((p) => p.conciliacionId == null)
+        .reduce((cuenta, p) => ({ ...cuenta, [p.entidadId]: (cuenta[p.entidadId] ?? 0) + 1 }), {});
+    },
+    async guardarConciliacion(entidadId, datos, por) {
+      return registrarConciliacion(entidadId, datos, por);
+    },
+    async guardarSaldosPendientes(entidadId, datos, por) {
+      return registrarConciliacion(entidadId, datos, por);
+    },
+    async deshacerConciliacion(id) {
+      for (const p of pagos) if (p.conciliacionId === id) Object.assign(p, { conciliado: false, conciliacionId: null });
+      for (const p of pagosConsignados) if (p.conciliacionId === id) p.conciliacionId = null;
+      const i = conciliaciones.findIndex((c) => c.id === id);
+      if (i >= 0) conciliaciones.splice(i, 1);
+    },
+    async consultarConciliaciones(limite) {
+      return [...conciliaciones]
+        .sort((a, b) => b.creadoEn.localeCompare(a.creadoEn) || b.id - a.id)
+        .slice(0, limite)
+        .map((c) => ({ ...c, entidad: nombreEntidad(c.entidadId) }));
+    },
+    async consultarConciliacion(id) {
+      const c = conciliaciones.find((x) => x.id === id);
+      return c ? { ...c, entidad: nombreEntidad(c.entidadId) } : null;
     },
     async consultarReemplazo(idIncapacidad) {
       return reemplazos.find((r) => r.idIncapacidad === idIncapacidad)?.reemplazo ?? null;

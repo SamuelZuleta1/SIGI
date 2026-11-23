@@ -4,6 +4,8 @@
 // Ningún correo lleva adjuntos ni información clínica (CAR-11, DA-12):
 // solo los datos de identificación del trámite.
 
+import { pesos } from './moneda.js';
+
 const escapar = (texto) =>
   String(texto ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 
@@ -27,8 +29,8 @@ const resumen = (i) => [
 
 const lista = (elementos) => elementos.map((e) => `- ${e}`);
 
-const moneda = (valor) =>
-  new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(valor);
+// Pesos con centavos cuando los hay (DA-40): un valor consignado de $ 420.000,50 no se redondea en el correo.
+const moneda = pesos;
 
 /**
  * @param {object} deps
@@ -141,16 +143,29 @@ export function crearServicioCorreo({ transporte, remitente, destinatarios }) {
     // DS-11 → Contabilidad y Tesorería
     enviarDetalleConciliado: (entidad, detalle) =>
       enviar(destinatarios.contabilidad, `Detalle conciliado — ${entidad}`, [
-        `Pagos de ${entidad} identificados y conciliados:`,
-        ...lista(detalle.map((d) => `${d.colaborador} · ${d.diasPagados} día(s) · ${moneda(d.valor)}`)),
+        `Todos los pagos consignados de ${entidad} quedaron identificados y conciliados.`,
+        '',
+        'Detalle conciliado:',
+        ...lista(detalle.map((d) => `${d.colaborador} · ${d.diasPagados} día(s) · ${moneda(d.valor)}${d.idIncapacidad ? ` · incapacidad n.º ${d.idIncapacidad}` : ''}`)),
+        `Total: ${moneda(detalle.reduce((t, d) => t + Math.round(Number(d.valor) * 100), 0) / 100)}`,
       ]),
 
-    // DS-11 → Contabilidad y Tesorería
-    notificarSaldosPendientes: (entidad, saldos) =>
-      enviar(destinatarios.contabilidad, `Saldos pendientes por identificar — ${entidad}`, [
-        `Pagos de ${entidad} que no se pudieron identificar:`,
-        ...lista(saldos.map((s) => `${s.colaborador} · ${s.diasPagados} día(s) · ${moneda(s.valor)}`)),
-      ]),
+    // DS-11 → Contabilidad y Tesorería (DA-56): los consignados sin identificar y los pagos registrados en SIGI que
+    // no aparecen en lo consignado. `identificados`: cuántos sí se conciliaron en la misma revisión.
+    notificarSaldosPendientes: (entidad, saldos, identificados = 0) => {
+      const consignados = saldos.filter((s) => s.tipo !== 'pago');
+      const sinConsignar = saldos.filter((s) => s.tipo === 'pago');
+      return enviar(destinatarios.contabilidad, `Saldos pendientes por identificar — ${entidad}`, [
+        `Al conciliar los pagos de ${entidad} quedaron saldos sin identificar.`,
+        ...(identificados > 0 ? [`Se identificaron y conciliaron ${identificados} pago(s).`] : []),
+        ...(consignados.length > 0
+          ? ['', 'Pagos consignados que no se pudieron identificar:', ...lista(consignados.map((s) => `${s.colaborador} · ${s.diasPagados} día(s) · ${moneda(s.valor)}`))]
+          : []),
+        ...(sinConsignar.length > 0
+          ? ['', 'Pagos registrados en SIGI que no aparecen en lo consignado:', ...lista(sinConsignar.map((s) => `${s.colaborador} · incapacidad n.º ${s.idIncapacidad} · ${moneda(s.valor)}`))]
+          : []),
+      ]);
+    },
 
     // DS-12 → SG-SST (contenido: DA-21)
     enviarReporteAusentismo: (periodo, contenido) =>

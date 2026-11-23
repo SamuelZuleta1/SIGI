@@ -108,6 +108,14 @@
         </a>
       </li>
       <% } %>
+      <% if (puede('identificarPagos')) { %>
+      <li>
+        <a href="/conciliacion" <%- ruta === '/conciliacion' || /^\/conciliacion\/\d+$/.test(ruta) ? 'aria-current="page"' : '' %>>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10M4 12h7M4 17h10M15 15l2.5 2.5L21 13"/></svg>
+          Conciliación
+        </a>
+      </li>
+      <% } %>
       <% if (puede('registrarPagosConsignados')) { %>
       <li>
         <a href="/pagos-consignados" <%- ruta === '/pagos-consignados' ? 'aria-current="page"' : '' %>>

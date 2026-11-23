@@ -1,0 +1,90 @@
+<%
+  // HU-26 (DS-11; DA-56): una conciliación guardada. CA2: todo identificado → confirmación y detalle conciliado.
+  // CA3: quedaron saldos → se muestran los saldos pendientes (y lo que sí se identificó).
+  const dias = (n) => (n === 1 ? '1 día' : `${n} días`);
+  const { detalle, saldosPendientes: saldos } = conciliacion;
+  const conciliada = saldos.length === 0;
+  const suma = (filas) => filas.reduce((s, f) => s + Math.round(Number(f.valor) * 100), 0) / 100;
+  const consignados = saldos.filter((s) => s.tipo !== 'pago');
+  const sinConsignar = saldos.filter((s) => s.tipo === 'pago');
+%>
+<p class="miga"><a href="/conciliacion?entidad=<%= conciliacion.entidadId %>">← Conciliar pagos de <%= conciliacion.entidad %></a></p>
+<h1>Conciliación n.º <%= conciliacion.id %></h1>
+<p class="sub"><%= conciliacion.entidad %> · <%= fechaBreve(fechaEnColombia(conciliacion.creadoEn)) %></p>
+
+<% if (recienRegistrada && conciliada) { %>
+  <p class="mensaje mensaje-ok entra" role="status">
+    Conciliación guardada: los <strong><%= detalle.length %></strong> pagos consignados quedaron identificados y conciliados.
+    Se envió el detalle conciliado a Contabilidad y Tesorería.
+  </p>
+<% } else if (recienRegistrada) { %>
+  <p class="mensaje mensaje-aviso entra" role="status">
+    Quedaron <strong><%= saldos.length %></strong> <%= saldos.length === 1 ? 'saldo' : 'saldos' %> sin identificar. Se guardaron y se notificaron a Contabilidad y Tesorería.
+    <% if (detalle.length > 0) { %><%= detalle.length === 1 ? 'El pago que sí coincidió quedó conciliado.' : `Los ${detalle.length} pagos que sí coincidieron quedaron conciliados.` %><% } %>
+  </p>
+<% } %>
+
+<dl class="resumen resumen-conciliacion">
+  <dt>Identificados</dt><dd><span class="cifra"><%= detalle.length %></span> · <span class="cifra"><%= pesos(suma(detalle)) %></span></dd>
+  <dt>Saldos pendientes</dt><dd><% if (conciliada) { %>Ninguno<% } else { %><span class="cifra"><%= saldos.length %></span><%= [consignados.length ? `${consignados.length} consignado${consignados.length === 1 ? '' : 's'} sin identificar` : '', sinConsignar.length ? `${sinConsignar.length} registrado${sinConsignar.length === 1 ? '' : 's'} sin consignación` : ''].filter(Boolean).map((t) => ` · ${t}`).join('') %><% } %></dd>
+</dl>
+
+<% if (!conciliada) { %>
+<section class="recientes" aria-labelledby="titulo-saldos">
+  <h2 id="titulo-saldos">Saldos pendientes</h2>
+  <% if (consignados.length > 0) { %>
+  <div class="tabla-envuelta">
+    <table class="estados">
+      <caption>Consignados sin identificar <span class="tenue">— siguen por identificar en la próxima conciliación</span></caption>
+      <thead><tr><th scope="col">Colaborador</th><th scope="col" class="num">Días pagados</th><th scope="col" class="num">Valor</th></tr></thead>
+      <tbody>
+        <% for (const s of consignados) { %>
+        <tr><td><%= s.colaborador %></td><td class="num cifra"><%= dias(s.diasPagados) %></td><td class="num cifra"><%= pesos(s.valor) %></td></tr>
+        <% } %>
+      </tbody>
+    </table>
+  </div>
+  <% } %>
+  <% if (sinConsignar.length > 0) { %>
+  <div class="tabla-envuelta">
+    <table class="estados">
+      <caption>Registrados en SIGI sin consignación <span class="tenue">— siguen por conciliar</span></caption>
+      <thead><tr><th scope="col">Incapacidad</th><th scope="col">Colaborador</th><th scope="col">Fecha de pago</th><th scope="col" class="num">Valor</th></tr></thead>
+      <tbody>
+        <% for (const s of sinConsignar) { %>
+        <tr><td><a href="/incapacidades/<%= s.idIncapacidad %>/cobro">n.º <%= s.idIncapacidad %></a></td><td><%= s.colaborador %></td><td class="fecha"><%= fechaBreve(s.fechaPago) %></td><td class="num cifra"><%= pesos(s.valor) %></td></tr>
+        <% } %>
+      </tbody>
+    </table>
+  </div>
+  <% } %>
+</section>
+<% } %>
+
+<section class="recientes" aria-labelledby="titulo-detalle">
+  <h2 id="titulo-detalle">Detalle conciliado</h2>
+  <div class="tabla-envuelta">
+    <% if (detalle.length === 0) { %>
+      <div class="vacio">
+        <b>Ningún pago quedó identificado.</b>
+        <p>Ningún pago consignado coincidió en colaborador y valor con los pagos elegidos.</p>
+      </div>
+    <% } else { %>
+      <table class="estados">
+        <thead><tr><th scope="col">Colaborador</th><th scope="col" class="num">Días pagados</th><th scope="col" class="num">Valor</th><th scope="col">Incapacidad</th><th scope="col">Fecha de pago</th></tr></thead>
+        <tbody>
+          <% for (const d of detalle) { %>
+          <tr>
+            <td><%= d.colaborador %></td>
+            <td class="num cifra"><%= dias(d.diasPagados) %></td>
+            <td class="num cifra"><%= pesos(d.valor) %></td>
+            <td><a href="/incapacidades/<%= d.idIncapacidad %>/cobro">n.º <%= d.idIncapacidad %></a></td>
+            <td class="fecha"><%= fechaBreve(d.fechaPago) %></td>
+          </tr>
+          <% } %>
+        </tbody>
+        <tfoot><tr><th scope="row" colspan="2">Total</th><td class="num cifra"><%= pesos(suma(detalle)) %></td><td colspan="2"></td></tr></tfoot>
+      </table>
+    <% } %>
+  </div>
+</section>

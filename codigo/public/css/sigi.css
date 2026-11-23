@@ -610,3 +610,28 @@ input[type='file']::file-selector-button {
 @media (hover: hover) { .filas-pagos tbody tr:hover td { background: transparent; } .filas-pagos tbody tr.invalida:hover td { background: var(--mal-f); } }
 .recientes { display: grid; gap: 8px; max-width: var(--ancho); margin-top: 28px; }
 .recientes h2 { margin: 0; }
+
+/* ---------- conciliación (HU-26, DA-56): consignados frente a pagos registrados ---------- */
+.conciliar-entidad .campos { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px; }
+.conciliar-entidad .campo { flex: 0 1 340px; min-width: 240px; }
+.conciliar-entidad .campos > .acciones { padding-top: 0; }
+.conciliar { display: grid; gap: 22px; max-width: var(--ancho); margin-top: 18px; }
+.bloque-conciliar { display: grid; gap: 8px; }
+.titulo-bloque { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.titulo-bloque h2 { margin: 0; }
+.conciliar-tabla .fecha, .estados td.fecha { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.conciliar-tabla .marca-col { width: 2.5rem; text-align: center; }
+.conciliar-tabla .marca-col input { width: 16px; height: 16px; margin: 0; cursor: pointer; accent-color: var(--acento); }
+.conciliar-tabla label { cursor: pointer; }
+.conciliar-tabla tbody tr:has(input:not(:checked)) td:not(.marca-col) { color: var(--tenue); }
+.chip.coincide { color: var(--ok); background: var(--ok-f); }
+.chip.sin-pareja { color: var(--aviso); background: var(--aviso-f); }
+.cierre-conciliar { display: grid; gap: 10px; }
+.cierre-conciliar .acciones { justify-content: flex-start; }
+.panel-vacio { max-width: var(--ancho); margin-top: 18px; }
+.miga { margin: 0 0 6px; font-size: 0.82rem; }
+.miga a { color: var(--tenue); text-decoration: none; }
+.miga a:hover { color: var(--acento); }
+.resumen-conciliacion { max-width: 520px; margin-top: 10px; }
+.estados caption { caption-side: top; text-align: left; padding: 9px 12px; font-weight: 600; font-size: 0.84rem; }
+.recientes .tabla-envuelta + .tabla-envuelta { margin-top: 10px; }
