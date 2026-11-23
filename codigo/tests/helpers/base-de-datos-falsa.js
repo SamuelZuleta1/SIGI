@@ -604,12 +604,13 @@ export function crearBaseDeDatosFalsa() {
       return c ? { ...c, entidad: nombreEntidad(c.entidadId) } : null;
     },
     // HU-27 (DS-12): como reportes.persistence.js.
-    async consultarDatosReporte(hasta) {
+    async consultarDatosReporte(desde, hasta) {
       return incapacidades
         .filter((i) => i.fechaInicio <= hasta)
         .sort((a, b) => a.idIncapacidad - b.idIncapacidad)
         .map((i) => ({
           idIncapacidad: i.idIncapacidad,
+          idColaborador: i.colaboradorId,
           colaborador: colaboradores.find((c) => c.id === i.colaboradorId).nombre,
           tipo: i.tipo,
           entidad: nombreEntidad(i.entidad),
@@ -633,6 +634,10 @@ export function crearBaseDeDatosFalsa() {
         .sort((a, b) => b.creadoEn.localeCompare(a.creadoEn) || b.id - a.id)
         .slice(0, limite)
         .map(({ creadoPor, ...r }) => r);
+    },
+    async consultarUltimoReporte(tipo, periodo) {
+      const [ultimo] = await this.consultarReportes(tipo, Infinity).then((l) => l.filter((r) => r.periodo === periodo));
+      return ultimo ?? null;
     },
     async consultarReporte(id) {
       const r = reportes.find((x) => x.id === id);

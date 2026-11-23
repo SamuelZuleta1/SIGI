@@ -4,6 +4,7 @@ import { crearControlIncapacidades } from '../../src/controllers/control-incapac
 import { ErrorDeAviso } from '../../src/controllers/error-de-aviso.js';
 import { ErrorDeValidacion } from '../../src/controllers/error-de-validacion.js';
 import {
+  DOBLE_ENVIO_MS,
   consolidarDatos,
   diasPorTipo,
   leerPeriodo,
@@ -179,6 +180,34 @@ describe('HU-27 — generarReporte (DS-12)', () => {
     const { recientes, periodoSugerido, periodoMaximo } = await control.prepararReportes(HOY);
     expect(recientes.map((r) => r.id)).toEqual([2, 1]);
     expect({ periodoSugerido, periodoMaximo }).toEqual({ periodoSugerido: '2026-10', periodoMaximo: '2026-11' });
+  });
+
+  it('un doble envío (mismo mes, mismo contenido, recién generado) no guarda otro ni vuelve a enviar', async () => {
+    await registrar('Ana Gómez', { fechaInicio: '2026-10-05', diasIncapacidad: 3 });
+    const primero = await control.generarReporte('ausentismo', { periodo: '2026-10' }, auxiliar, HOY);
+    const segundo = await control.generarReporte('ausentismo', { periodo: '2026-10' }, auxiliar, HOY);
+    expect(segundo.idReporte).toBe(primero.idReporte);
+    expect(baseDeDatos.reportes).toHaveLength(1);
+    expect(enviados).toHaveLength(1);
+  });
+
+  it('pasado el tiempo del doble envío, el mismo mes sí genera un reporte nuevo', async () => {
+    await registrar('Ana Gómez', { fechaInicio: '2026-10-05', diasIncapacidad: 3 });
+    await control.generarReporte('ausentismo', { periodo: '2026-10' }, auxiliar, HOY);
+    const despues = crearControlIncapacidades({ baseDeDatos, correo, ahora: () => Date.now() + DOBLE_ENVIO_MS + 1000 });
+    await despues.generarReporte('ausentismo', { periodo: '2026-10' }, auxiliar, HOY);
+    expect(baseDeDatos.reportes).toHaveLength(2);
+    expect(enviados).toHaveLength(2);
+  });
+
+  it('cuenta los colaboradores por id: dos personas con el mismo nombre son dos', async () => {
+    await registrar('Ana Gómez', { fechaInicio: '2026-10-05', diasIncapacidad: 3 });
+    await baseDeDatos.guardarIncapacidad(
+      { colaborador: { nombre: 'Ana Gómez', correo: 'otra.ana@sigi.test' }, entidad: 2, tipo: 'enfermedad_general', fechaInicio: '2026-10-10', diasIncapacidad: 2, fechaRecepcion: '2026-10-10' },
+      'id-receptor',
+    );
+    await control.generarReporte('ausentismo', { periodo: '2026-10' }, auxiliar, HOY);
+    expect(totalesDelReporte(baseDeDatos.reportes[0].contenido).colaboradores).toBe(2);
   });
 
   it('si el correo al SG-SST falla, borra el reporte (502: se puede reintentar)', async () => {

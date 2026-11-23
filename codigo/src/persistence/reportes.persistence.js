@@ -3,6 +3,11 @@
 // al SG-SST falla; y de apoyo, consultarReportes y consultarReporte. Sin migración: la tabla `reporte` ya tiene
 // `contenido` (DA-21).
 import { BLOQUE } from './alertas.persistence.js';
+import { sumarIntervalo } from '../servicios/dias-habiles.js';
+
+// Las incapacidades que empezaron más de VENTANA días antes del mes solo pueden tocarlo si duran más de VENTANA días:
+// se leen aparte, para no leer todo el histórico.
+export const VENTANA = 366;
 
 const comprobar = ({ data, error }) => {
   if (error) throw error;
@@ -14,26 +19,37 @@ const aReporte = (f) => ({ id: f.id, tipo: f.tipo, periodo: f.periodo, contenido
 export function crearPersistenciaReportes(cliente) {
   return {
     /**
-     * DS-12: consultarDatosReporte — las incapacidades que empiezan a más tardar el último día del periodo; el
-     * Control deja las que tienen algún día dentro (consolidarDatos). En bloques, por el máximo de filas de Supabase.
+     * DS-12: consultarDatosReporte — las incapacidades que pueden tener algún día en el periodo [desde, hasta]: las
+     * que empiezan en los VENTANA días anteriores o dentro del mes, y las más antiguas que duran más de VENTANA días.
+     * El Control deja solo las que de verdad tocan el mes (consolidarDatos). En bloques, por el máximo de filas.
      */
-    async consultarDatosReporte(hasta) {
-      const filas = [];
-      for (;;) {
-        const desde = filas.length;
-        const bloque = comprobar(
-          await cliente
-            .from('incapacidad')
-            .select('id, tipo, fecha_inicio, dias_incapacidad, estado, colaborador(nombre), entidad(nombre)')
-            .lte('fecha_inicio', hasta)
-            .order('id')
-            .range(desde, desde + BLOQUE - 1),
-        );
-        if (bloque.length === 0) break;
-        filas.push(...bloque);
-      }
-      return filas.map((f) => ({
+    async consultarDatosReporte(desde, hasta) {
+      const limite = sumarIntervalo(desde, { dias: -VENTANA });
+      const leer = async (filtrar) => {
+        const filas = [];
+        for (;;) {
+          const inicio = filas.length;
+          const bloque = comprobar(
+            await filtrar(
+              cliente
+                .from('incapacidad')
+                .select('id, colaborador_id, tipo, fecha_inicio, dias_incapacidad, estado, colaborador(nombre), entidad(nombre)'),
+            )
+              .order('id')
+              .range(inicio, inicio + BLOQUE - 1),
+          );
+          if (bloque.length === 0) break;
+          filas.push(...bloque);
+        }
+        return filas;
+      };
+      const [recientes, largas] = await Promise.all([
+        leer((q) => q.gte('fecha_inicio', limite).lte('fecha_inicio', hasta)),
+        leer((q) => q.lt('fecha_inicio', limite).gt('dias_incapacidad', VENTANA)),
+      ]);
+      return [...largas, ...recientes].map((f) => ({
         idIncapacidad: f.id,
+        idColaborador: f.colaborador_id,
         colaborador: f.colaborador.nombre,
         tipo: f.tipo,
         entidad: f.entidad.nombre,
@@ -68,6 +84,22 @@ export function crearPersistenciaReportes(cliente) {
           .limit(limite),
       );
       return filas.map(aReporte);
+    },
+
+    /** El último reporte de un tipo y periodo (para reconocer un doble envío); null si no hay. */
+    async consultarUltimoReporte(tipo, periodo) {
+      const fila = comprobar(
+        await cliente
+          .from('reporte')
+          .select('id, tipo, periodo, contenido, creado_en')
+          .eq('tipo', tipo)
+          .eq('periodo', periodo)
+          .order('creado_en', { ascending: false })
+          .order('id', { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+      );
+      return fila ? aReporte(fila) : null;
     },
 
     /** Un reporte guardado; null si no existe. */

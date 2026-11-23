@@ -4,6 +4,7 @@
 // Ningún correo lleva adjuntos ni información clínica (CAR-11, DA-12):
 // solo los datos de identificación del trámite.
 
+import { NOMBRES_ESTADO_INCAPACIDAD } from '../models/incapacidad.model.js';
 import { pesos } from './moneda.js';
 
 const escapar = (texto) =>
@@ -26,9 +27,6 @@ const resumen = (i) => [
   `Entidad: ${i.entidad}`,
   `Fecha de inicio: ${i.fechaInicio} · Días: ${i.diasIncapacidad}`,
 ];
-
-// Estados para mostrar (EST-01); «registrada» es el estado sin valor.
-const ESTADOS = { registrada: 'Registrada', transcrita: 'Transcrita', cobrada: 'Cobrada', rechazada: 'Rechazada', pagada: 'Pagada' };
 
 const lista = (elementos) => elementos.map((e) => `- ${e}`);
 
@@ -180,7 +178,7 @@ export function crearServicioCorreo({ transporte, remitente, destinatarios }) {
           contenido.map(
             (f) =>
               `${f.colaborador} · ${TIPOS[f.tipo] ?? f.tipo} · ${f.entidad} · inicio ${f.fechaInicio} · ` +
-              `${f.diasIncapacidad} día(s), ${f.diasEnPeriodo} en el periodo · ${ESTADOS[f.estado] ?? f.estado}`,
+              `${f.diasIncapacidad} día(s), ${f.diasEnPeriodo} en el periodo · ${NOMBRES_ESTADO_INCAPACIDAD[f.estado] ?? f.estado}`,
           ),
         ),
       ]),

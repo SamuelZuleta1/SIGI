@@ -9,6 +9,9 @@ import { diasCalendario, hoyEnColombia, sumarIntervalo } from '../servicios/dias
 // DA-57: el primer periodo que se puede pedir (antes no hay datos en SIGI) y cuántos reportes recientes se listan.
 export const PERIODO_MINIMO = '2020-01';
 export const REPORTES_RECIENTES = 12;
+// Un reporte igual del mismo mes generado hace menos de esto es un doble envío (doble clic sin JavaScript): no se
+// guarda otro ni se vuelve a enviar.
+export const DOBLE_ENVIO_MS = 2 * 60 * 1000;
 
 const PERIODO = /^(\d{4})-(0[1-9]|1[0-2])$/;
 
@@ -55,6 +58,7 @@ export function consolidarDatos(incapacidades, periodo) {
       const fin = i.fechaFin < hasta ? i.fechaFin : hasta;
       return {
         idIncapacidad: i.idIncapacidad,
+        idColaborador: i.idColaborador,
         colaborador: i.colaborador,
         tipo: i.tipo,
         entidad: i.entidad,
@@ -67,14 +71,18 @@ export function consolidarDatos(incapacidades, periodo) {
     });
 }
 
-/** Totales del reporte: incapacidades, colaboradores distintos y días de ausencia dentro del periodo. */
+/** Totales del reporte: incapacidades, colaboradores distintos (por id, no por nombre) y días de ausencia dentro del periodo. */
 export function totalesDelReporte(contenido) {
   return {
     incapacidades: contenido.length,
-    colaboradores: new Set(contenido.map((f) => f.colaborador)).size,
+    colaboradores: new Set(contenido.map((f) => f.idColaborador ?? f.colaborador)).size,
     diasEnPeriodo: contenido.reduce((s, f) => s + f.diasEnPeriodo, 0),
   };
 }
+
+/** Lo que identifica el contenido de un reporte, sin depender del orden de las claves (jsonb las reordena). */
+const firma = (contenido) =>
+  JSON.stringify(contenido.map((f) => [f.idIncapacidad, f.colaborador, f.tipo, f.entidad, f.fechaInicio, f.diasIncapacidad, f.diasEnPeriodo, f.estado]));
 
 /** Días de ausencia por tipo de incapacidad, de más a menos días. */
 export function diasPorTipo(contenido) {
@@ -88,7 +96,7 @@ export function diasPorTipo(contenido) {
   return [...tipos.values()].sort((a, b) => b.dias - a.dias || a.tipo.localeCompare(b.tipo));
 }
 
-export function crearControlReportes({ baseDeDatos, correo }) {
+export function crearControlReportes({ baseDeDatos, correo, ahora = Date.now }) {
   return {
     /** Apoyo de la Vista: el mes sugerido (el anterior), el mes en curso (máximo) y los reportes recientes. */
     async prepararReportes(hoy = hoyEnColombia()) {
@@ -119,10 +127,16 @@ export function crearControlReportes({ baseDeDatos, correo }) {
       const periodo = leerPeriodo(datos?.periodo, hoy);
       if (periodo.error) throw new ErrorDeValidacion({ periodo: periodo.error });
 
-      const { hasta } = limitesDelPeriodo(periodo.valor);
-      const contenido = consolidarDatos(await baseDeDatos.consultarDatosReporte(hasta), periodo.valor);
+      const { desde, hasta } = limitesDelPeriodo(periodo.valor);
+      const contenido = consolidarDatos(await baseDeDatos.consultarDatosReporte(desde, hasta), periodo.valor);
       if (contenido.length === 0) {
         throw new ErrorDeValidacion({ periodo: `No hay incapacidades en ${periodo.valor}: no se generó el reporte.` });
+      }
+
+      // Doble envío: el mismo reporte del mismo mes, recién generado, ya se guardó y se envió.
+      const ultimo = await baseDeDatos.consultarUltimoReporte(tipo, periodo.valor);
+      if (ultimo && ahora() - Date.parse(ultimo.creadoEn) < DOBLE_ENVIO_MS && firma(ultimo.contenido) === firma(contenido)) {
+        return { idReporte: ultimo.id, periodo: periodo.valor, cantidad: contenido.length };
       }
 
       const idReporte = await baseDeDatos.guardarReporte(tipo, periodo.valor, contenido, usuario.id);
