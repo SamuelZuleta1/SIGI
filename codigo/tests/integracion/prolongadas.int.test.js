@@ -125,4 +125,15 @@ describe('HU-24 — suspensión del pago (base de datos)', () => {
     expect((await fila(larga)).pago_suspendido).toBe(true);
     await expect(control.registrarSuspensionPago(larga)).rejects.toMatchObject({ errores: { suspension: expect.any(String) } });
   });
+
+  it('si el correo falla se deshace la suspensión y se puede reintentar', async () => {
+    const id = await registrar(200);
+    const original = correo.notificarSuspensionPago;
+    correo.notificarSuspensionPago = async () => { throw new Error('SMTP caído'); };
+    await expect(control.registrarSuspensionPago(id)).rejects.toThrow('SMTP caído');
+    expect((await fila(id)).pago_suspendido).toBe(false);
+    correo.notificarSuspensionPago = original;
+    await control.registrarSuspensionPago(id);
+    expect((await fila(id)).pago_suspendido).toBe(true);
+  });
 });

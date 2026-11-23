@@ -104,6 +104,7 @@ export function crearControlMonitoreo({ baseDeDatos, correo }) {
         puedeRegistrarFalta: puedeRegistrarFalta(incapacidad),
         suspensionPendiente: puedeRegistrarSuspension(incapacidad),
         suspensionRegistrada: incapacidad.pagoSuspendido,
+        mostrarSuspension: superaSuspension(incapacidad) || incapacidad.pagoSuspendido,
         hitoAlcanzado: llegoAlHito(incapacidad),
       };
     },

@@ -98,7 +98,7 @@
     </ol>
   </section>
 
-  <% if (incapacidad.diasIncapacidad > 180 || incapacidad.pagoSuspendido || errores.suspension) { %>
+  <% if (prolongada.mostrarSuspension || errores.suspension) { %>
   <section class="radicaciones" aria-labelledby="titulo-suspension">
     <h2 id="titulo-suspension">Suspensión del pago</h2>
     <% if (errores.suspension) { %><p class="mensaje mensaje-error" role="alert"><%= errores.suspension %></p><% } %>

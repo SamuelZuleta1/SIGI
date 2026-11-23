@@ -126,7 +126,9 @@ export function crearPersistenciaMonitoreo(cliente) {
 
     /** Deshace la suspensión recién guardada (si el aviso falló). */
     async deshacerSuspensionPago(idIncapacidad) {
-      comprobar(await cliente.from('incapacidad').update({ pago_suspendido: false }).eq('id', idIncapacidad));
+      comprobar(
+        await cliente.from('incapacidad').update({ pago_suspendido: false }).eq('id', idIncapacidad).eq('pago_suspendido', true),
+      );
     },
   };
 }
