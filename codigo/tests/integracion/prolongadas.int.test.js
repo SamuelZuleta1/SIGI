@@ -24,7 +24,7 @@ const registrar = async (dias) => {
   return idIncapacidad;
 };
 const fila = async (id) =>
-  (await servidor.from('incapacidad').select('ibc, valor_empresa, valor_eps, tramite_pension, concepto, falta_concepto').eq('id', id).single()).data;
+  (await servidor.from('incapacidad').select('ibc, valor_empresa, valor_eps, tramite_pension, concepto, falta_concepto, pago_suspendido').eq('id', id).single()).data;
 
 beforeAll(async () => {
   const { data, error } = await servidor.from('usuario').select('id, correo, rol').eq('correo', 'receptor1@sigi.test').maybeSingle();
@@ -111,5 +111,18 @@ describe('HU-22 y HU-23 — prolongadas (base de datos)', () => {
     expect((await fila(id)).falta_concepto).toBe(false);
     await expect(fallido.registrarConcepto(id, { concepto: CONCEPTO })).rejects.toThrow('SMTP caído');
     expect(await fila(id)).toMatchObject({ concepto: null, falta_concepto: false });
+  });
+});
+
+describe('HU-24 — suspensión del pago (base de datos)', () => {
+  it('la guarda solo con más de 180 días y una sola vez', async () => {
+    const corta = await registrar(180);
+    await expect(control.registrarSuspensionPago(corta)).rejects.toMatchObject({ errores: { suspension: expect.any(String) } });
+    expect((await fila(corta)).pago_suspendido).toBe(false);
+
+    const larga = await registrar(200);
+    await control.registrarSuspensionPago(larga);
+    expect((await fila(larga)).pago_suspendido).toBe(true);
+    await expect(control.registrarSuspensionPago(larga)).rejects.toMatchObject({ errores: { suspension: expect.any(String) } });
   });
 });

@@ -159,3 +159,50 @@ describe('DA-02 — permisos', () => {
     expect((await request(app).post('/incapacidades/1/concepto').type('form').send({ concepto: CONCEPTO })).status).toBe(401);
   });
 });
+
+describe('HU-24 — suspensión del pago (rutas)', () => {
+  const suspension = (agente, id = 1) => agente.post(`/incapacidades/${id}/suspension-pago`).type('form').send({});
+
+  it('HU-24.CA1 — el auxiliar la registra, vuelve con la confirmación y se avisa al colaborador', async () => {
+    await registrar(200);
+    const agente = await agenteCon(request, app, 'auxiliar');
+    expect((await agente.get('/incapacidades/2/prolongada')).text).toContain('action="/incapacidades/2/suspension-pago"');
+    const antes = enviados.length;
+    const res = await suspension(agente, 2);
+    expect(res.status).toBe(303);
+    expect(res.headers.location).toBe('/incapacidades/2/prolongada?suspension=1');
+    expect(enviados).toHaveLength(antes + 1);
+    const pantalla = await agente.get(res.headers.location);
+    expect(pantalla.text).toContain('Suspensión del pago registrada y colaborador avisado.');
+    expect(pantalla.text).not.toContain('action="/incapacidades/2/suspension-pago"');
+  });
+
+  it('la confirmación no aparece si no se registró', async () => {
+    await registrar(200);
+    const agente = await agenteCon(request, app, 'auxiliar');
+    expect((await agente.get('/incapacidades/2/prolongada?suspension=1')).text).not.toContain('Suspensión del pago registrada');
+  });
+
+  it('con 180 días o menos no hay formulario y la ruta responde 409', async () => {
+    const agente = await agenteCon(request, app, 'auxiliar');
+    expect((await agente.get('/incapacidades/1/prolongada')).text).not.toContain('suspension-pago');
+    const res = await suspension(agente);
+    expect(res.status).toBe(409);
+    expect(res.text).toContain('supera los 180 días');
+  });
+
+  it('una segunda vez responde 409; una inexistente, 404', async () => {
+    await registrar(200);
+    const agente = await agenteCon(request, app, 'auxiliar');
+    await suspension(agente, 2);
+    expect((await suspension(agente, 2)).status).toBe(409);
+    expect((await suspension(agente, 99)).status).toBe(404);
+  });
+
+  it('solo el auxiliar: otro rol recibe 403 y sin sesión 401', async () => {
+    await registrar(200);
+    expect((await suspension(await agenteCon(request, app, 'cartera'), 2)).status).toBe(403);
+    expect((await suspension(request(app), 2)).status).toBe(401);
+    expect(baseDeDatos.incapacidades[1].pagoSuspendido).toBeFalsy();
+  });
+});

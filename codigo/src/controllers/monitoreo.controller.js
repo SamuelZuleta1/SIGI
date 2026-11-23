@@ -1,7 +1,7 @@
 // Grupo `monitoreo` del Control de incapacidades — DS-10 (CU-14).
 // Operaciones: consultarReporteProlongadas (HU-22, en vivo: DA-19), prepararProlongada (apoyo de la Vista),
 // registrarConcepto → guardarConcepto + comunicarConcepto (HU-22) y registrarFaltaConcepto → guardarFaltaConcepto +
-// avisarFaltaConcepto (HU-23). El envío del concepto a la AFP lo hace el auxiliar fuera de SIGI.
+// avisarFaltaConcepto (HU-23), y registrarSuspensionPago → guardarSuspensionPago + notificarSuspensionPago (HU-24). El envío del concepto a la AFP lo hace el auxiliar fuera de SIGI.
 import { ErrorDeValidacion } from './error-de-validacion.js';
 import { esIdentificador } from './identificador.js';
 
@@ -59,6 +59,13 @@ const mensajeFalta = (i) => {
   return esProlongada(i) ? mensajeAunNoEsDia120(i) : mensajeNoProlongada(i);
 };
 
+const superaSuspension = (i) => i.diasIncapacidad > DIA_SUSPENSION;
+const mensajeSuspension = (i) => {
+  if (i.pagoSuspendido) return 'Ya se registró la suspensión del pago y se avisó al colaborador.';
+  return `La incapacidad lleva ${i.diasIncapacidad} ${i.diasIncapacidad === 1 ? 'día' : 'días'}: el pago se suspende cuando supera los ${DIA_SUSPENSION} días.`;
+};
+const puedeRegistrarSuspension = (i) => superaSuspension(i) && !i.pagoSuspendido;
+
 const puedeRegistrarConcepto = (i) => llegoAlHito(i) && i.concepto == null;
 const puedeRegistrarFalta = (i) => llegoAlHito(i) && i.concepto == null && !i.faltaConcepto;
 
@@ -95,7 +102,8 @@ export function crearControlMonitoreo({ baseDeDatos, correo }) {
         estadoConcepto: estadoConcepto(incapacidad),
         puedeRegistrarConcepto: puedeRegistrarConcepto(incapacidad),
         puedeRegistrarFalta: puedeRegistrarFalta(incapacidad),
-        suspensionPendiente: incapacidad.diasIncapacidad > DIA_SUSPENSION && !incapacidad.pagoSuspendido,
+        suspensionPendiente: puedeRegistrarSuspension(incapacidad),
+        suspensionRegistrada: incapacidad.pagoSuspendido,
         hitoAlcanzado: llegoAlHito(incapacidad),
       };
     },
@@ -149,6 +157,32 @@ export function crearControlMonitoreo({ baseDeDatos, correo }) {
         await correo.avisarFaltaConcepto(actual);
       } catch (error) {
         await baseDeDatos.deshacerFaltaConcepto(actual.idIncapacidad).catch(() => {});
+        throw error;
+      }
+      return { idIncapacidad: actual.idIncapacidad };
+    },
+
+    /**
+     * DS-10: registrarSuspensionPago() → guardarSuspensionPago() → notificarSuspensionPago() — HU-24.CA1. Solo si supera
+     * 180 días y no se registró antes; primero se guarda y luego se avisa al colaborador (mismo orden que el concepto).
+     * El reintegro de pagos de más de 180 días se gestiona fuera de SIGI.
+     * @returns {Promise<null | { idIncapacidad: number }>} null si no existe.
+     * @throws {ErrorDeValidacion} no admite la suspensión (`suspension`).
+     */
+    async registrarSuspensionPago(idIncapacidad) {
+      const actual = await leer(idIncapacidad);
+      if (!actual) return null;
+      if (!puedeRegistrarSuspension(actual)) throw new ErrorDeValidacion({ suspension: mensajeSuspension(actual) });
+
+      const guardado = await baseDeDatos.guardarSuspensionPago(actual.idIncapacidad, DIA_SUSPENSION);
+      if (!guardado) {
+        const ahora = await leer(actual.idIncapacidad);
+        throw new ErrorDeValidacion({ suspension: mensajeSuspension(ahora ?? actual) });
+      }
+      try {
+        await correo.notificarSuspensionPago(actual);
+      } catch (error) {
+        await baseDeDatos.deshacerSuspensionPago(actual.idIncapacidad).catch(() => {});
         throw error;
       }
       return { idIncapacidad: actual.idIncapacidad };

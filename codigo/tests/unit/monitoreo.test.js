@@ -210,3 +210,49 @@ describe('leerConcepto', () => {
     expect(leerConcepto('😀'.repeat(2001)).error).toBeTruthy();
   });
 });
+
+describe('HU-24.CA1 — registrar la suspensión del pago (más de 180 días)', () => {
+  it('la guarda y avisa por correo al colaborador', async () => {
+    await registrar(200);
+    expect(await control.registrarSuspensionPago('1')).toEqual({ idIncapacidad: 1 });
+    expect(baseDeDatos.incapacidades[0].pagoSuspendido).toBe(true);
+    expect(enviados).toHaveLength(1);
+    expect(enviados[0].to).toBe('ana.gomez@sigi.test');
+    expect(enviados[0].subject).toContain('Suspensión del pago');
+    expect((await control.prepararProlongada('1')).suspensionRegistrada).toBe(true);
+  });
+
+  it.each([130, 180])('con %i días no se puede suspender el pago', async (dias) => {
+    await registrar(dias);
+    expect((await errores(control.registrarSuspensionPago('1'))).suspension).toMatch(/supera los 180 días/);
+    expect(baseDeDatos.incapacidades[0].pagoSuspendido).toBeFalsy();
+  });
+
+  it('con 181 días sí se puede', async () => {
+    await registrar(181);
+    expect(await control.registrarSuspensionPago('1')).toEqual({ idIncapacidad: 1 });
+  });
+
+  it('se registra una sola vez y no sale un segundo correo', async () => {
+    await registrar(200);
+    await control.registrarSuspensionPago('1');
+    const antes = enviados.length;
+    expect((await errores(control.registrarSuspensionPago('1'))).suspension).toMatch(/Ya se registró/);
+    expect(enviados).toHaveLength(antes);
+  });
+
+  it('si el correo falla se deshace y se puede reintentar', async () => {
+    await registrar(200);
+    const original = correo.notificarSuspensionPago;
+    correo.notificarSuspensionPago = async () => { throw new Error('SMTP caído'); };
+    await expect(control.registrarSuspensionPago('1')).rejects.toThrow('SMTP caído');
+    expect(baseDeDatos.incapacidades[0].pagoSuspendido).toBe(false);
+    correo.notificarSuspensionPago = original;
+    expect(await control.registrarSuspensionPago('1')).toEqual({ idIncapacidad: 1 });
+  });
+
+  it('una incapacidad inexistente o con identificador inválido devuelve null', async () => {
+    expect(await control.registrarSuspensionPago('99')).toBeNull();
+    expect(await control.registrarSuspensionPago('abc')).toBeNull();
+  });
+});

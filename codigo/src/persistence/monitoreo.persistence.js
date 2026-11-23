@@ -1,6 +1,6 @@
 // Grupo `monitoreo` de la Base de datos — DS-10 (CU-14).
 // Operaciones: consultarProlongadas y obtenerDatosProlongada (apoyo de la Vista), guardarConcepto (HU-22) y
-// guardarFaltaConcepto (HU-23), con sus «deshacer» si el aviso al colaborador falla. Las escrituras son
+// guardarFaltaConcepto (HU-23) y guardarSuspensionPago (HU-24), con sus «deshacer» si el aviso al colaborador falla. Las escrituras son
 // condicionadas: si otro usuario cambió la incapacidad entre la consulta y el registro, no se guarda nada.
 import { BLOQUE } from './alertas.persistence.js';
 
@@ -105,6 +105,28 @@ export function crearPersistenciaMonitoreo(cliente) {
       comprobar(
         await cliente.from('incapacidad').update({ falta_concepto: false }).eq('id', idIncapacidad).is('concepto', null),
       );
+    },
+
+    /**
+     * DS-10: guardarSuspensionPago() — HU-24. Solo si supera `diasMaximo` días y no estaba suspendido.
+     * @returns {Promise<boolean>} false si el estado ya no lo permitía.
+     */
+    async guardarSuspensionPago(idIncapacidad, diasMaximo) {
+      const filas = comprobar(
+        await cliente
+          .from('incapacidad')
+          .update({ pago_suspendido: true })
+          .eq('id', idIncapacidad)
+          .eq('pago_suspendido', false)
+          .gt('dias_incapacidad', diasMaximo)
+          .select('id'),
+      );
+      return filas.length === 1;
+    },
+
+    /** Deshace la suspensión recién guardada (si el aviso falló). */
+    async deshacerSuspensionPago(idIncapacidad) {
+      comprobar(await cliente.from('incapacidad').update({ pago_suspendido: false }).eq('id', idIncapacidad));
     },
   };
 }

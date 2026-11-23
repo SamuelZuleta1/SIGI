@@ -1,6 +1,6 @@
 // Grupo `monitoreo` de la Interfaz de incapacidades — DS-10 (CU-14).
 // Operaciones de la Vista: consultarReporteProlongadas (HU-22, GET /prolongadas, calculado en el momento: DA-19),
-// registrarConcepto (HU-22) y registrarFaltaConcepto (HU-23), desde una pantalla por incapacidad prolongada (DA-46).
+// registrarConcepto (HU-22) y registrarFaltaConcepto (HU-23) y registrarSuspensionPago (HU-24), desde una pantalla por incapacidad prolongada (DA-46).
 import { Router } from 'express';
 import { CONCEPTO_MAXIMO, DIAS_PROLONGADA } from '../controllers/monitoreo.controller.js';
 import { ErrorDeValidacion } from '../controllers/error-de-validacion.js';
@@ -18,6 +18,7 @@ export function crearRutasMonitoreo({ control }) {
       valores: {},
       conceptoRegistrado: false,
       faltaRegistrada: false,
+      suspensionConfirmada: false,
       fechaBreve,
       nombresTipo: NOMBRES_TIPO_INCAPACIDAD,
       conceptoMaximo: CONCEPTO_MAXIMO,
@@ -51,13 +52,14 @@ export function crearRutasMonitoreo({ control }) {
       prolongada,
       conceptoRegistrado: req.query.concepto === '1' && prolongada.estadoConcepto === 'registrado',
       faltaRegistrada: req.query.falta === '1' && prolongada.estadoConcepto === 'falta',
+      suspensionConfirmada: req.query.suspension === '1' && prolongada.suspensionRegistrada,
     });
   });
 
   const volverConErrores = async (req, res, error, valores = {}) => {
     const prolongada = await control.prepararProlongada(req.params.id);
     if (!prolongada) return noExiste(res);
-    await pagina(res, error.errores.estado ? 409 : 400, { prolongada, errores: error.errores, valores });
+    await pagina(res, error.errores.estado || error.errores.suspension ? 409 : 400, { prolongada, errores: error.errores, valores });
   };
 
   // registrarConcepto(concepto) — HU-22.CA2. Concepto no válido: 400; ya registrado o no prolongada: 409.
@@ -79,6 +81,18 @@ export function crearRutasMonitoreo({ control }) {
       const resultado = await control.registrarFaltaConcepto(req.params.id);
       if (!resultado) return noExiste(res);
       res.redirect(303, `/incapacidades/${resultado.idIncapacidad}/prolongada?falta=1`);
+    } catch (error) {
+      if (!(error instanceof ErrorDeValidacion)) throw error;
+      await volverConErrores(req, res, error);
+    }
+  });
+
+  // registrarSuspensionPago() — HU-24.CA1. No supera los 180 días o ya se registró: 409.
+  rutas.post('/incapacidades/:id/suspension-pago', permitir('registrarSuspensionPago'), async (req, res) => {
+    try {
+      const resultado = await control.registrarSuspensionPago(req.params.id);
+      if (!resultado) return noExiste(res);
+      res.redirect(303, `/incapacidades/${resultado.idIncapacidad}/prolongada?suspension=1`);
     } catch (error) {
       if (!(error instanceof ErrorDeValidacion)) throw error;
       await volverConErrores(req, res, error);

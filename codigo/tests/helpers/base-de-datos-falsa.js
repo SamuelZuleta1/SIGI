@@ -461,6 +461,16 @@ export function crearBaseDeDatosFalsa() {
       const i = incapacidades.find((x) => x.idIncapacidad === idIncapacidad);
       if (i && i.concepto == null) i.faltaConcepto = false;
     },
+    async guardarSuspensionPago(idIncapacidad, dias) {
+      const i = incapacidades.find((x) => x.idIncapacidad === idIncapacidad);
+      if (!i || i.diasIncapacidad <= dias || i.pagoSuspendido) return false;
+      i.pagoSuspendido = true;
+      return true;
+    },
+    async deshacerSuspensionPago(idIncapacidad) {
+      const i = incapacidades.find((x) => x.idIncapacidad === idIncapacidad);
+      if (i) i.pagoSuspendido = false;
+    },
     // HU-12 (DS-14): como alertas.persistence.js (sin radicar, aviso pendiente o 90 días o más).
     async consultarPlazos() {
       return incapacidades

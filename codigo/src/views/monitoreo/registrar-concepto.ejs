@@ -1,9 +1,10 @@
 <%
-  // HU-22 y HU-23 (DS-10): concepto de rehabilitación de una prolongada, o la falta del concepto.
+  // HU-22, HU-23 y HU-24 (DS-10): concepto de rehabilitación de una prolongada, la falta del concepto y la suspensión del pago.
   // El envío del concepto a la AFP lo hace el auxiliar fuera de SIGI.
   const ICONOS = {
     concepto: '<path d="M14 3H6v18h12V7zM14 3v4h4M9 12h6M9 16h6"/>',
     falta: '<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12M12 15.5v.01"/>',
+    suspension: '<circle cx="12" cy="12" r="8.5"/><path d="M10 9v6M14 9v6"/>',
     espera: '<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>',
   };
   const dias = (n) => (n === 1 ? '1 día' : `${n} días`);
@@ -28,8 +29,11 @@
     <dt>Hito</dt><dd><%= hito.nombre %></dd>
   </dl>
 
+  <% if (suspensionConfirmada) { %>
+    <p class="mensaje mensaje-ok entra" role="status">Suspensión del pago registrada y colaborador avisado.</p>
+  <% } %>
   <% if (prolongada.suspensionPendiente) { %>
-    <p class="mensaje mensaje-aviso" role="status">Supera los 180 días: el pago de la empresa se suspende (se registra en una pantalla aparte).</p>
+    <p class="mensaje mensaje-aviso" role="status">Supera los 180 días: el pago de la empresa se suspende. Regístrelo más abajo.</p>
   <% } else if (!prolongada.hitoAlcanzado) { %>
     <p class="mensaje mensaje-info" role="status">Aún no llega al día 120: el concepto de rehabilitación se pide a la entidad en ese día.</p>
   <% } %>
@@ -93,6 +97,35 @@
       <% } %>
     </ol>
   </section>
+
+  <% if (incapacidad.diasIncapacidad > 180 || incapacidad.pagoSuspendido || errores.suspension) { %>
+  <section class="radicaciones" aria-labelledby="titulo-suspension">
+    <h2 id="titulo-suspension">Suspensión del pago</h2>
+    <% if (errores.suspension) { %><p class="mensaje mensaje-error" role="alert"><%= errores.suspension %></p><% } %>
+    <ol class="linea-tiempo">
+      <% if (incapacidad.pagoSuspendido) { %>
+        <li class="<%= suspensionConfirmada ? 'entra' : '' %>">
+          <span class="punto hecho"><svg viewBox="0 0 24 24" aria-hidden="true"><%- ICONOS.suspension %></svg></span>
+          <div class="paso">
+            <p class="titulo"><b>Pago suspendido</b></p>
+            <p class="tenue">Se avisó al colaborador. El reintegro de pagos de más de 180 días se gestiona fuera de SIGI.</p>
+          </div>
+        </li>
+      <% } else if (prolongada.suspensionPendiente) { %>
+        <li>
+          <span class="punto actual"><svg viewBox="0 0 24 24" aria-hidden="true"><%- ICONOS.suspension %></svg></span>
+          <div class="paso">
+            <p class="titulo"><b>La incapacidad supera los 180 días</b></p>
+            <p class="tenue">Registre la suspensión del pago de la empresa; se avisa por correo al colaborador.</p>
+            <form class="radicar" method="post" action="/incapacidades/<%= incapacidad.idIncapacidad %>/suspension-pago" novalidate data-un-envio>
+              <div class="acciones"><button class="boton" data-enviando="Registrando…">Registrar la suspensión del pago</button></div>
+            </form>
+          </div>
+        </li>
+      <% } %>
+    </ol>
+  </section>
+  <% } %>
 
   <div class="acciones">
     <a class="boton secundario" href="/prolongadas">Otra incapacidad</a>
