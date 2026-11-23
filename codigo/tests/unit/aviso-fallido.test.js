@@ -2,7 +2,7 @@
 // también falla, queda en el registro del servidor con su contexto y el error que sube conserva el del correo.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { crearControlIncapacidades } from '../../src/controllers/control-incapacidades.js';
-import { ErrorDeAviso, avisarODeshacer } from '../../src/controllers/error-de-aviso.js';
+import { ErrorDeAviso, avisarODeshacer, resumirError } from '../../src/controllers/error-de-aviso.js';
 import { crearBaseDeDatosFalsa } from '../helpers/base-de-datos-falsa.js';
 import { crearCorreoFalso } from '../helpers/correo-falso.js';
 import { formularioDeRegistro, PDF } from '../helpers/fabricas.js';
@@ -43,7 +43,26 @@ describe('avisarODeshacer', () => {
     }).catch((e) => e);
     expect(error).toMatchObject({ name: 'ErrorDeAviso', deshecho: false });
     expect(error.cause).toBe(errorCorreo);
-    expect(registro).toHaveBeenCalledWith(expect.stringContaining('[registrarConcepto]'), { idIncapacidad: 7, errorCorreo, errorDeshacer });
+    expect(registro).toHaveBeenCalledWith(expect.stringContaining('[registrarConcepto]'), { idIncapacidad: 7, errorCorreo: resumirError(errorCorreo), errorDeshacer: resumirError(errorDeshacer) });
+  });
+});
+
+describe('resumirError — el registro no lleva direcciones de correo', () => {
+  it('oculta los correos del mensaje y no guarda el objeto con el sobre de nodemailer', () => {
+    const error = Object.assign(new Error('Can\'t send mail - all recipients were rejected: 550 <ana.gomez@sigi.test>: no existe'), {
+      code: 'EENVELOPE',
+      rejected: ['ana.gomez@sigi.test'],
+      envelope: { to: ['ana.gomez@sigi.test'] },
+    });
+    const resumen = resumirError(error);
+    expect(resumen).toEqual({ nombre: 'Error', codigo: 'EENVELOPE', mensaje: expect.stringContaining('<correo>') });
+    expect(JSON.stringify(resumen)).not.toContain('ana.gomez');
+  });
+
+  it('el aviso fallido registra el resumen, no el error crudo', async () => {
+    const correoConDireccion = new Error('550 Recipient <ana.gomez@sigi.test> rejected');
+    await avisarODeshacer({ operacion: 'prueba', idIncapacidad: 7, avisar: async () => { throw correoConDireccion; }, deshacer: async () => {} }).catch(() => {});
+    expect(JSON.stringify(registro.mock.calls)).not.toContain('ana.gomez');
   });
 });
 
@@ -75,7 +94,7 @@ describe('los controladores que avisan después de guardar', () => {
     const error = await ejecutar(conFallos({ [aviso]: falla }, { [deshacer]: fallaDeshacer })).catch((e) => e);
     expect(error).toMatchObject({ name: 'ErrorDeAviso', deshecho: false, operacion, idIncapacidad: 1 });
     expect(error.cause).toBe(errorCorreo);
-    expect(registro).toHaveBeenCalledWith(expect.stringContaining(`[${operacion}]`), expect.objectContaining({ idIncapacidad: 1, errorCorreo, errorDeshacer }));
+    expect(registro).toHaveBeenCalledWith(expect.stringContaining(`[${operacion}]`), expect.objectContaining({ idIncapacidad: 1, errorCorreo: resumirError(errorCorreo), errorDeshacer: resumirError(errorDeshacer) }));
   });
 
   it('trasladarACartera: si el correo y el deshacer fallan, se registra y sube el error del correo', async () => {
@@ -90,6 +109,6 @@ describe('los controladores que avisan después de guardar', () => {
     const error = await c.trasladarACartera('1', { motivo: '180 días sin pago' }).catch((e) => e);
     expect(error).toMatchObject({ name: 'ErrorDeAviso', deshecho: false, operacion: 'trasladarACartera' });
     expect(error.cause).toBe(errorCorreo);
-    expect(registro).toHaveBeenCalledWith(expect.stringContaining('[trasladarACartera]'), expect.objectContaining({ errorDeshacer }));
+    expect(registro).toHaveBeenCalledWith(expect.stringContaining('[trasladarACartera]'), expect.objectContaining({ errorDeshacer: resumirError(errorDeshacer) }));
   });
 });

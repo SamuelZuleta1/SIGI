@@ -12,6 +12,15 @@ export class ErrorDeAviso extends Error {
   }
 }
 
+// Lo que se registra de un error: sin el objeto completo (nodemailer adjunta el sobre con los destinatarios) y con
+// las direcciones de correo del mensaje ocultas.
+const CORREO = /[^\s<>"'@]+@[^\s<>"'@]+\.[^\s<>"'@]+/g;
+export const resumirError = (error) => ({
+  nombre: error?.name,
+  codigo: error?.code ?? error?.responseCode,
+  mensaje: String(error?.message ?? error).replace(CORREO, '<correo>'),
+});
+
 /**
  * Envía el aviso de algo recién guardado; si falla, lo deshace. Nunca pierde el error del correo: va como `cause`
  * del ErrorDeAviso. Si el deshacer también falla, lo deja en el registro del servidor con su contexto.
@@ -29,11 +38,11 @@ export async function avisarODeshacer({ operacion, idIncapacidad, avisar, deshac
       deshecho = false;
       console.error(`[${operacion}] El aviso falló y no se pudo deshacer el registro`, {
         idIncapacidad,
-        errorCorreo,
-        errorDeshacer,
+        errorCorreo: resumirError(errorCorreo),
+        errorDeshacer: resumirError(errorDeshacer),
       });
     }
-    if (deshecho) console.error(`[${operacion}] El aviso falló; se deshizo el registro`, { idIncapacidad, errorCorreo });
+    if (deshecho) console.error(`[${operacion}] El aviso falló; se deshizo el registro`, { idIncapacidad, errorCorreo: resumirError(errorCorreo) });
     throw new ErrorDeAviso({ operacion, idIncapacidad, deshecho, causa: errorCorreo });
   }
 }
