@@ -168,3 +168,41 @@ describe('Auditoría T-21 a T-24 — el IBC y la pantalla del cálculo', () => {
     expect((await control.prepararReconocimiento('1')).resultado.desgloseCoincide).toBe(true);
   });
 });
+
+describe('DA-53 — no se recalcula una incapacidad pagada', () => {
+  it('se puede recalcular en cualquier otro estado', async () => {
+    await registrar(10);
+    for (const estado of [null, 'transcrita', 'cobrada', 'rechazada']) {
+      baseDeDatos.incapacidades[0].estado = estado;
+      expect(await control.calcularReconocimiento('1', { ibc: '3000000' }, USUARIOS.auxiliar)).toMatchObject({ idIncapacidad: 1 });
+    }
+  });
+
+  it('pagada: 409 sin tocar lo guardado', async () => {
+    await registrar(10);
+    await control.calcularReconocimiento('1', { ibc: '3000000' }, USUARIOS.auxiliar);
+    baseDeDatos.incapacidades[0].estado = 'pagada';
+    const error = await control.calcularReconocimiento('1', { ibc: '6000000' }, USUARIOS.auxiliar).catch((e) => e);
+    expect(error.errores.estado).toMatch(/pagada/);
+    expect(baseDeDatos.incapacidades[0].ibc).toBe('3000000.00');
+  });
+
+  it('si se pagó entre la consulta y el cálculo, la base no lo guarda', async () => {
+    await registrar(10);
+    const obtener = baseDeDatos.obtenerDatosReconocimiento.bind(baseDeDatos);
+    const carrera = crearControlIncapacidades({
+      baseDeDatos: {
+        ...baseDeDatos,
+        async obtenerDatosReconocimiento(id) {
+          const datos = await obtener(id);
+          baseDeDatos.incapacidades[0].estado = 'pagada'; // otro usuario registra el pago justo ahora
+          return datos;
+        },
+      },
+      correo: crearCorreoFalso().correo,
+    });
+    const error = await carrera.calcularReconocimiento('1', { ibc: '3000000' }, USUARIOS.auxiliar).catch((e) => e);
+    expect(error.errores.estado).toMatch(/pagada/);
+    expect(baseDeDatos.incapacidades[0].ibc).toBeUndefined();
+  });
+});

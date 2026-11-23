@@ -60,6 +60,16 @@ describe('HU-21 — reconocimiento económico (base de datos)', () => {
     expect(await fila(id)).toMatchObject({ ibc: 6000000, tramite_pension: true });
   });
 
+  it('DA-53 — la base no guarda un cálculo sobre una incapacidad pagada; sobre una registrada (estado null), sí', async () => {
+    const id = await registrar(10);
+    const calculo = { ibc: '1000000.00', valorEmpresa: '66666.67', valorEPS: '178666.67', tramitePension: false };
+    expect(await baseDeDatos.guardarCalculo(id, calculo, auxiliar.id)).toBe(true);
+    const { error } = await servidor.from('incapacidad').update({ estado: 'pagada', tiempo_pago: 30, fecha_cobrada: '2026-04-05' }).eq('id', id);
+    expect(error).toBeNull();
+    expect(await baseDeDatos.guardarCalculo(id, { ...calculo, ibc: '2000000.00' }, auxiliar.id)).toBe(false);
+    expect((await fila(id)).ibc).toBe(1000000);
+  });
+
   it('la lista trae las incapacidades con su cálculo', async () => {
     const id = await registrar(5);
     await control.calcularReconocimiento(id, { ibc: '1500000' }, auxiliar);

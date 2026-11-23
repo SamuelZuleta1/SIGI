@@ -19,6 +19,10 @@
     <dt>Inicio</dt><dd><%= fechaBreve(incapacidad.fechaInicio) %> · <%= dias(incapacidad.diasIncapacidad) %></dd>
   </dl>
 
+  <% if (errores.estado) { %><p class="mensaje mensaje-error" role="alert"><%= errores.estado %></p><% } %>
+  <% if (incapacidad.estado === 'pagada') { %>
+    <p class="mensaje mensaje-info" role="status"><%= resultado ? 'Pagada: este es el cálculo guardado y ya no se puede cambiar.' : 'Pagada sin cálculo: su reconocimiento ya no se calcula.' %></p>
+  <% } else { %>
   <form class="radicar" method="post" action="/incapacidades/<%= incapacidad.idIncapacidad %>/reconocimiento" novalidate data-un-envio>
     <div class="campo <%= errores.ibc ? 'invalido' : '' %>">
       <label for="ibc">IBC (pesos)</label>
@@ -30,6 +34,7 @@
     </div>
     <div class="acciones"><button class="boton" data-enviando="Calculando…"><%= resultado ? 'Calcular de nuevo' : 'Calcular' %></button></div>
   </form>
+  <% } %>
 
   <% if (resultado) { %>
     <section class="radicaciones <%= calculado ? 'entra' : '' %>" aria-labelledby="titulo-resultado">

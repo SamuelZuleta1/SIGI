@@ -131,3 +131,18 @@ describe('Auditoría T-21 a T-24 — la pantalla muestra lo guardado', () => {
     expect(res.text).toContain('Escriba el IBC de la incapacidad.');
   });
 });
+
+describe('DA-53 — incapacidad pagada (rutas)', () => {
+  it('no ofrece el formulario, muestra lo guardado y el POST responde 409', async () => {
+    const agente = await agenteCon(request, app, 'auxiliar');
+    await calcular(agente, '3.000.000');
+    baseDeDatos.incapacidades[0].estado = 'pagada';
+    const pagina = await agente.get('/incapacidades/1/reconocimiento');
+    expect(pagina.text).toContain('Pagada: este es el cálculo guardado y ya no se puede cambiar.');
+    expect(pagina.text).not.toContain('name="ibc"');
+    expect(pagina.text).toContain('$ 200.000');
+    const res = await calcular(agente, '6.000.000');
+    expect(res.status).toBe(409);
+    expect(res.text).toContain('su reconocimiento ya no se calcula ni se cambia');
+  });
+});

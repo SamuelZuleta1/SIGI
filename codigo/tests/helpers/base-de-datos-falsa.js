@@ -420,7 +420,10 @@ export function crearBaseDeDatosFalsa() {
       };
     },
     async guardarCalculo(idIncapacidad, calculo, por) {
-      Object.assign(incapacidades.find((i) => i.idIncapacidad === idIncapacidad), calculo, { fechaCalculo: new Date().toISOString(), calculoPor: por });
+      const i = incapacidades.find((x) => x.idIncapacidad === idIncapacidad);
+      if (!i || i.estado === 'pagada') return false; // DA-53
+      Object.assign(i, calculo, { fechaCalculo: new Date().toISOString(), calculoPor: por });
+      return true;
     },
     // HU-22 y HU-23 (DS-10): como monitoreo.persistence.js (escrituras condicionadas).
     async obtenerDatosProlongada(idIncapacidad) {

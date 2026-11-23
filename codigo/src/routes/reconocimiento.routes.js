@@ -44,7 +44,7 @@ export function crearRutasReconocimiento({ control }) {
     await pagina(res, 200, { reconocimiento, calculado: req.query.calculado === '1' && reconocimiento.resultado != null });
   });
 
-  // calcularReconocimiento(ibc) — HU-21. IBC no válido: 400.
+  // calcularReconocimiento(ibc) — HU-21. IBC no válido: 400; incapacidad pagada: 409 (DA-53).
   rutas.post('/incapacidades/:id/reconocimiento', permitir('calcularReconocimiento'), async (req, res) => {
     const ibc = String(req.body?.ibc ?? '');
     try {
@@ -55,7 +55,7 @@ export function crearRutasReconocimiento({ control }) {
       if (!(error instanceof ErrorDeValidacion)) throw error;
       const reconocimiento = await control.prepararReconocimiento(req.params.id);
       if (!reconocimiento) return noExiste(res);
-      await pagina(res, 400, { reconocimiento, errores: error.errores, valores: { ibc: ibc.slice(0, 40) } });
+      await pagina(res, error.errores.estado ? 409 : 400, { reconocimiento, errores: error.errores, valores: { ibc: ibc.slice(0, 40) } });
     }
   });
 

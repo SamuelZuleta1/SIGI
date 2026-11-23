@@ -19,6 +19,8 @@ export const DIA_TRAMITE_PENSION = 181;
 export const LISTA_MAXIMA = 200;
 // numeric(14,2) guarda hasta 12 cifras enteras y la EPS llega a ~3,5 veces el IBC: con este tope ningún valor desborda.
 export const IBC_MAXIMO = 10_000_000_000;
+// DA-53: el reconocimiento se puede recalcular en cualquier estado menos «pagada».
+export const MENSAJE_PAGADA = 'La incapacidad está pagada: su reconocimiento ya no se calcula ni se cambia.';
 
 /**
  * Aplica los tramos a una incapacidad de `dias` días con un IBC en centavos enteros (DA-09). Cada tramo se redondea
@@ -108,25 +110,29 @@ export function crearControlReconocimiento({ baseDeDatos }) {
     /**
      * DS-09: calcularReconocimiento(ibc) → guardarCalculo(ibc, valorEmpresa, valorEPS, tramitePension) — HU-21.
      * El auxiliar ingresa el IBC al calcular; el sistema aplica los tramos a los días registrados (DA-09), marca el
-     * trámite de pensión desde el día 181 (DA-10) y guarda el resultado. Calcular otra vez lo reemplaza.
+     * trámite de pensión desde el día 181 (DA-10) y guarda el resultado. Calcular otra vez lo reemplaza, salvo si la
+     * incapacidad ya está pagada (DA-53).
      * @param {{ ibc?: string }} datos
      * @param {{ id: string }} usuario quien calcula (DA-23).
      * @returns {Promise<null | object>} null si la incapacidad no existe.
-     * @throws {ErrorDeValidacion} IBC no válido (`ibc`).
+     * @throws {ErrorDeValidacion} IBC no válido (`ibc`), o la incapacidad está pagada (`estado`, DA-53).
      */
     async calcularReconocimiento(idIncapacidad, datos, usuario) {
       const incapacidad = esIdentificador(idIncapacidad) ? await baseDeDatos.obtenerDatosReconocimiento(Number(idIncapacidad)) : null;
       if (!incapacidad) return null;
+      if (incapacidad.estado === 'pagada') throw new ErrorDeValidacion({ estado: MENSAJE_PAGADA });
       const ibc = leerIbc(datos?.ibc);
       if (ibc.error) throw new ErrorDeValidacion({ ibc: ibc.error });
 
       const resultado = aResultado(incapacidad.diasIncapacidad, ibc.valor);
-      await baseDeDatos.guardarCalculo(incapacidad.idIncapacidad, {
+      const guardado = await baseDeDatos.guardarCalculo(incapacidad.idIncapacidad, {
         ibc: ibc.valor,
         valorEmpresa: centavosATexto(resultado.valorEmpresa),
         valorEPS: centavosATexto(resultado.valorEPS),
         tramitePension: resultado.tramitePension,
       }, usuario.id);
+      // Se pagó entre la consulta y el cálculo: la base no lo guardó.
+      if (!guardado) throw new ErrorDeValidacion({ estado: MENSAJE_PAGADA });
       return { idIncapacidad: incapacidad.idIncapacidad, ...resultado };
     },
   };

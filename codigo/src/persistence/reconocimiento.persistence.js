@@ -48,9 +48,11 @@ export function crearPersistenciaReconocimiento(cliente) {
     /**
      * DS-09: guardarCalculo(ibc, valorEmpresa, valorEPS, tramitePension) — HU-21. Los valores van como texto
      * «1234567.50» (numeric(14,2)). Un nuevo cálculo reemplaza al anterior y guarda quién lo hizo y cuándo (DA-23).
+     * Escritura condicionada (DA-53): no se calcula sobre una incapacidad pagada.
+     * @returns {Promise<boolean>} false si la incapacidad ya estaba pagada (o no existe).
      */
     async guardarCalculo(idIncapacidad, { ibc, valorEmpresa, valorEPS, tramitePension }, por) {
-      comprobar(
+      const filas = comprobar(
         await cliente
           .from('incapacidad')
           .update({
@@ -61,8 +63,12 @@ export function crearPersistenciaReconocimiento(cliente) {
             fecha_calculo: new Date().toISOString(),
             calculo_por: por,
           })
-          .eq('id', idIncapacidad),
+          .eq('id', idIncapacidad)
+          // estado null = registrada; «neq» solo no las incluiría.
+          .or('estado.is.null,estado.neq.pagada')
+          .select('id'),
       );
+      return filas.length === 1;
     },
   };
 }
