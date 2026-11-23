@@ -1,7 +1,7 @@
 // Grupo `reportes` del Control de incapacidades — DS-12 (CU-16).
 // Operación: generarReporte(tipo, periodo) → consultarDatosReporte → consolidarDatos() → guardarReporte(tipo) →
 // enviarReporteAusentismo (HU-27, DA-21, DA-57); alternativa A1 (HU-28, DA-19, DA-58): consultarDatosProlongadas →
-// clasificarPorHito() → guardarReporte(prolongadas), sin correo. Apoyo de la Vista: prepararReportes y consultarReporte.
+// consolidarProlongadas() → clasificarPorHito() → guardarReporte(prolongadas), sin correo. Apoyo de la Vista: prepararReportes y consultarReporte.
 import { avisarODeshacer } from './error-de-aviso.js';
 import { ErrorDeValidacion } from './error-de-validacion.js';
 import { DIAS_PROLONGADA, HITOS, diaActual, fechaDelDia, llegoAlDia } from './hitos.js';
@@ -125,18 +125,14 @@ export const corteDelReporte = (reporte) => corteDelPeriodo(reporte.periodo, fec
 export const hitoAlCorte = (i, corte) => [...HITOS].reverse().find((n) => llegoAlDia(i, n, corte)) ?? null;
 
 /**
- * DS-12: clasificarPorHito() — HU-28, DA-19, DA-58. Las prolongadas (más de 90 días por duración, DA-47) con al menos
- * un día en el mes. De cada una: colaborador, tipo, entidad, fechas, día en que va al corte, hito alcanzado al corte, los
- * hitos que caen dentro del mes (con su fecha), el estado del concepto y si el pago está suspendido (al generar).
- * Ordenadas del hito más alto al más bajo y, dentro de cada hito, por el día en que van.
+ * DS-12: consolidarDatos() del reporte de prolongadas — HU-28, DA-58. Las de más de 90 días por duración (DA-47) con al
+ * menos un día en el mes. De cada una: colaborador, tipo, entidad, fechas, días, estado del concepto (sin su texto) y si
+ * el pago está suspendido (al generar) y el estado.
  * @param {{ idIncapacidad, idColaborador, colaborador, tipo, entidad, fechaInicio, diasIncapacidad, estado, concepto, faltaConcepto, pagoSuspendido }[]} incapacidades
  * @param {string} periodo AAAA-MM
- * @param {string} hoy AAAA-MM-DD
  */
-export function clasificarPorHito(incapacidades, periodo, hoy) {
+export function consolidarProlongadas(incapacidades, periodo) {
   const { desde, hasta } = limitesDelPeriodo(periodo);
-  const corte = corteDelPeriodo(periodo, hoy);
-  const orden = (h) => (h == null ? -1 : h);
   return incapacidades
     .filter((i) => i.diasIncapacidad > DIAS_PROLONGADA)
     .map((i) => ({ ...i, fechaFin: sumarIntervalo(i.fechaInicio, { dias: i.diasIncapacidad - 1 }) }))
@@ -150,14 +146,35 @@ export function clasificarPorHito(incapacidades, periodo, hoy) {
       fechaInicio: i.fechaInicio,
       fechaFin: i.fechaFin,
       diasIncapacidad: i.diasIncapacidad,
-      diaAlCorte: diaActual(i, corte),
-      hito: hitoAlCorte(i, corte),
-      hitosEnPeriodo: HITOS.filter((n) => i.diasIncapacidad >= n)
-        .map((n) => ({ dia: n, fecha: fechaDelDia(i.fechaInicio, n) }))
-        .filter((h) => h.fecha >= desde && h.fecha <= hasta),
       estadoConcepto: estadoConcepto(i),
       pagoSuspendido: Boolean(i.pagoSuspendido),
       estado: i.estado ?? 'registrada',
+    }));
+}
+
+/**
+ * DS-12: clasificarPorHito() — HU-28, DA-19, DA-58. A cada prolongada consolidada le agrega el día en que va al corte, el
+ * hito más alto alcanzado al corte (por fecha, DA-49) y los hitos cuya fecha cae dentro del mes. Ordenadas del hito
+ * más alto al más bajo y, dentro de cada hito, por el día en que van.
+ * @param {ReturnType<typeof consolidarProlongadas>} filas
+ * @param {string} periodo AAAA-MM
+ * @param {string} hoy AAAA-MM-DD
+ */
+export function clasificarPorHito(filas, periodo, hoy) {
+  const { desde, hasta } = limitesDelPeriodo(periodo);
+  const corte = corteDelPeriodo(periodo, hoy);
+  const orden = (h) => (h == null ? -1 : h);
+  return filas
+    .map(({ estadoConcepto: concepto, pagoSuspendido, estado, ...f }) => ({
+      ...f,
+      diaAlCorte: diaActual(f, corte),
+      hito: hitoAlCorte(f, corte),
+      hitosEnPeriodo: HITOS.filter((n) => f.diasIncapacidad >= n)
+        .map((n) => ({ dia: n, fecha: fechaDelDia(f.fechaInicio, n) }))
+        .filter((h) => h.fecha >= desde && h.fecha <= hasta),
+      estadoConcepto: concepto,
+      pagoSuspendido,
+      estado,
     }))
     .sort(
       (a, b) =>
@@ -169,7 +186,10 @@ export function clasificarPorHito(incapacidades, periodo, hoy) {
 export const porHito = (contenido) =>
   GRUPOS_HITO.map((g) => ({ ...g, filas: contenido.filter((f) => (f.hito ?? null) === g.dia) }));
 
-/** Totales del reporte de prolongadas: incapacidades, colaboradores (por id) y las que cumplen algún hito en el mes. */
+/**
+ * Totales del reporte de prolongadas: incapacidades, colaboradores (por id) y las que tienen algún hito con fecha en el
+ * mes (cumplido o, en el mes en curso, próximo).
+ */
 export const totalesProlongadas = (contenido) => ({
   incapacidades: contenido.length,
   colaboradores: new Set(contenido.map((f) => f.idColaborador ?? f.colaborador)).size,
@@ -217,7 +237,11 @@ export function crearControlReportes({ baseDeDatos, correo, ahora = Date.now }) 
       const contenido =
         tipo === 'ausentismo'
           ? consolidarDatos(await baseDeDatos.consultarDatosReporte(desde, hasta), periodo.valor)
-          : clasificarPorHito(await baseDeDatos.consultarDatosProlongadas(DIAS_PROLONGADA, hasta), periodo.valor, hoy);
+          : clasificarPorHito(
+              consolidarProlongadas(await baseDeDatos.consultarDatosProlongadas(DIAS_PROLONGADA, desde, hasta), periodo.valor),
+              periodo.valor,
+              hoy,
+            );
       if (contenido.length === 0) {
         const que = tipo === 'ausentismo' ? 'incapacidades' : 'incapacidades prolongadas';
         throw new ErrorDeValidacion({ periodo: `No hay ${que} en ${periodo.valor}: no se generó el reporte.` });

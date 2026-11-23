@@ -60,29 +60,38 @@ export function crearPersistenciaReportes(cliente) {
     },
 
     /**
-     * DS-12: consultarDatosReporte del reporte de prolongadas (HU-28) — las incapacidades de más de `dias` días que
-     * empiezan hasta `hasta`. El Control deja las que tocan el mes y las clasifica por hito. Del concepto solo se
-     * necesita saber si existe (no se copia su texto al reporte). En bloques, por el máximo de filas.
+     * DS-12: consultarDatosReporte del reporte de prolongadas (HU-28) — las incapacidades de más de `dias` días que pueden
+     * tener algún día en [desde, hasta]: las que empiezan en los VENTANA días anteriores o dentro del mes, y las más
+     * antiguas que duran más de VENTANA días (como consultarDatosReporte). El Control deja las que tocan el mes y las
+     * clasifica por hito. Del concepto solo se necesita saber si existe (no se copia su texto). En bloques.
      */
-    async consultarDatosProlongadas(dias, hasta) {
-      const filas = [];
-      for (;;) {
-        const inicio = filas.length;
-        const bloque = comprobar(
-          await cliente
-            .from('incapacidad')
-            .select(
-              'id, colaborador_id, tipo, fecha_inicio, dias_incapacidad, estado, concepto, falta_concepto, pago_suspendido, colaborador(nombre), entidad(nombre)',
+    async consultarDatosProlongadas(dias, desde, hasta) {
+      const limite = sumarIntervalo(desde, { dias: -VENTANA });
+      const leer = async (filtrar) => {
+        const filas = [];
+        for (;;) {
+          const inicio = filas.length;
+          const bloque = comprobar(
+            await filtrar(
+              cliente
+                .from('incapacidad')
+                .select(
+                  'id, colaborador_id, tipo, fecha_inicio, dias_incapacidad, estado, concepto, falta_concepto, pago_suspendido, colaborador(nombre), entidad(nombre)',
+                ),
             )
-            .gt('dias_incapacidad', dias)
-            .lte('fecha_inicio', hasta)
-            .order('id')
-            .range(inicio, inicio + BLOQUE - 1),
-        );
-        if (bloque.length === 0) break;
-        filas.push(...bloque);
-      }
-      return filas.map((f) => ({
+              .order('id')
+              .range(inicio, inicio + BLOQUE - 1),
+          );
+          if (bloque.length === 0) break;
+          filas.push(...bloque);
+        }
+        return filas;
+      };
+      const [recientes, largas] = await Promise.all([
+        leer((q) => q.gt('dias_incapacidad', dias).gte('fecha_inicio', limite).lte('fecha_inicio', hasta)),
+        leer((q) => q.lt('fecha_inicio', limite).gt('dias_incapacidad', Math.max(dias, VENTANA))),
+      ]);
+      return [...largas, ...recientes].map((f) => ({
         idIncapacidad: f.id,
         idColaborador: f.colaborador_id,
         colaborador: f.colaborador.nombre,

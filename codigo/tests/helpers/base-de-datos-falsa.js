@@ -620,7 +620,7 @@ export function crearBaseDeDatosFalsa() {
         }));
     },
     // HU-28 (DS-12): como reportes.persistence.js.
-    async consultarDatosProlongadas(dias, hasta) {
+    async consultarDatosProlongadas(dias, desde, hasta) {
       return incapacidades
         .filter((i) => i.diasIncapacidad > dias && i.fechaInicio <= hasta)
         .sort((a, b) => a.idIncapacidad - b.idIncapacidad)

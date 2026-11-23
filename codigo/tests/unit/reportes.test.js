@@ -7,6 +7,7 @@ import {
   DOBLE_ENVIO_MS,
   GRUPOS_HITO,
   clasificarPorHito,
+  consolidarProlongadas,
   consolidarDatos,
   corteDelPeriodo,
   corteDelReporte,
@@ -285,7 +286,10 @@ describe('HU-28 — corte y hito al corte (DA-49, DA-58)', () => {
   });
 });
 
-describe('HU-28 — clasificarPorHito (DS-12)', () => {
+// consolidarDatos (prolongadas) → clasificarPorHito, como en generarReporte.
+const clasificar = (datos, periodo, hoy) => clasificarPorHito(consolidarProlongadas(datos, periodo), periodo, hoy);
+
+describe('HU-28 — consolidarProlongadas → clasificarPorHito (DS-12)', () => {
   const datos = [
     prolongada({ idIncapacidad: 1 }), // 2026-05-01, 200 días: llega al 180 el 2026-10-27
     prolongada({ idIncapacidad: 2, idColaborador: 11, colaborador: 'Luis Pérez', fechaInicio: '2026-10-20', diasIncapacidad: 95 }), // empieza en octubre
@@ -296,7 +300,7 @@ describe('HU-28 — clasificarPorHito (DS-12)', () => {
   ];
 
   it('HU-28.CA1 — deja las de más de 90 días con algún día en el mes y las clasifica por el hito al corte', () => {
-    const contenido = clasificarPorHito(datos, '2026-10', HOY);
+    const contenido = clasificar(datos, '2026-10', HOY);
     expect(contenido.map((f) => [f.idIncapacidad, f.hito, f.diaAlCorte])).toEqual([
       [1, 180, 184],
       [5, 120, 130],
@@ -323,23 +327,23 @@ describe('HU-28 — clasificarPorHito (DS-12)', () => {
   });
 
   it('no copia el texto del concepto al reporte', () => {
-    const contenido = clasificarPorHito([prolongada({ concepto: 'Pronóstico favorable de rehabilitación' })], '2026-10', HOY);
+    const contenido = clasificar([prolongada({ concepto: 'Pronóstico favorable de rehabilitación' })], '2026-10', HOY);
     expect(JSON.stringify(contenido)).not.toContain('Pronóstico');
     expect(contenido[0].estadoConcepto).toBe('registrado');
   });
 
   it('en el mes en curso el corte es hoy: un hito que aún no llega se lista en el mes, pero no cuenta como alcanzado', () => {
-    const contenido = clasificarPorHito([prolongada({ fechaInicio: '2026-08-08', diasIncapacidad: 120 })], '2026-11', HOY);
+    const contenido = clasificar([prolongada({ fechaInicio: '2026-08-08', diasIncapacidad: 120 })], '2026-11', HOY);
     expect(contenido[0]).toMatchObject({ hito: null, diaAlCorte: 87, hitosEnPeriodo: [{ dia: 90, fecha: '2026-11-05' }] });
   });
 
   it('una que empieza más adelante en el mes en curso aún no inicia (día 0)', () => {
-    const contenido = clasificarPorHito([prolongada({ fechaInicio: '2026-11-20', diasIncapacidad: 120 })], '2026-11', HOY);
+    const contenido = clasificar([prolongada({ fechaInicio: '2026-11-20', diasIncapacidad: 120 })], '2026-11', HOY);
     expect(contenido[0]).toMatchObject({ hito: null, diaAlCorte: 0 });
   });
 
   it('agrupa por hito con los grupos vacíos y calcula los totales', () => {
-    const contenido = clasificarPorHito(datos, '2026-10', HOY);
+    const contenido = clasificar(datos, '2026-10', HOY);
     expect(porHito(contenido).map((g) => [g.clave, g.filas.map((f) => f.idIncapacidad)])).toEqual([
       ['dia_180', [1]],
       ['dia_150', []],
