@@ -1,4 +1,4 @@
-// HU-22 y HU-23 — incapacidades prolongadas (DS-10), rutas con sesión y persistencia falsa (DA-02, DA-19, DA-46).
+// HU-22 a HU-24 — incapacidades prolongadas (DS-10), rutas con sesión y persistencia falsa (DA-02, DA-19, DA-47, DA-49).
 import request from 'supertest';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { crearApp } from '../../src/app.js';
@@ -14,7 +14,10 @@ let control;
 let enviados;
 
 const CONCEPTO = 'Concepto favorable de rehabilitación, pronóstico de recuperación en seis meses.';
-const registrar = (dias) => control.registrarIncapacidad(formularioDeRegistro({ diasIncapacidad: String(dias) }), USUARIOS.receptor);
+// Hoy fijo; por defecto empiezan el 1 de abril, así que ya pasaron el día 120 y el 181 (DA-49).
+const HOY = '2026-11-23';
+const registrar = (dias, fechaInicio = '2026-04-01') =>
+  control.registrarIncapacidad(formularioDeRegistro({ diasIncapacidad: String(dias), fechaInicio, fechaRecepcion: fechaInicio }), USUARIOS.receptor);
 const concepto = (agente, texto = CONCEPTO, id = 1) => agente.post(`/incapacidades/${id}/concepto`).type('form').send({ concepto: texto });
 const falta = (agente, id = 1) => agente.post(`/incapacidades/${id}/falta-concepto`).type('form').send({});
 
@@ -22,7 +25,7 @@ beforeEach(async () => {
   baseDeDatos = crearBaseDeDatosFalsa();
   const correo = crearCorreoFalso();
   enviados = correo.enviados;
-  control = crearControlIncapacidades({ baseDeDatos, correo: correo.correo });
+  control = crearControlIncapacidades({ baseDeDatos, correo: correo.correo, hoy: () => HOY });
   app = crearApp({ sesion: crearSesionFalsa(), control });
   await registrar(130);
 });
@@ -36,7 +39,22 @@ describe('HU-22 — reporte de prolongadas (rutas)', () => {
     expect(res.text).toContain('href="/incapacidades/1/prolongada"');
     expect(res.text).not.toContain('href="/incapacidades/2/prolongada"');
     expect(res.text).toContain('Concepto del día 120');
+    expect(res.text).toContain('Día 130');
+    expect(res.text).toContain('Por registrar');
     expect(res.text).toContain('href="/prolongadas"');
+  });
+
+  it('DA-49 — las cuatro pestañas: «Requiere acción» por defecto y «Aún no llega al día 120» aparte', async () => {
+    await registrar(150, '2026-11-22');
+    const agente = await agenteCon(request, app, 'auxiliar');
+    const accion = await agente.get('/prolongadas');
+    expect(accion.text).toMatch(/aria-current="page">\s*Requiere acción/);
+    expect(accion.text).toContain('href="/incapacidades/1/prolongada"');
+    expect(accion.text).not.toContain('href="/incapacidades/2/prolongada"');
+    const espera = await agente.get('/prolongadas?ver=espera');
+    expect(espera.text).toContain('href="/incapacidades/2/prolongada"');
+    expect(espera.text).toContain('Desde el 21 mar 2027');
+    expect(espera.text).toContain('Día 2');
   });
 
   it('las pestañas vacías explican qué aparecerá', async () => {
@@ -78,7 +96,7 @@ describe('HU-22.CA2 — registrar el concepto (rutas)', () => {
 
   it('un enlace copiado con ?concepto=1 no muestra la confirmación si no hay concepto', async () => {
     const agente = await agenteCon(request, app, 'auxiliar');
-    expect((await agente.get('/incapacidades/1/prolongada?concepto=1')).text).not.toContain('Concepto registrado y comunicado');
+    expect((await agente.get('/incapacidades/1/prolongada?concepto=1')).text).not.toContain('Concepto registrado y colaborador avisado');
   });
 
   it('un concepto no válido: 400, conserva lo escrito y no envía correo', async () => {
@@ -106,13 +124,17 @@ describe('HU-22.CA2 — registrar el concepto (rutas)', () => {
   });
 });
 
-describe('DA-47 — antes del día 120 (rutas)', () => {
-  it('la pantalla explica que aún no es el momento y no ofrece formularios; los POST responden 409', async () => {
-    await registrar(100);
+describe('DA-47 y DA-49 — antes del día 120 (rutas)', () => {
+  it.each([
+    ['dura menos de 120 días', 100, '2026-04-01', 'no llega al día 120'],
+    ['dura 150 días pero empezó ayer', 150, '2026-11-22', 'llega el 21 mar 2027'],
+  ])('%s: la pantalla explica que aún no es el momento y no ofrece formularios; los POST responden 409', async (_, dias, inicio, explicacion) => {
+    await registrar(dias, inicio);
     const agente = await agenteCon(request, app, 'auxiliar');
     const pagina = await agente.get('/incapacidades/2/prolongada');
     expect(pagina.status).toBe(200);
     expect(pagina.text).toContain('Aún no es el momento');
+    expect(pagina.text).toContain(explicacion);
     expect(pagina.text).not.toContain('name="concepto"');
     expect(pagina.text).not.toContain('falta-concepto');
     expect((await concepto(agente, CONCEPTO, 2)).status).toBe(409);
@@ -181,6 +203,15 @@ describe('HU-24 — suspensión del pago (rutas)', () => {
     await registrar(200);
     const agente = await agenteCon(request, app, 'auxiliar');
     expect((await agente.get('/incapacidades/2/prolongada?suspension=1')).text).not.toContain('Suspensión del pago registrada');
+  });
+
+  it('DA-49 — dura más de 180 días pero aún no llega al día 181: explica desde cuándo y responde 409', async () => {
+    await registrar(200, '2026-05-28');
+    const agente = await agenteCon(request, app, 'auxiliar');
+    const pagina = await agente.get('/incapacidades/2/prolongada');
+    expect(pagina.text).toContain('Llega al día 181 el 24 nov 2026');
+    expect(pagina.text).not.toContain('action="/incapacidades/2/suspension-pago"');
+    expect((await suspension(agente, 2)).status).toBe(409);
   });
 
   it('con 180 días o menos no hay formulario y la ruta responde 409', async () => {

@@ -29,7 +29,8 @@
     <dt>Colaborador</dt><dd><%= incapacidad.colaborador %></dd>
     <dt>Tipo</dt><dd><%= nombresTipo[incapacidad.tipo] %> · <%= incapacidad.entidad %></dd>
     <dt>Inicio</dt><dd><%= fechaBreve(incapacidad.fechaInicio) %> · <%= dias(incapacidad.diasIncapacidad) %></dd>
-    <dt>Hito</dt><dd><%= hito.nombre %></dd>
+    <dt>Hoy</dt><dd>Día <%= prolongada.dia %> de <%= incapacidad.diasIncapacidad %></dd>
+    <dt>Hito</dt><dd><%= hito.nombre %><% if (prolongada.tramitePension) { %> · en trámite de pensión desde el <%= fechaBreve(prolongada.fechaDia181) %><% } %></dd>
   </dl>
 
   <% if (suspensionConfirmada) { %>
@@ -37,8 +38,10 @@
   <% } %>
   <% if (prolongada.suspensionPendiente) { %>
     <p class="mensaje mensaje-aviso" role="status">Supera los 180 días: el pago de la empresa se suspende. Regístrelo más abajo.</p>
+  <% } else if (!prolongada.hitoAlcanzado && prolongada.fechaDia120) { %>
+    <p class="mensaje mensaje-info" role="status">Aún no llega al día 120: llega el <%= fechaBreve(prolongada.fechaDia120) %>, cuando se pide el concepto de rehabilitación a la entidad.</p>
   <% } else if (!prolongada.hitoAlcanzado) { %>
-    <p class="mensaje mensaje-info" role="status">Aún no llega al día 120: el concepto de rehabilitación se pide a la entidad en ese día.</p>
+    <p class="mensaje mensaje-info" role="status">Dura <%= dias(incapacidad.diasIncapacidad) %>: no llega al día 120, cuando se pide el concepto de rehabilitación.</p>
   <% } %>
 
   <section class="radicaciones" aria-labelledby="titulo-concepto">
@@ -68,7 +71,11 @@
             <span class="punto"><svg viewBox="0 0 24 24" aria-hidden="true"><%- ICONOS.espera %></svg></span>
             <div class="paso">
               <p class="titulo"><b>Aún no es el momento</b></p>
-              <p class="tenue">El concepto se pide a la entidad el día 120; desde entonces podrá registrarlo o dejar constancia de su falta.</p>
+              <% if (prolongada.fechaDia120) { %>
+                <p class="tenue">El concepto se pide a la entidad el día 120 (el <%= fechaBreve(prolongada.fechaDia120) %>); desde entonces podrá registrarlo o dejar constancia de su falta.</p>
+              <% } else { %>
+                <p class="tenue">La incapacidad no llega al día 120, cuando se pide el concepto a la entidad.</p>
+              <% } %>
             </div>
           </li>
         <% } else { %>
@@ -114,7 +121,15 @@
             <p class="tenue">Se avisó al colaborador. El reintegro de pagos de más de 180 días se gestiona fuera de SIGI.</p>
           </div>
         </li>
-      <% } else if (prolongada.suspensionPendiente) { %>
+      <% } else if (!prolongada.suspensionPendiente) { %>
+        <li>
+          <span class="punto"><svg viewBox="0 0 24 24" aria-hidden="true"><%- ICONOS.espera %></svg></span>
+          <div class="paso">
+            <p class="titulo"><b>Aún no supera los 180 días</b></p>
+            <p class="tenue">Llega al día 181 el <%= fechaBreve(prolongada.fechaDia181) %>; desde ese día podrá registrar la suspensión del pago.</p>
+          </div>
+        </li>
+      <% } else { %>
         <li>
           <span class="punto actual"><svg viewBox="0 0 24 24" aria-hidden="true"><%- ICONOS.suspension %></svg></span>
           <div class="paso">

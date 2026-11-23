@@ -4,6 +4,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { crearClienteServidor } from '../../src/config/supabase.js';
 import { crearControlIncapacidades } from '../../src/controllers/control-incapacidades.js';
+import { condicionDelDia } from '../../src/controllers/hitos.js';
 import { crearBaseDeDatos } from '../../src/persistence/base-de-datos.js';
 import { crearCorreoFalso } from '../helpers/correo-falso.js';
 import { formularioDeRegistro } from '../helpers/fabricas.js';
@@ -11,15 +12,18 @@ import { formularioDeRegistro } from '../helpers/fabricas.js';
 const servidor = crearClienteServidor();
 const baseDeDatos = crearBaseDeDatos(servidor);
 const { correo, enviados } = crearCorreoFalso();
-const control = crearControlIncapacidades({ baseDeDatos, correo });
+// Hoy fijo; por defecto empiezan el 1 de abril: ya pasaron el día 120 y el 181 (DA-49).
+const HOY = '2026-11-23';
+const control = crearControlIncapacidades({ baseDeDatos, correo, hoy: () => HOY });
 
 const correoColaborador = `prueba.prolongadas.${Date.now()}@sigi.test`;
 const CONCEPTO = 'Concepto favorable de rehabilitación, pronóstico de recuperación en seis meses.';
 const ids = [];
 let receptor;
 
-const registrar = async (dias) => {
-  const { idIncapacidad } = await control.registrarIncapacidad(formularioDeRegistro({ correoColaborador, diasIncapacidad: String(dias) }), receptor);
+const registrar = async (dias, fechaInicio = '2026-04-01') => {
+  const formulario = formularioDeRegistro({ correoColaborador, diasIncapacidad: String(dias), fechaInicio, fechaRecepcion: fechaInicio });
+  const { idIncapacidad } = await control.registrarIncapacidad(formulario, receptor);
   ids.push(idIncapacidad);
   return idIncapacidad;
 };
@@ -66,7 +70,7 @@ describe('HU-22 y HU-23 — prolongadas (base de datos)', () => {
   it('HU-22.CA1 — el reporte trae solo las de más de 90 días, con el correo del colaborador', async () => {
     const corta = await registrar(90);
     const larga = await registrar(95);
-    const todas = (await control.consultarReporteProlongadas('pendientes')).prolongadas;
+    const todas = [...(await control.consultarReporteProlongadas('accion')).prolongadas, ...(await control.consultarReporteProlongadas('espera')).prolongadas];
     expect(todas.some((p) => p.idIncapacidad === corta)).toBe(false);
     expect(todas.find((p) => p.idIncapacidad === larga)).toMatchObject({ correoColaborador, diasIncapacidad: 95, estadoConcepto: 'pendiente' });
   });
@@ -94,11 +98,21 @@ describe('HU-22 y HU-23 — prolongadas (base de datos)', () => {
   it('no admite concepto ni falta antes del día 120', async () => {
     const id = await registrar(119);
     await expect(control.registrarConcepto(id, { concepto: CONCEPTO })).rejects.toMatchObject({ errores: { estado: expect.any(String) } });
-    expect(await baseDeDatos.guardarConcepto(id, CONCEPTO, 120)).toBe(false);
-    expect(await baseDeDatos.guardarFaltaConcepto(id, 120)).toBe(false);
+    expect(await baseDeDatos.guardarConcepto(id, CONCEPTO, condicionDelDia(120, HOY))).toBe(false);
+    expect(await baseDeDatos.guardarFaltaConcepto(id, condicionDelDia(120, HOY))).toBe(false);
     expect(await fila(id)).toMatchObject({ concepto: null, falta_concepto: false });
     const exacta = await registrar(120);
-    expect(await baseDeDatos.guardarFaltaConcepto(exacta, 120)).toBe(true);
+    expect(await baseDeDatos.guardarFaltaConcepto(exacta, condicionDelDia(120, HOY))).toBe(true);
+  });
+
+  it('DA-49 — la base no guarda el concepto ni la falta si aún no se llegó al día 120 por calendario', async () => {
+    const id = await registrar(150, '2026-11-22');
+    expect(await baseDeDatos.guardarConcepto(id, CONCEPTO, condicionDelDia(120, HOY))).toBe(false);
+    expect(await baseDeDatos.guardarFaltaConcepto(id, condicionDelDia(120, HOY))).toBe(false);
+    const hoyEs119 = await registrar(150, '2026-07-28');
+    expect(await baseDeDatos.guardarFaltaConcepto(hoyEs119, condicionDelDia(120, HOY))).toBe(false);
+    const hoyEs120 = await registrar(150, '2026-07-27');
+    expect(await baseDeDatos.guardarFaltaConcepto(hoyEs120, condicionDelDia(120, HOY))).toBe(true);
   });
 
   it('si el correo falla, el concepto y la falta se deshacen', async () => {
@@ -106,6 +120,7 @@ describe('HU-22 y HU-23 — prolongadas (base de datos)', () => {
     const fallido = crearControlIncapacidades({
       baseDeDatos,
       correo: { ...correo, comunicarConcepto: async () => { throw new Error('SMTP caído'); }, avisarFaltaConcepto: async () => { throw new Error('SMTP caído'); } },
+      hoy: () => HOY,
     });
     await expect(fallido.registrarFaltaConcepto(id)).rejects.toMatchObject({ name: 'ErrorDeAviso', deshecho: true, cause: expect.objectContaining({ message: 'SMTP caído' }) });
     expect((await fila(id)).falta_concepto).toBe(false);
@@ -124,6 +139,13 @@ describe('HU-24 — suspensión del pago (base de datos)', () => {
     await control.registrarSuspensionPago(larga);
     expect((await fila(larga)).pago_suspendido).toBe(true);
     await expect(control.registrarSuspensionPago(larga)).rejects.toMatchObject({ errores: { suspension: expect.any(String) } });
+  });
+
+  it('DA-49 — no la guarda si aún no se llegó al día 181 por calendario', async () => {
+    const hoyEs180 = await registrar(200, '2026-05-28');
+    expect(await baseDeDatos.guardarSuspensionPago(hoyEs180, condicionDelDia(181, HOY))).toBe(false);
+    const hoyEs181 = await registrar(200, '2026-05-27');
+    expect(await baseDeDatos.guardarSuspensionPago(hoyEs181, condicionDelDia(181, HOY))).toBe(true);
   });
 
   it('si el correo falla se deshace la suspensión y se puede reintentar', async () => {

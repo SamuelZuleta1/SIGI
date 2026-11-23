@@ -2,14 +2,15 @@
 // Operación: obtenerAlertas → consultarPlazos → calcularVencimientos() → listaAlertas(porVencer, vencidas) (HU-12).
 // Solo informa: no modifica ningún dato ni bloquea ninguna operación (HU-12.CA2, CAR-03).
 import { diasCalendario, diasHabilesRestantes, hoyEnColombia, sumarDiasHabiles, sumarIntervalo } from '../servicios/dias-habiles.js';
+import { HITOS, fechaDelDia } from './hitos.js';
 import { DIAS_POR_VENCER, calcularPlazoRadicacion, puedeRadicar } from './radicacion.controller.js';
 import { DIAS_PARA_ENTREGAR } from './verificacion.controller.js';
 
 // Envío de la incapacidad: 2 días calendario de `fechaInicio` a `fechaRecepcion` (DA-13).
 export const DIAS_PARA_ENVIAR = 2;
 
-// Hitos de las incapacidades prolongadas (CAR-07), en días de incapacidad desde `fechaInicio`.
-export const HITOS = Object.freeze([90, 120, 150, 180]);
+// Hitos de las incapacidades prolongadas (CAR-07): la regla vive en hitos.js, compartida con el monitoreo (DA-49).
+export { HITOS };
 
 // Los 8 tipos de plazo de HU-12, en el orden en que los enumera la historia.
 export const TIPOS_PLAZO = Object.freeze(['envio', 'subsanacion', 'transcripcion', 'paternidad', ...HITOS.map((n) => `hito${n}`)]);
@@ -83,7 +84,7 @@ function alertaTranscripcion(i, hoy) {
 function alertaHito(i, hoy) {
   const fechaFin = sumarIntervalo(i.fechaInicio, { dias: i.diasIncapacidad - 1 });
   if (hoy > fechaFin) return null;
-  const hitos = HITOS.filter((n) => i.diasIncapacidad >= n).map((n) => ({ n, fecha: sumarIntervalo(i.fechaInicio, { dias: n - 1 }) }));
+  const hitos = HITOS.filter((n) => i.diasIncapacidad >= n).map((n) => ({ n, fecha: fechaDelDia(i.fechaInicio, n) }));
   const proximo = hitos.find((h) => h.fecha >= hoy);
   const elegido = proximo && estadoDelPlazo(hoy, proximo.fecha) ? proximo : hitos.findLast((h) => h.fecha < hoy);
   if (!elegido) return null;

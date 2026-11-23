@@ -25,6 +25,9 @@ function cumpleFiltros(i, { estado, entidad, colaboradores, desde, hasta }) {
   return true;
 }
 
+// Condición del día N en la base (hitos.js, DA-49): dura N días o más y empezó a más tardar en `inicioHasta`.
+const cumpleDia = (i, dia) => i.diasIncapacidad >= dia.dias && i.fechaInicio <= dia.inicioHasta;
+
 export function crearBaseDeDatosFalsa() {
   const colaboradores = [];
   const incapacidades = [];
@@ -441,9 +444,9 @@ export function crearBaseDeDatosFalsa() {
       const ids = incapacidades.filter((i) => i.diasIncapacidad > dias).sort((a, b) => b.diasIncapacidad - a.diasIncapacidad || a.idIncapacidad - b.idIncapacidad);
       return Promise.all(ids.map((i) => this.obtenerDatosProlongada(i.idIncapacidad)));
     },
-    async guardarConcepto(idIncapacidad, concepto, dias) {
+    async guardarConcepto(idIncapacidad, concepto, dia) {
       const i = incapacidades.find((x) => x.idIncapacidad === idIncapacidad);
-      if (!i || i.diasIncapacidad < dias || i.concepto != null) return false;
+      if (!i || !cumpleDia(i, dia) || i.concepto != null) return false;
       Object.assign(i, { concepto, faltaConcepto: false });
       return true;
     },
@@ -451,9 +454,9 @@ export function crearBaseDeDatosFalsa() {
       const i = incapacidades.find((x) => x.idIncapacidad === idIncapacidad);
       if (i?.concepto === concepto) Object.assign(i, { concepto: null, faltaConcepto });
     },
-    async guardarFaltaConcepto(idIncapacidad, dias) {
+    async guardarFaltaConcepto(idIncapacidad, dia) {
       const i = incapacidades.find((x) => x.idIncapacidad === idIncapacidad);
-      if (!i || i.diasIncapacidad < dias || i.concepto != null || i.faltaConcepto) return false;
+      if (!i || !cumpleDia(i, dia) || i.concepto != null || i.faltaConcepto) return false;
       i.faltaConcepto = true;
       return true;
     },
@@ -461,9 +464,9 @@ export function crearBaseDeDatosFalsa() {
       const i = incapacidades.find((x) => x.idIncapacidad === idIncapacidad);
       if (i && i.concepto == null) i.faltaConcepto = false;
     },
-    async guardarSuspensionPago(idIncapacidad, dias) {
+    async guardarSuspensionPago(idIncapacidad, dia) {
       const i = incapacidades.find((x) => x.idIncapacidad === idIncapacidad);
-      if (!i || i.diasIncapacidad <= dias || i.pagoSuspendido) return false;
+      if (!i || !cumpleDia(i, dia) || i.pagoSuspendido) return false;
       i.pagoSuspendido = true;
       return true;
     },

@@ -55,17 +55,19 @@ export function crearPersistenciaMonitoreo(cliente) {
     },
 
     /**
-     * DS-10: guardarConcepto(concepto) — HU-22. Solo si ya llegó al día del concepto (`diaMinimo`) y sin concepto; registrar el concepto
-     * resuelve la «falta del concepto». @returns {Promise<boolean>} false si el estado ya no lo permitía.
+     * DS-10: guardarConcepto(concepto) — HU-22. Solo si ya llegó al día del concepto y sin concepto; registrar el concepto
+     * resuelve la «falta del concepto». `dia` es la condición de hitos.js (DA-49): `dias_incapacidad >= dia.dias` y
+     * `fecha_inicio <= dia.inicioHasta`. @returns {Promise<boolean>} false si el estado ya no lo permitía.
      */
-    async guardarConcepto(idIncapacidad, concepto, diaMinimo) {
+    async guardarConcepto(idIncapacidad, concepto, dia) {
       const filas = comprobar(
         await cliente
           .from('incapacidad')
           .update({ concepto, falta_concepto: false })
           .eq('id', idIncapacidad)
           .is('concepto', null)
-          .gte('dias_incapacidad', diaMinimo)
+          .gte('dias_incapacidad', dia.dias)
+          .lte('fecha_inicio', dia.inicioHasta)
           .select('id'),
       );
       return filas.length === 1;
@@ -83,10 +85,10 @@ export function crearPersistenciaMonitoreo(cliente) {
     },
 
     /**
-     * DS-10: guardarFaltaConcepto() — HU-23. Solo si ya llegó al día del concepto, sin concepto y sin falta registrada.
-     * @returns {Promise<boolean>} false si el estado ya no lo permitía.
+     * DS-10: guardarFaltaConcepto() — HU-23. Solo si ya llegó al día del concepto (`dia`, como en guardarConcepto), sin
+     * concepto y sin falta registrada. @returns {Promise<boolean>} false si el estado ya no lo permitía.
      */
-    async guardarFaltaConcepto(idIncapacidad, diaMinimo) {
+    async guardarFaltaConcepto(idIncapacidad, dia) {
       const filas = comprobar(
         await cliente
           .from('incapacidad')
@@ -94,7 +96,8 @@ export function crearPersistenciaMonitoreo(cliente) {
           .eq('id', idIncapacidad)
           .eq('falta_concepto', false)
           .is('concepto', null)
-          .gte('dias_incapacidad', diaMinimo)
+          .gte('dias_incapacidad', dia.dias)
+          .lte('fecha_inicio', dia.inicioHasta)
           .select('id'),
       );
       return filas.length === 1;
@@ -108,17 +111,18 @@ export function crearPersistenciaMonitoreo(cliente) {
     },
 
     /**
-     * DS-10: guardarSuspensionPago() — HU-24. Solo si supera `diasMaximo` días y no estaba suspendido.
-     * @returns {Promise<boolean>} false si el estado ya no lo permitía.
+     * DS-10: guardarSuspensionPago() — HU-24. Solo si ya llegó al día 181 (`dia`, como en guardarConcepto) y no estaba
+     * suspendido. @returns {Promise<boolean>} false si el estado ya no lo permitía.
      */
-    async guardarSuspensionPago(idIncapacidad, diasMaximo) {
+    async guardarSuspensionPago(idIncapacidad, dia) {
       const filas = comprobar(
         await cliente
           .from('incapacidad')
           .update({ pago_suspendido: true })
           .eq('id', idIncapacidad)
           .eq('pago_suspendido', false)
-          .gt('dias_incapacidad', diasMaximo)
+          .gte('dias_incapacidad', dia.dias)
+          .lte('fecha_inicio', dia.inicioHasta)
           .select('id'),
       );
       return filas.length === 1;

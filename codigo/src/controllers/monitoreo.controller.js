@@ -1,17 +1,28 @@
 // Grupo `monitoreo` del Control de incapacidades — DS-10 (CU-14).
 // Operaciones: consultarReporteProlongadas (HU-22, en vivo: DA-19), prepararProlongada (apoyo de la Vista),
 // registrarConcepto → guardarConcepto + comunicarConcepto (HU-22) y registrarFaltaConcepto → guardarFaltaConcepto +
-// avisarFaltaConcepto (HU-23), y registrarSuspensionPago → guardarSuspensionPago + notificarSuspensionPago (HU-24). El envío del concepto a la AFP lo hace el auxiliar fuera de SIGI.
+// avisarFaltaConcepto (HU-23), y registrarSuspensionPago → guardarSuspensionPago + notificarSuspensionPago (HU-24).
+// El envío del concepto a la AFP lo hace el auxiliar fuera de SIGI.
+// Los hitos se cumplen por fecha, igual que las alertas (DA-49): la incapacidad dura N días o más y ya llegó al día N.
+import { fechaBreve, hoyEnColombia } from '../servicios/dias-habiles.js';
 import { avisarODeshacer } from './error-de-aviso.js';
 import { ErrorDeValidacion } from './error-de-validacion.js';
+import {
+  DIA_AFP,
+  DIA_CONCEPTO,
+  DIA_PENSION,
+  DIA_SUSPENSION,
+  DIAS_PROLONGADA,
+  condicionDelDia,
+  diaActual,
+  fechaDelDia,
+  llegoAlDia,
+} from './hitos.js';
 import { esIdentificador } from './identificador.js';
 
-// HU-22: «prolongada» es la de más de 90 días. El control del concepto de rehabilitación es el día 120.
-export const DIAS_PROLONGADA = 90;
-export const DIA_CONCEPTO = 120;
-export const DIA_SUSPENSION = 180;
+export { DIA_CONCEPTO, DIA_SUSPENSION, DIAS_PROLONGADA };
 
-// El concepto es texto libre, como lo emite la entidad (DA-46).
+// El concepto es texto libre, como lo emite la entidad (DA-47).
 export const CONCEPTO_MINIMO = 10;
 export const CONCEPTO_MAXIMO = 2000;
 
@@ -26,9 +37,13 @@ export function leerConcepto(texto) {
   return { valor: limpio };
 }
 
-/** Hito de control según los días (DA-46). */
+/**
+ * Hito de control según la duración del certificado (DA-47, DA-49), con los mismos días que las alertas: el reporte
+ * lista por duración y la columna «Día» dice en qué día va.
+ */
 export function hitoDe(dias) {
   if (dias > DIA_SUSPENSION) return { clave: 'mas_180', nombre: 'Más de 180 días' };
+  if (dias >= DIA_AFP) return { clave: 'dia_150', nombre: 'Envío a la AFP (día 150)' };
   if (dias >= DIA_CONCEPTO) return { clave: 'dia_120', nombre: 'Concepto del día 120' };
   return { clave: 'mas_90', nombre: 'Más de 90 días' };
 }
@@ -37,19 +52,23 @@ export function hitoDe(dias) {
 export const estadoConcepto = (i) => (i.concepto != null ? 'registrado' : i.faltaConcepto ? 'falta' : 'pendiente');
 
 const esProlongada = (i) => i.diasIncapacidad > DIAS_PROLONGADA;
-// HU-22/HU-23: el concepto se pide a la entidad el día 120; antes no hay concepto que registrar ni falta que avisar (DA-47).
-const llegoAlHito = (i) => i.diasIncapacidad >= DIA_CONCEPTO;
+const dias = (n) => (n === 1 ? '1 día' : `${n} días`);
 
-export const FILTROS_PROLONGADAS = Object.freeze({
-  pendientes: (i) => estadoConcepto(i) === 'pendiente',
-  falta: (i) => estadoConcepto(i) === 'falta',
-  con_concepto: (i) => estadoConcepto(i) === 'registrado',
-});
+// Pestañas del reporte (DA-49, opción A): «Requiere acción» va primero y es la de por defecto.
+export const PESTANAS_PROLONGADAS = Object.freeze(['accion', 'espera', 'falta', 'con_concepto']);
+const filtroDe = (pestana, hoy) =>
+  ({
+    accion: (i) => estadoConcepto(i) === 'pendiente' && llegoAlDia(i, DIA_CONCEPTO, hoy),
+    espera: (i) => estadoConcepto(i) === 'pendiente' && !llegoAlDia(i, DIA_CONCEPTO, hoy),
+    falta: (i) => estadoConcepto(i) === 'falta',
+    con_concepto: (i) => estadoConcepto(i) === 'registrado',
+  })[pestana];
 
-const mensajeNoProlongada = (i) =>
-  `La incapacidad lleva ${i.diasIncapacidad} ${i.diasIncapacidad === 1 ? 'día' : 'días'}: el monitoreo es para las de más de ${DIAS_PROLONGADA} días.`;
+const mensajeNoProlongada = (i) => `La incapacidad dura ${dias(i.diasIncapacidad)}: el monitoreo es para las de más de ${DIAS_PROLONGADA} días.`;
 const mensajeAunNoEsDia120 = (i) =>
-  `La incapacidad lleva ${i.diasIncapacidad} días: el concepto de rehabilitación se pide a la entidad el día ${DIA_CONCEPTO}.`;
+  i.diasIncapacidad < DIA_CONCEPTO
+    ? `La incapacidad dura ${dias(i.diasIncapacidad)}: no llega al día ${DIA_CONCEPTO}, cuando se pide el concepto de rehabilitación a la entidad.`
+    : `La incapacidad llega al día ${DIA_CONCEPTO} el ${fechaBreve(fechaDelDia(i.fechaInicio, DIA_CONCEPTO))}: desde ese día podrá registrar el concepto o su falta.`;
 const mensajeConcepto = (i) => {
   if (i.concepto != null) return 'Esta incapacidad ya tiene el concepto de rehabilitación registrado.';
   return esProlongada(i) ? mensajeAunNoEsDia120(i) : mensajeNoProlongada(i);
@@ -59,37 +78,50 @@ const mensajeFalta = (i) => {
   if (i.faltaConcepto) return 'Ya se registró la falta del concepto y se avisó al colaborador.';
   return esProlongada(i) ? mensajeAunNoEsDia120(i) : mensajeNoProlongada(i);
 };
-
-const superaSuspension = (i) => i.diasIncapacidad > DIA_SUSPENSION;
 const mensajeSuspension = (i) => {
   if (i.pagoSuspendido) return 'Ya se registró la suspensión del pago y se avisó al colaborador.';
-  return `La incapacidad lleva ${i.diasIncapacidad} ${i.diasIncapacidad === 1 ? 'día' : 'días'}: el pago se suspende cuando supera los ${DIA_SUSPENSION} días.`;
+  if (i.diasIncapacidad <= DIA_SUSPENSION) return `La incapacidad dura ${dias(i.diasIncapacidad)}: el pago se suspende cuando supera los ${DIA_SUSPENSION} días.`;
+  return `La incapacidad supera los ${DIA_SUSPENSION} días el ${fechaBreve(fechaDelDia(i.fechaInicio, DIA_PENSION))}: desde ese día podrá registrar la suspensión del pago.`;
 };
-const puedeRegistrarSuspension = (i) => superaSuspension(i) && !i.pagoSuspendido;
 
-const puedeRegistrarConcepto = (i) => llegoAlHito(i) && i.concepto == null;
-const puedeRegistrarFalta = (i) => llegoAlHito(i) && i.concepto == null && !i.faltaConcepto;
+/** Lo que la Vista necesita saber de una prolongada hoy (DA-49). */
+function situacion(i, hoy) {
+  const llego120 = llegoAlDia(i, DIA_CONCEPTO, hoy);
+  const llego181 = llegoAlDia(i, DIA_PENSION, hoy);
+  return {
+    hito: hitoDe(i.diasIncapacidad),
+    estadoConcepto: estadoConcepto(i),
+    dia: diaActual(i, hoy),
+    fechaDia120: i.diasIncapacidad >= DIA_CONCEPTO ? fechaDelDia(i.fechaInicio, DIA_CONCEPTO) : null,
+    fechaDia181: i.diasIncapacidad >= DIA_PENSION ? fechaDelDia(i.fechaInicio, DIA_PENSION) : null,
+    hitoAlcanzado: llego120,
+    puedeRegistrarConcepto: llego120 && i.concepto == null,
+    puedeRegistrarFalta: llego120 && i.concepto == null && !i.faltaConcepto,
+    // Desde el día 181 la incapacidad está en trámite de pensión (HU-21, DA-10); se muestra calculado, como HU-24.
+    tramitePension: llego181,
+    suspensionPendiente: llego181 && !i.pagoSuspendido,
+    suspensionRegistrada: i.pagoSuspendido,
+    mostrarSuspension: i.diasIncapacidad > DIA_SUSPENSION || i.pagoSuspendido,
+  };
+}
 
-export function crearControlMonitoreo({ baseDeDatos, correo }) {
+export function crearControlMonitoreo({ baseDeDatos, correo, hoy = hoyEnColombia }) {
   const leer = (id) => (esIdentificador(id) ? baseDeDatos.obtenerDatosProlongada(Number(id)) : null);
 
   return {
     /**
      * DS-10: consultarReporteProlongadas() — HU-22.CA1. Calcula en el momento (DA-19): las incapacidades de más de
-     * 90 días, las más largas primero. Solo consulta.
-     * @param {string} ver pestaña: pendientes, falta o con_concepto (otra cosa = pendientes).
+     * 90 días por duración, las más largas primero, con el día en que van. Solo consulta.
+     * @param {string} ver pestaña: accion, espera, falta o con_concepto (otra cosa = accion).
      */
-    async consultarReporteProlongadas(ver = 'pendientes') {
-      const todas = (await baseDeDatos.consultarProlongadas(DIAS_PROLONGADA)).map((i) => ({
-        ...i,
-        hito: hitoDe(i.diasIncapacidad),
-        estadoConcepto: estadoConcepto(i),
-      }));
-      const pestana = Object.hasOwn(FILTROS_PROLONGADAS, ver) ? ver : 'pendientes';
+    async consultarReporteProlongadas(ver = 'accion') {
+      const fecha = hoy();
+      const todas = (await baseDeDatos.consultarProlongadas(DIAS_PROLONGADA)).map((i) => ({ ...i, ...situacion(i, fecha) }));
+      const pestana = PESTANAS_PROLONGADAS.includes(ver) ? ver : 'accion';
       return {
         ver: pestana,
-        prolongadas: todas.filter(FILTROS_PROLONGADAS[pestana]),
-        conteos: Object.fromEntries(Object.entries(FILTROS_PROLONGADAS).map(([clave, f]) => [clave, todas.filter(f).length])),
+        prolongadas: todas.filter(filtroDe(pestana, fecha)),
+        conteos: Object.fromEntries(PESTANAS_PROLONGADAS.map((clave) => [clave, todas.filter(filtroDe(clave, fecha)).length])),
       };
     },
 
@@ -97,35 +129,28 @@ export function crearControlMonitoreo({ baseDeDatos, correo }) {
     async prepararProlongada(idIncapacidad) {
       const incapacidad = await leer(idIncapacidad);
       if (!incapacidad || !esProlongada(incapacidad)) return null;
-      return {
-        incapacidad,
-        hito: hitoDe(incapacidad.diasIncapacidad),
-        estadoConcepto: estadoConcepto(incapacidad),
-        puedeRegistrarConcepto: puedeRegistrarConcepto(incapacidad),
-        puedeRegistrarFalta: puedeRegistrarFalta(incapacidad),
-        suspensionPendiente: puedeRegistrarSuspension(incapacidad),
-        suspensionRegistrada: incapacidad.pagoSuspendido,
-        mostrarSuspension: superaSuspension(incapacidad) || incapacidad.pagoSuspendido,
-        hitoAlcanzado: llegoAlHito(incapacidad),
-      };
+      return { incapacidad, ...situacion(incapacidad, hoy()) };
     },
 
     /**
-     * DS-10: registrarConcepto(concepto) → guardarConcepto(concepto) → comunicarConcepto(concepto) — HU-22.CA2.
-     * Primero se guarda (condicionado en la base) y solo entonces se avisa al colaborador: si otro usuario lo
-     * registró a la vez no sale un correo de más; si el correo falla, se deshace y se puede reintentar.
+     * DS-10: registrarConcepto(concepto) → guardarConcepto(concepto) → comunicarConcepto() — HU-22.CA2.
+     * Solo desde el día 120 (DA-49). Primero se guarda (condicionado en la base, con la misma regla) y solo entonces
+     * se avisa al colaborador: si otro usuario lo registró a la vez no sale un correo de más; si el correo falla, se
+     * deshace y se puede reintentar.
      * @param {{ concepto?: string }} datos
      * @returns {Promise<null | { idIncapacidad: number }>} null si no existe.
      * @throws {ErrorDeValidacion} concepto no válido (`concepto`), o no admite concepto (`estado`).
+     * @throws {import('./error-de-aviso.js').ErrorDeAviso} el correo falló.
      */
     async registrarConcepto(idIncapacidad, datos) {
       const actual = await leer(idIncapacidad);
       if (!actual) return null;
-      if (!puedeRegistrarConcepto(actual)) throw new ErrorDeValidacion({ estado: mensajeConcepto(actual) });
+      const fecha = hoy();
+      if (!situacion(actual, fecha).puedeRegistrarConcepto) throw new ErrorDeValidacion({ estado: mensajeConcepto(actual) });
       const concepto = leerConcepto(datos?.concepto);
       if (concepto.error) throw new ErrorDeValidacion({ concepto: concepto.error });
 
-      const guardado = await baseDeDatos.guardarConcepto(actual.idIncapacidad, concepto.valor, DIA_CONCEPTO);
+      const guardado = await baseDeDatos.guardarConcepto(actual.idIncapacidad, concepto.valor, condicionDelDia(DIA_CONCEPTO, fecha));
       if (!guardado) {
         const ahora = await leer(actual.idIncapacidad);
         throw new ErrorDeValidacion({ estado: mensajeConcepto(ahora ?? actual) });
@@ -141,16 +166,18 @@ export function crearControlMonitoreo({ baseDeDatos, correo }) {
 
     /**
      * DS-10: registrarFaltaConcepto() → guardarFaltaConcepto() → avisarFaltaConcepto() — HU-23.CA1. Deja constancia de
-     * que la entidad no emitió el concepto y avisa al colaborador (mismo orden que registrarConcepto).
+     * que la entidad no emitió el concepto y avisa al colaborador (mismo orden y regla que registrarConcepto).
      * @returns {Promise<null | { idIncapacidad: number }>} null si no existe.
      * @throws {ErrorDeValidacion} no admite registrar la falta (`estado`).
+     * @throws {import('./error-de-aviso.js').ErrorDeAviso} el correo falló.
      */
     async registrarFaltaConcepto(idIncapacidad) {
       const actual = await leer(idIncapacidad);
       if (!actual) return null;
-      if (!puedeRegistrarFalta(actual)) throw new ErrorDeValidacion({ estado: mensajeFalta(actual) });
+      const fecha = hoy();
+      if (!situacion(actual, fecha).puedeRegistrarFalta) throw new ErrorDeValidacion({ estado: mensajeFalta(actual) });
 
-      const guardado = await baseDeDatos.guardarFaltaConcepto(actual.idIncapacidad, DIA_CONCEPTO);
+      const guardado = await baseDeDatos.guardarFaltaConcepto(actual.idIncapacidad, condicionDelDia(DIA_CONCEPTO, fecha));
       if (!guardado) {
         const ahora = await leer(actual.idIncapacidad);
         throw new ErrorDeValidacion({ estado: mensajeFalta(ahora ?? actual) });
@@ -165,18 +192,20 @@ export function crearControlMonitoreo({ baseDeDatos, correo }) {
     },
 
     /**
-     * DS-10: registrarSuspensionPago() → guardarSuspensionPago() → notificarSuspensionPago() — HU-24.CA1. Solo si supera
-     * 180 días y no se registró antes; primero se guarda y luego se avisa al colaborador (mismo orden que el concepto).
-     * El reintegro de pagos de más de 180 días se gestiona fuera de SIGI.
+     * DS-10: registrarSuspensionPago() → guardarSuspensionPago() → notificarSuspensionPago() — HU-24.CA1. Solo si la
+     * incapacidad supera 180 días y ya llegó al día 181 (DA-49), y no se registró antes; primero se guarda y luego se
+     * avisa al colaborador (mismo orden que el concepto). El reintegro de pagos de más de 180 días se gestiona fuera de SIGI.
      * @returns {Promise<null | { idIncapacidad: number }>} null si no existe.
      * @throws {ErrorDeValidacion} no admite la suspensión (`suspension`).
+     * @throws {import('./error-de-aviso.js').ErrorDeAviso} el correo falló.
      */
     async registrarSuspensionPago(idIncapacidad) {
       const actual = await leer(idIncapacidad);
       if (!actual) return null;
-      if (!puedeRegistrarSuspension(actual)) throw new ErrorDeValidacion({ suspension: mensajeSuspension(actual) });
+      const fecha = hoy();
+      if (!situacion(actual, fecha).suspensionPendiente) throw new ErrorDeValidacion({ suspension: mensajeSuspension(actual) });
 
-      const guardado = await baseDeDatos.guardarSuspensionPago(actual.idIncapacidad, DIA_SUSPENSION);
+      const guardado = await baseDeDatos.guardarSuspensionPago(actual.idIncapacidad, condicionDelDia(DIA_PENSION, fecha));
       if (!guardado) {
         const ahora = await leer(actual.idIncapacidad);
         throw new ErrorDeValidacion({ suspension: mensajeSuspension(ahora ?? actual) });

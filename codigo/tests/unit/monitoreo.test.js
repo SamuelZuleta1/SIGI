@@ -1,8 +1,9 @@
 // HU-22 y HU-23 — incapacidades prolongadas (DS-10: registrarConcepto, registrarFaltaConcepto), con persistencia y correo falsos.
-// Decisiones: DA-19 (reporte en vivo), DA-04 (correo del colaborador) y DA-46.
+// Decisiones: DA-19 (reporte en vivo), DA-04 (correo del colaborador), DA-47 y DA-49 (hitos por fecha).
 import { beforeEach, describe, expect, it } from 'vitest';
 import { crearControlIncapacidades } from '../../src/controllers/control-incapacidades.js';
 import { ErrorDeValidacion } from '../../src/controllers/error-de-validacion.js';
+import { condicionDelDia } from '../../src/controllers/hitos.js';
 import { hitoDe, leerConcepto } from '../../src/controllers/monitoreo.controller.js';
 import { crearBaseDeDatosFalsa } from '../helpers/base-de-datos-falsa.js';
 import { crearCorreoFalso } from '../helpers/correo-falso.js';
@@ -14,7 +15,10 @@ let control;
 let enviados;
 let correo;
 
-const registrar = (dias) => control.registrarIncapacidad(formularioDeRegistro({ diasIncapacidad: String(dias) }), USUARIOS.receptor);
+// Hoy fijo. Por defecto las incapacidades empiezan el 1 de abril: ya pasaron el día 120 (29 jul) y el 181 (28 sep).
+const HOY = '2026-11-23';
+const registrar = (dias, fechaInicio = '2026-04-01') =>
+  control.registrarIncapacidad(formularioDeRegistro({ diasIncapacidad: String(dias), fechaInicio, fechaRecepcion: fechaInicio }), USUARIOS.receptor);
 const CONCEPTO = 'Concepto favorable de rehabilitación, pronóstico de recuperación en seis meses.';
 const errores = async (promesa) => {
   const error = await promesa.catch((e) => e);
@@ -25,28 +29,30 @@ const errores = async (promesa) => {
 beforeEach(() => {
   baseDeDatos = crearBaseDeDatosFalsa();
   ({ correo, enviados } = crearCorreoFalso());
-  control = crearControlIncapacidades({ baseDeDatos, correo });
+  control = crearControlIncapacidades({ baseDeDatos, correo, hoy: () => HOY });
 });
 
 describe('HU-22.CA1 — reporte de prolongadas en vivo (DA-19)', () => {
-  it('lista solo las de más de 90 días, las más largas primero, con su hito', async () => {
+  it('lista por duración las de más de 90 días, las más largas primero, con su hito y el día en que van', async () => {
     await registrar(90); // no es prolongada
     await registrar(100);
     await registrar(150);
     await registrar(200);
-    const { prolongadas, conteos } = await control.consultarReporteProlongadas();
-    expect(prolongadas.map((p) => [p.idIncapacidad, p.hito.clave])).toEqual([[4, 'mas_180'], [3, 'dia_120'], [2, 'mas_90']]);
-    expect(conteos).toEqual({ pendientes: 3, falta: 0, con_concepto: 0 });
+    const { ver, prolongadas, conteos } = await control.consultarReporteProlongadas();
+    expect(ver).toBe('accion');
+    expect(prolongadas.map((p) => [p.idIncapacidad, p.hito.clave, p.dia])).toEqual([[4, 'mas_180', 200], [3, 'dia_150', 150]]);
+    expect((await control.consultarReporteProlongadas('espera')).prolongadas.map((p) => [p.idIncapacidad, p.hito.clave])).toEqual([[2, 'mas_90']]);
+    expect(conteos).toEqual({ accion: 2, espera: 1, falta: 0, con_concepto: 0 });
   });
 
   it('se calcula en el momento: una incapacidad que crece entra al reporte', async () => {
     await registrar(90);
-    expect((await control.consultarReporteProlongadas()).prolongadas).toHaveLength(0);
+    expect((await control.consultarReporteProlongadas('espera')).conteos.espera).toBe(0);
     baseDeDatos.incapacidades[0].diasIncapacidad = 91;
-    expect((await control.consultarReporteProlongadas()).prolongadas).toHaveLength(1);
+    expect((await control.consultarReporteProlongadas('espera')).prolongadas).toHaveLength(1);
   });
 
-  it('las pestañas separan sin concepto, falta registrada y con concepto', async () => {
+  it('las pestañas separan requiere acción, falta registrada y con concepto', async () => {
     await registrar(130);
     await registrar(130);
     await registrar(130);
@@ -54,11 +60,11 @@ describe('HU-22.CA1 — reporte de prolongadas en vivo (DA-19)', () => {
     await control.registrarFaltaConcepto('2');
     expect((await control.consultarReporteProlongadas('con_concepto')).prolongadas.map((p) => p.idIncapacidad)).toEqual([1]);
     expect((await control.consultarReporteProlongadas('falta')).prolongadas.map((p) => p.idIncapacidad)).toEqual([2]);
-    expect((await control.consultarReporteProlongadas('pendientes')).prolongadas.map((p) => p.idIncapacidad)).toEqual([3]);
-    expect((await control.consultarReporteProlongadas('otra')).ver).toBe('pendientes');
+    expect((await control.consultarReporteProlongadas('accion')).prolongadas.map((p) => p.idIncapacidad)).toEqual([3]);
+    expect((await control.consultarReporteProlongadas('otra')).ver).toBe('accion');
   });
 
-  it.each([[91, 'mas_90'], [119, 'mas_90'], [120, 'dia_120'], [180, 'dia_120'], [181, 'mas_180']])('el hito de %i días es %s', (dias, clave) => {
+  it.each([[91, 'mas_90'], [119, 'mas_90'], [120, 'dia_120'], [149, 'dia_120'], [150, 'dia_150'], [180, 'dia_150'], [181, 'mas_180']])('el hito de %i días es %s', (dias, clave) => {
     expect(hitoDe(dias).clave).toBe(clave);
   });
 });
@@ -136,7 +142,7 @@ describe('HU-22.CA2 — registrar el concepto', () => {
   });
 });
 
-describe('DA-47 — el concepto se registra desde el día 120', () => {
+describe('DA-47 — el concepto se registra solo si dura 120 días o más', () => {
   it.each([119, 120])('con %i días: %s', async (dias) => {
     await registrar(dias);
     const llega = dias >= 120;
@@ -147,8 +153,8 @@ describe('DA-47 — el concepto se registra desde el día 120', () => {
       await control.registrarConcepto('1', { concepto: CONCEPTO });
       expect(enviados).toHaveLength(2);
     } else {
-      expect((await errores(control.registrarConcepto('1', { concepto: CONCEPTO }))).estado).toMatch(/el día 120/);
-      expect((await errores(control.registrarFaltaConcepto('1'))).estado).toMatch(/el día 120/);
+      expect((await errores(control.registrarConcepto('1', { concepto: CONCEPTO }))).estado).toMatch(/no llega al día 120/);
+      expect((await errores(control.registrarFaltaConcepto('1'))).estado).toMatch(/no llega al día 120/);
       expect(enviados).toHaveLength(0);
       expect(baseDeDatos.incapacidades[0].concepto).toBeUndefined();
       expect(baseDeDatos.incapacidades[0].faltaConcepto).toBeUndefined();
@@ -157,7 +163,48 @@ describe('DA-47 — el concepto se registra desde el día 120', () => {
 
   it('antes del día 120 sigue apareciendo en el reporte de prolongadas', async () => {
     await registrar(100);
-    expect((await control.consultarReporteProlongadas()).prolongadas).toHaveLength(1);
+    expect((await control.consultarReporteProlongadas('espera')).prolongadas).toHaveLength(1);
+  });
+});
+
+describe('DA-49 — el día 120 y el 181 se cumplen por calendario, como las alertas', () => {
+  it('una incapacidad de 150 días que empezó ayer no admite ni concepto ni falta', async () => {
+    await registrar(150, '2026-11-22');
+    const prolongada = await control.prepararProlongada('1');
+    expect(prolongada).toMatchObject({ dia: 2, fechaDia120: '2027-03-21', puedeRegistrarConcepto: false, puedeRegistrarFalta: false });
+    expect((await errores(control.registrarConcepto('1', { concepto: CONCEPTO }))).estado).toMatch(/llega al día 120 el 21 mar 2027/);
+    expect((await errores(control.registrarFaltaConcepto('1'))).estado).toMatch(/llega al día 120/);
+    expect(enviados).toHaveLength(0);
+    expect((await control.consultarReporteProlongadas('espera')).prolongadas.map((p) => p.idIncapacidad)).toEqual([1]);
+    expect((await control.consultarReporteProlongadas('accion')).prolongadas).toHaveLength(0);
+  });
+
+  it.each([
+    ['2026-07-27', true], // hoy es su día 120
+    ['2026-07-28', false], // hoy es su día 119
+  ])('empezó el %s: ¿admite el concepto hoy? %s', async (inicio, admite) => {
+    await registrar(130, inicio);
+    expect((await control.prepararProlongada('1')).puedeRegistrarConcepto).toBe(admite);
+    if (admite) expect(await control.registrarFaltaConcepto('1')).toEqual({ idIncapacidad: 1 });
+    else expect((await errores(control.registrarFaltaConcepto('1'))).estado).toMatch(/llega al día 120/);
+  });
+
+  it.each([
+    ['2026-05-27', true], // hoy es su día 181
+    ['2026-05-28', false], // hoy es su día 180
+  ])('200 días desde el %s: ¿admite la suspensión hoy? %s', async (inicio, admite) => {
+    await registrar(200, inicio);
+    const prolongada = await control.prepararProlongada('1');
+    expect(prolongada).toMatchObject({ suspensionPendiente: admite, tramitePension: admite, mostrarSuspension: true });
+    if (admite) expect(await control.registrarSuspensionPago('1')).toEqual({ idIncapacidad: 1 });
+    else expect((await errores(control.registrarSuspensionPago('1'))).suspension).toMatch(/supera los 180 días el 24 nov 2026/);
+  });
+
+  it('la escritura condicionada de la base aplica la misma regla aunque el control se salte la comprobación', async () => {
+    await registrar(150, '2026-11-22');
+    expect(await baseDeDatos.guardarConcepto(1, CONCEPTO, condicionDelDia(120, HOY))).toBe(false);
+    expect(await baseDeDatos.guardarFaltaConcepto(1, condicionDelDia(120, HOY))).toBe(false);
+    expect(await baseDeDatos.guardarConcepto(1, CONCEPTO, condicionDelDia(120, '2027-03-21'))).toBe(true);
   });
 });
 

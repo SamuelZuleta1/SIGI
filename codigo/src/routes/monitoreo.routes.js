@@ -36,7 +36,7 @@ export function crearRutasMonitoreo({ control }) {
 
   // consultarReporteProlongadas() — HU-22.CA1. Solo consulta.
   rutas.get('/prolongadas', permitir('consultarReporteProlongadas'), async (req, res) => {
-    const datos = await control.consultarReporteProlongadas(String(req.query.ver ?? 'pendientes'));
+    const datos = await control.consultarReporteProlongadas(String(req.query.ver ?? 'accion'));
     res.pagina('monitoreo/consultar-prolongadas', {
       titulo: 'Prolongadas',
       ...datos,
