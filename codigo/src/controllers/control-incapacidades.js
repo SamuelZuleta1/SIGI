@@ -8,6 +8,7 @@ import { crearControlEstados } from './estados.controller.js';
 import { crearControlMonitoreo } from './monitoreo.controller.js';
 import { crearControlRadicacion } from './radicacion.controller.js';
 import { crearControlReconocimiento } from './reconocimiento.controller.js';
+import { crearControlReportes } from './reportes.controller.js';
 import { crearControlReemplazo } from './reemplazo.controller.js';
 import { crearControlRegistro } from './registro.controller.js';
 import { crearControlSeguimiento } from './seguimiento.controller.js';
@@ -28,5 +29,6 @@ export function crearControlIncapacidades(dependencias) {
     ...crearControlReconocimiento(dependencias),
     ...crearControlMonitoreo(dependencias),
     ...crearControlConciliacion(dependencias),
+    ...crearControlReportes(dependencias),
   };
 }

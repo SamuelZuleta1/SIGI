@@ -633,5 +633,12 @@ input[type='file']::file-selector-button {
 .miga a { color: var(--tenue); text-decoration: none; }
 .miga a:hover { color: var(--acento); }
 .resumen-conciliacion { max-width: 520px; margin-top: 10px; }
+
+/* HU-27: reporte de ausentismo (DA-57). */
+.reporte-periodo { max-width: 560px; }
+.reporte-periodo .campos { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 10px 14px; }
+.reporte-periodo .campo { flex: 0 1 220px; min-width: 180px; }
+.reporte-periodo .campos > .acciones { padding-top: calc(0.84rem * 1.45 + 5px); }
+.resumen-reporte { max-width: 420px; margin-top: 10px; }
 .estados caption { caption-side: top; text-align: left; padding: 9px 12px; font-weight: 600; font-size: 0.84rem; }
 .recientes .tabla-envuelta + .tabla-envuelta { margin-top: 10px; }

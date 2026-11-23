@@ -40,6 +40,7 @@ export function crearBaseDeDatosFalsa() {
   const requerimientos = [];
   const pagosConsignados = [];
   const conciliaciones = [];
+  const reportes = [];
   const nombreEntidad = (id) => ENTIDADES.find((e) => e.id === id).nombre;
   // Como registrar_conciliacion (DA-56): comprueba que lo comparado sigue igual y lo guarda todo junto.
   const registrarConciliacion = (entidadId, { consignadosVistos, pares, detalle, saldos }, por) => {
@@ -60,6 +61,7 @@ export function crearBaseDeDatosFalsa() {
     return id;
   };
   return {
+    reportes,
     pagosConsignados,
     conciliaciones,
     radicaciones,
@@ -600,6 +602,43 @@ export function crearBaseDeDatosFalsa() {
     async consultarConciliacion(id) {
       const c = conciliaciones.find((x) => x.id === id);
       return c ? { ...c, entidad: nombreEntidad(c.entidadId) } : null;
+    },
+    // HU-27 (DS-12): como reportes.persistence.js.
+    async consultarDatosReporte(hasta) {
+      return incapacidades
+        .filter((i) => i.fechaInicio <= hasta)
+        .sort((a, b) => a.idIncapacidad - b.idIncapacidad)
+        .map((i) => ({
+          idIncapacidad: i.idIncapacidad,
+          colaborador: colaboradores.find((c) => c.id === i.colaboradorId).nombre,
+          tipo: i.tipo,
+          entidad: nombreEntidad(i.entidad),
+          fechaInicio: i.fechaInicio,
+          diasIncapacidad: i.diasIncapacidad,
+          estado: i.estado,
+        }));
+    },
+    async guardarReporte(tipo, periodo, contenido, por) {
+      const id = (reportes.at(-1)?.id ?? 0) + 1;
+      reportes.push({ id, tipo, periodo, contenido: structuredClone(contenido), creadoPor: por, creadoEn: new Date().toISOString() });
+      return id;
+    },
+    async eliminarReporte(id) {
+      const i = reportes.findIndex((r) => r.id === id);
+      if (i >= 0) reportes.splice(i, 1);
+    },
+    async consultarReportes(tipo, limite) {
+      return reportes
+        .filter((r) => r.tipo === tipo)
+        .sort((a, b) => b.creadoEn.localeCompare(a.creadoEn) || b.id - a.id)
+        .slice(0, limite)
+        .map(({ creadoPor, ...r }) => r);
+    },
+    async consultarReporte(id) {
+      const r = reportes.find((x) => x.id === id);
+      if (!r) return null;
+      const { creadoPor, ...datos } = r;
+      return datos;
     },
     async consultarReemplazo(idIncapacidad) {
       return reemplazos.find((r) => r.idIncapacidad === idIncapacidad)?.reemplazo ?? null;

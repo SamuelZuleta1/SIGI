@@ -12,6 +12,7 @@ import { crearRutasRadicacion } from './radicacion.routes.js';
 import { crearRutasReconocimiento } from './reconocimiento.routes.js';
 import { crearRutasReemplazo } from './reemplazo.routes.js';
 import { crearRutasRegistro } from './registro.routes.js';
+import { crearRutasReportes } from './reportes.routes.js';
 import { crearRutasSeguimiento } from './seguimiento.routes.js';
 import { crearRutasSesion } from './sesion.routes.js';
 import { crearRutasVerificacion } from './verificacion.routes.js';
@@ -44,6 +45,7 @@ export function crearRutas(dependencias) {
     rutas.use(crearRutasReconocimiento(dependencias));
     rutas.use(crearRutasMonitoreo(dependencias));
     rutas.use(crearRutasConciliacion(dependencias));
+    rutas.use(crearRutasReportes(dependencias));
   }
 
   // Solo para las pruebas: rutas de ensayo detrás de la sesión.

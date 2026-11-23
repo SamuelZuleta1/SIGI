@@ -1,0 +1,61 @@
+<%
+  // HU-27 (DS-12; DA-21, DA-57): un reporte de ausentismo guardado, tal como se envió al SG-SST.
+  const dias = (n) => (n === 1 ? '1 día' : `${n} días`);
+  const tipo = (t) => NOMBRES_TIPO_INCAPACIDAD[t] ?? t;
+  const estado = (e) => NOMBRES_ESTADO_INCAPACIDAD[e] ?? e;
+%>
+<p class="miga"><a href="/reportes">← Reportes</a></p>
+<h1>Reporte de ausentismo <%= reporte.periodo %></h1>
+<p class="sub">Reporte n.º <%= reporte.id %> · generado el <%= fechaBreve(fechaEnColombia(reporte.creadoEn)) %></p>
+
+<% if (recienGenerado) { %>
+  <p class="mensaje mensaje-ok entra" role="status">
+    Reporte guardado y enviado al SG-SST: <strong><%= totales.incapacidades %></strong> <%= totales.incapacidades === 1 ? 'incapacidad' : 'incapacidades' %> del periodo <%= reporte.periodo %>.
+  </p>
+<% } %>
+
+<dl class="resumen resumen-reporte">
+  <dt>Incapacidades</dt><dd class="cifra"><%= totales.incapacidades %></dd>
+  <dt>Colaboradores</dt><dd class="cifra"><%= totales.colaboradores %></dd>
+  <dt>Días de ausencia en el mes</dt><dd class="cifra"><%= dias(totales.diasEnPeriodo) %></dd>
+</dl>
+
+<section class="recientes" aria-labelledby="titulo-por-tipo">
+  <h2 id="titulo-por-tipo">Por tipo</h2>
+  <div class="tabla-envuelta">
+    <table class="estados">
+      <thead><tr><th scope="col">Tipo</th><th scope="col" class="num">Incapacidades</th><th scope="col" class="num">Días en el mes</th></tr></thead>
+      <tbody>
+        <% for (const t of porTipo) { %>
+        <tr><td><%= tipo(t.tipo) %></td><td class="num cifra"><%= t.incapacidades %></td><td class="num cifra"><%= dias(t.dias) %></td></tr>
+        <% } %>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="recientes" aria-labelledby="titulo-detalle">
+  <h2 id="titulo-detalle">Detalle</h2>
+  <div class="tabla-envuelta">
+    <table class="estados">
+      <thead>
+        <tr><th scope="col">Incapacidad</th><th scope="col">Colaborador</th><th scope="col">Tipo</th><th scope="col">Entidad</th><th scope="col">Inicio</th><th scope="col" class="num">Días</th><th scope="col" class="num">En el mes</th><th scope="col">Estado</th></tr>
+      </thead>
+      <tbody>
+        <% for (const f of reporte.contenido) { %>
+        <tr>
+          <td><a href="/incapacidades/<%= f.idIncapacidad %>/radicacion">n.º <%= f.idIncapacidad %></a></td>
+          <td><%= f.colaborador %></td>
+          <td><%= tipo(f.tipo) %></td>
+          <td><%= f.entidad %></td>
+          <td class="fecha"><%= fechaBreve(f.fechaInicio) %></td>
+          <td class="num cifra"><%= f.diasIncapacidad %></td>
+          <td class="num cifra"><%= f.diasEnPeriodo %></td>
+          <td><%= estado(f.estado) %></td>
+        </tr>
+        <% } %>
+      </tbody>
+      <tfoot><tr><th scope="row" colspan="6">Total</th><td class="num cifra"><%= totales.diasEnPeriodo %></td><td></td></tr></tfoot>
+    </table>
+  </div>
+</section>

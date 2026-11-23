@@ -27,6 +27,9 @@ const resumen = (i) => [
   `Fecha de inicio: ${i.fechaInicio} · Días: ${i.diasIncapacidad}`,
 ];
 
+// Estados para mostrar (EST-01); «registrada» es el estado sin valor.
+const ESTADOS = { registrada: 'Registrada', transcrita: 'Transcrita', cobrada: 'Cobrada', rechazada: 'Rechazada', pagada: 'Pagada' };
+
 const lista = (elementos) => elementos.map((e) => `- ${e}`);
 
 // Pesos con centavos cuando los hay (DA-40): un valor consignado de $ 420.000,50 no se redondea en el correo.
@@ -167,15 +170,17 @@ export function crearServicioCorreo({ transporte, remitente, destinatarios }) {
       ]);
     },
 
-    // DS-12 → SG-SST (contenido: DA-21)
+    // DS-12 → SG-SST (contenido: DA-21, DA-57)
     enviarReporteAusentismo: (periodo, contenido) =>
       enviar(destinatarios.sgsst, `Reporte de ausentismo — ${periodo}`, [
-        `Reporte de ausentismo del periodo ${periodo}: ${contenido.length} incapacidad(es).`,
+        `Reporte de ausentismo del periodo ${periodo}: ${contenido.length} incapacidad(es), ` +
+          `${contenido.reduce((s, f) => s + f.diasEnPeriodo, 0)} día(s) de ausencia en el periodo.`,
         '',
         ...lista(
           contenido.map(
             (f) =>
-              `${f.colaborador} · ${TIPOS[f.tipo] ?? f.tipo} · ${f.entidad} · inicio ${f.fechaInicio} · ${f.dias} día(s) · ${f.estado ?? 'sin estado'}`,
+              `${f.colaborador} · ${TIPOS[f.tipo] ?? f.tipo} · ${f.entidad} · inicio ${f.fechaInicio} · ` +
+              `${f.diasIncapacidad} día(s), ${f.diasEnPeriodo} en el periodo · ${ESTADOS[f.estado] ?? f.estado}`,
           ),
         ),
       ]),

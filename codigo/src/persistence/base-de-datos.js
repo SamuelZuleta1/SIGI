@@ -10,6 +10,7 @@ import { crearPersistenciaMonitoreo } from './monitoreo.persistence.js';
 import { crearPersistenciaRadicacion } from './radicacion.persistence.js';
 import { crearPersistenciaReconocimiento } from './reconocimiento.persistence.js';
 import { crearPersistenciaReemplazo } from './reemplazo.persistence.js';
+import { crearPersistenciaReportes } from './reportes.persistence.js';
 import { crearPersistenciaSeguimiento } from './seguimiento.persistence.js';
 import { crearPersistenciaRegistro } from './registro.persistence.js';
 import { crearPersistenciaVerificacion } from './verificacion.persistence.js';
@@ -28,5 +29,6 @@ export function crearBaseDeDatos(cliente = crearClienteServidor()) {
     ...crearPersistenciaReconocimiento(cliente),
     ...crearPersistenciaMonitoreo(cliente),
     ...crearPersistenciaConciliacion(cliente),
+    ...crearPersistenciaReportes(cliente),
   };
 }

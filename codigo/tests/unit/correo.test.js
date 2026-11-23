@@ -4,7 +4,7 @@ import { incapacidadDePrueba } from '../helpers/fabricas.js';
 
 const inc = incapacidadDePrueba();
 const pagos = [{ colaborador: 'Ana María Gómez', diasPagados: 3, valor: 150000 }];
-const filas = [{ colaborador: 'Ana María Gómez', tipo: 'enfermedad_general', entidad: 'Nueva EPS', fechaInicio: '2026-11-03', dias: 5, estado: null }];
+const filas = [{ colaborador: 'Ana María Gómez', tipo: 'enfermedad_general', entidad: 'Nueva EPS', fechaInicio: '2026-11-03', fechaFin: '2026-11-07', diasIncapacidad: 5, diasEnPeriodo: 5, estado: 'registrada' }];
 
 // Las 13 notificaciones del diseño con su destinatario (CONTEXTO §8).
 const casos = [

@@ -116,6 +116,14 @@
         </a>
       </li>
       <% } %>
+      <% if (puede('generarReporte')) { %>
+      <li>
+        <a href="/reportes" <%- ruta === '/reportes' || /^\/reportes\/(\d+|ausentismo)$/.test(ruta) ? 'aria-current="page"' : '' %>>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3.5h8l4 4V20.5H6z"/><path d="M14 3.5v4h4M9 17v-3M12 17v-6M15 17v-4"/></svg>
+          Reportes
+        </a>
+      </li>
+      <% } %>
       <% if (puede('registrarPagosConsignados')) { %>
       <li>
         <a href="/pagos-consignados" <%- ruta === '/pagos-consignados' ? 'aria-current="page"' : '' %>>
