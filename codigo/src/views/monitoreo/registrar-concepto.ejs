@@ -1,0 +1,100 @@
+<%
+  // HU-22 y HU-23 (DS-10): concepto de rehabilitación de una prolongada, o la falta del concepto.
+  // El envío del concepto a la AFP lo hace el auxiliar fuera de SIGI.
+  const ICONOS = {
+    concepto: '<path d="M14 3H6v18h12V7zM14 3v4h4M9 12h6M9 16h6"/>',
+    falta: '<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12M12 15.5v.01"/>',
+    espera: '<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>',
+  };
+  const dias = (n) => (n === 1 ? '1 día' : `${n} días`);
+  const { incapacidad, hito } = prolongada;
+%>
+<h1>Incapacidad prolongada</h1>
+<p class="sub">Registre el concepto de rehabilitación que emitió la entidad o deje constancia de que no lo ha emitido. En ambos casos se avisa por correo al colaborador.</p>
+
+<div class="formulario">
+  <% if (conceptoRegistrado) { %>
+    <p class="mensaje mensaje-ok entra" role="status">Concepto registrado y comunicado al colaborador. Recuerde enviarlo a la AFP fuera de SIGI.</p>
+  <% } %>
+  <% if (faltaRegistrada) { %>
+    <p class="mensaje mensaje-ok entra" role="status">Falta del concepto registrada y colaborador avisado.</p>
+  <% } %>
+
+  <dl class="resumen">
+    <dt>Incapacidad</dt><dd>n.º <%= incapacidad.idIncapacidad %></dd>
+    <dt>Colaborador</dt><dd><%= incapacidad.colaborador %></dd>
+    <dt>Tipo</dt><dd><%= nombresTipo[incapacidad.tipo] %> · <%= incapacidad.entidad %></dd>
+    <dt>Inicio</dt><dd><%= fechaBreve(incapacidad.fechaInicio) %> · <%= dias(incapacidad.diasIncapacidad) %></dd>
+    <dt>Hito</dt><dd><%= hito.nombre %></dd>
+  </dl>
+
+  <% if (prolongada.suspensionPendiente) { %>
+    <p class="mensaje mensaje-aviso" role="status">Supera los 180 días: el pago de la empresa se suspende (se registra en una pantalla aparte).</p>
+  <% } else if (!prolongada.hitoAlcanzado) { %>
+    <p class="mensaje mensaje-info" role="status">Aún no llega al día 120: el concepto de rehabilitación se pide a la entidad en ese día.</p>
+  <% } %>
+
+  <section class="radicaciones" aria-labelledby="titulo-concepto">
+    <h2 id="titulo-concepto">Concepto de rehabilitación</h2>
+    <% if (errores.estado) { %><p class="mensaje mensaje-error" role="alert"><%= errores.estado %></p><% } %>
+    <ol class="linea-tiempo">
+      <% if (incapacidad.concepto != null) { %>
+        <li class="<%= conceptoRegistrado ? 'entra' : '' %>">
+          <span class="punto hecho"><svg viewBox="0 0 24 24" aria-hidden="true"><%- ICONOS.concepto %></svg></span>
+          <div class="paso">
+            <p class="titulo"><b>Concepto registrado</b></p>
+            <p class="fundamentos"><%= incapacidad.concepto %></p>
+          </div>
+        </li>
+      <% } else { %>
+        <% if (incapacidad.faltaConcepto) { %>
+          <li class="<%= faltaRegistrada ? 'entra' : '' %>">
+            <span class="punto rechazo"><svg viewBox="0 0 24 24" aria-hidden="true"><%- ICONOS.falta %></svg></span>
+            <div class="paso">
+              <p class="titulo"><b>La entidad no ha emitido el concepto</b></p>
+              <p class="tenue">Se avisó al colaborador. Cuando la entidad lo emita, regístrelo aquí.</p>
+            </div>
+          </li>
+        <% } %>
+        <% if (!prolongada.puedeRegistrarConcepto) { %>
+          <li>
+            <span class="punto"><svg viewBox="0 0 24 24" aria-hidden="true"><%- ICONOS.espera %></svg></span>
+            <div class="paso">
+              <p class="titulo"><b>Aún no es el momento</b></p>
+              <p class="tenue">El concepto se pide a la entidad el día 120; desde entonces podrá registrarlo o dejar constancia de su falta.</p>
+            </div>
+          </li>
+        <% } else { %>
+          <li>
+            <span class="punto actual"><svg viewBox="0 0 24 24" aria-hidden="true"><%- ICONOS.espera %></svg></span>
+            <div class="paso">
+              <p class="titulo"><b>Concepto de la entidad</b></p>
+              <form class="radicar" method="post" action="/incapacidades/<%= incapacidad.idIncapacidad %>/concepto" novalidate data-un-envio>
+                <div class="campo <%= errores.concepto ? 'invalido' : '' %>">
+                  <label for="concepto">Concepto de rehabilitación</label>
+                  <textarea id="concepto" name="concepto" maxlength="<%= conceptoMaximo %>" required aria-describedby="<%= errores.concepto ? 'error-concepto' : 'ayuda-concepto' %>"<%- errores.concepto ? ' aria-invalid="true" autofocus' : '' %>><%= valores.concepto ?? '' %></textarea>
+                  <% if (errores.concepto) { %><span class="error" id="error-concepto"><%= errores.concepto %></span><% } else { %><span class="ayuda" id="ayuda-concepto">Como lo emitió la entidad. Se comunica por correo al colaborador.</span><% } %>
+                  <span class="contador" data-contador hidden></span>
+                </div>
+                <div class="acciones"><button class="boton" data-enviando="Registrando…">Registrar el concepto</button></div>
+              </form>
+              <% if (prolongada.puedeRegistrarFalta) { %>
+                <details class="otro-pago">
+                  <summary>La entidad aún no lo emite</summary>
+                  <p class="tenue">Deje constancia y avise al colaborador, que debe solicitarlo a su EPS.</p>
+                  <form class="radicar" method="post" action="/incapacidades/<%= incapacidad.idIncapacidad %>/falta-concepto" novalidate data-un-envio>
+                    <div class="acciones"><button class="boton secundario" data-enviando="Registrando…">Registrar la falta del concepto</button></div>
+                  </form>
+                </details>
+              <% } %>
+            </div>
+          </li>
+        <% } %>
+      <% } %>
+    </ol>
+  </section>
+
+  <div class="acciones">
+    <a class="boton secundario" href="/prolongadas">Otra incapacidad</a>
+  </div>
+</div>

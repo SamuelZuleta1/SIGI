@@ -418,6 +418,49 @@ export function crearBaseDeDatosFalsa() {
     async guardarCalculo(idIncapacidad, calculo) {
       Object.assign(incapacidades.find((i) => i.idIncapacidad === idIncapacidad), calculo);
     },
+    // HU-22 y HU-23 (DS-10): como monitoreo.persistence.js (escrituras condicionadas).
+    async obtenerDatosProlongada(idIncapacidad) {
+      const i = incapacidades.find((x) => x.idIncapacidad === idIncapacidad);
+      if (!i) return null;
+      const c = colaboradores.find((x) => x.id === i.colaboradorId);
+      return {
+        idIncapacidad,
+        colaborador: c.nombre,
+        correoColaborador: c.correo,
+        entidad: ENTIDADES.find((e) => e.id === i.entidad).nombre,
+        tipo: i.tipo,
+        fechaInicio: i.fechaInicio,
+        diasIncapacidad: i.diasIncapacidad,
+        estado: i.estado,
+        concepto: i.concepto ?? null,
+        faltaConcepto: i.faltaConcepto ?? false,
+        pagoSuspendido: i.pagoSuspendido ?? false,
+      };
+    },
+    async consultarProlongadas(dias) {
+      const ids = incapacidades.filter((i) => i.diasIncapacidad > dias).sort((a, b) => b.diasIncapacidad - a.diasIncapacidad || a.idIncapacidad - b.idIncapacidad);
+      return Promise.all(ids.map((i) => this.obtenerDatosProlongada(i.idIncapacidad)));
+    },
+    async guardarConcepto(idIncapacidad, concepto, dias) {
+      const i = incapacidades.find((x) => x.idIncapacidad === idIncapacidad);
+      if (!i || i.diasIncapacidad < dias || i.concepto != null) return false;
+      Object.assign(i, { concepto, faltaConcepto: false });
+      return true;
+    },
+    async deshacerConcepto(idIncapacidad, concepto, faltaConcepto) {
+      const i = incapacidades.find((x) => x.idIncapacidad === idIncapacidad);
+      if (i?.concepto === concepto) Object.assign(i, { concepto: null, faltaConcepto });
+    },
+    async guardarFaltaConcepto(idIncapacidad, dias) {
+      const i = incapacidades.find((x) => x.idIncapacidad === idIncapacidad);
+      if (!i || i.diasIncapacidad < dias || i.concepto != null || i.faltaConcepto) return false;
+      i.faltaConcepto = true;
+      return true;
+    },
+    async deshacerFaltaConcepto(idIncapacidad) {
+      const i = incapacidades.find((x) => x.idIncapacidad === idIncapacidad);
+      if (i && i.concepto == null) i.faltaConcepto = false;
+    },
     // HU-12 (DS-14): como alertas.persistence.js (sin radicar, aviso pendiente o 90 días o más).
     async consultarPlazos() {
       return incapacidades

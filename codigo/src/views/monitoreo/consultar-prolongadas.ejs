@@ -1,0 +1,58 @@
+<%
+  // HU-22 (DS-10; DA-19): reporte de prolongadas calculado en el momento. Pestañas como en «Seguimiento».
+  const pestanas = [['pendientes', 'Sin concepto'], ['falta', 'Falta del concepto'], ['con_concepto', 'Con concepto']];
+  const vacios = {
+    pendientes: ['No hay prolongadas esperando concepto.', `Aparecerán aquí las incapacidades de más de ${diasProlongada} días.`],
+    falta: ['No hay faltas del concepto registradas.', 'Aquí quedan las que la entidad aún no ha respondido.'],
+    con_concepto: ['Aún no hay conceptos registrados.', 'Aparecerán aquí cuando registre el concepto de la entidad.'],
+  };
+  const estados = { pendiente: ['por_vencer', 'Sin concepto'], falta: ['vencido', 'Falta registrada'], registrado: ['al_dia', 'Con concepto'] };
+%>
+<h1>Incapacidades prolongadas</h1>
+<p class="sub">Las de más de <%= diasProlongada %> días. Abra cada una para registrar el concepto de rehabilitación o su falta.</p>
+<nav aria-label="Prolongadas">
+  <ul class="pestanas">
+    <% for (const [valor, nombre] of pestanas) { %>
+    <li>
+      <a href="/prolongadas<%= valor === 'pendientes' ? '' : `?ver=${valor}` %>"<%- valor === ver ? ' aria-current="page"' : '' %>>
+        <%= nombre %><span class="n"><span class="oculto">: </span><%= conteos[valor] %></span>
+      </a>
+    </li>
+    <% } %>
+  </ul>
+</nav>
+
+<section class="resultado" aria-label="Incapacidades prolongadas">
+  <% if (prolongadas.length === 0) { %>
+    <div class="tabla-envuelta">
+      <div class="vacio">
+        <b><%= vacios[ver][0] %></b>
+        <p><%= vacios[ver][1] %></p>
+      </div>
+    </div>
+  <% } else { %>
+    <p class="cuenta-resultado">
+      <span><b><%= prolongadas.length %></b> <%= prolongadas.length === 1 ? 'incapacidad' : 'incapacidades' %></span>
+      <span>Las más largas primero</span>
+    </p>
+    <div class="tabla-envuelta">
+      <table class="estados pendientes">
+        <thead>
+          <tr><th scope="col">N.º</th><th scope="col">Colaborador</th><th scope="col">Entidad</th><th scope="col" class="num">Días</th><th scope="col">Hito</th><th scope="col">Concepto</th></tr>
+        </thead>
+        <tbody>
+          <% for (const p of prolongadas) { %>
+          <tr>
+            <td><a href="/incapacidades/<%= p.idIncapacidad %>/prolongada" aria-label="Abrir la incapacidad <%= p.idIncapacidad %>"><%= p.idIncapacidad %></a></td>
+            <td><%= p.colaborador %><small><%= nombresTipo[p.tipo] ?? p.tipo %> · desde el <%= fechaBreve(p.fechaInicio) %></small></td>
+            <td><%= p.entidad %></td>
+            <td class="num cifra"><%= p.diasIncapacidad %></td>
+            <td><%= p.hito.nombre %></td>
+            <td><span class="chip <%= estados[p.estadoConcepto][0] %>"><%= estados[p.estadoConcepto][1] %></span></td>
+          </tr>
+          <% } %>
+        </tbody>
+      </table>
+    </div>
+  <% } %>
+</section>

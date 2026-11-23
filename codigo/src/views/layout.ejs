@@ -100,6 +100,14 @@
         </a>
       </li>
       <% } %>
+      <% if (puede('consultarReporteProlongadas')) { %>
+      <li>
+        <a href="/prolongadas" <%- ruta === '/prolongadas' || /^\/incapacidades\/\d+\/prolongada$/.test(ruta) ? 'aria-current="page"' : '' %>>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15" rx="1.5"/><path d="M3.5 10h17M8 3v4M16 3v4M8 14.5h5"/></svg>
+          Prolongadas
+        </a>
+      </li>
+      <% } %>
       <% if (puede('registrarReemplazo')) { %>
       <li>
         <a href="/reemplazo" <%- ruta === '/reemplazo' || /^\/incapacidades\/\d+\/reemplazo$/.test(ruta) ? 'aria-current="page"' : '' %>>
