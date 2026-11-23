@@ -28,11 +28,18 @@ const COLUMNAS =
 
 export function crearPersistenciaReconocimiento(cliente) {
   return {
-    /** Las incapacidades más recientes con su cálculo (si lo tienen), para elegir una. `total` cuenta todas. */
-    async consultarParaReconocimiento(limite) {
-      const respuesta = await cliente
+    /**
+     * Las incapacidades más recientes con su cálculo (si lo tienen), para elegir una. `total` cuenta todas las que
+     * coinciden. `busqueda`: { id } = n.º exacto; { nombre } = parte del nombre del colaborador, sin distinguir
+     * mayúsculas (los comodines que escribió el usuario se escapan).
+     */
+    async consultarParaReconocimiento(limite, busqueda = null) {
+      let consulta = cliente
         .from('incapacidad')
-        .select(COLUMNAS, { count: 'exact' })
+        .select(busqueda?.nombre ? COLUMNAS.replace('colaborador(nombre)', 'colaborador!inner(nombre)') : COLUMNAS, { count: 'exact' });
+      if (busqueda?.id) consulta = consulta.eq('id', busqueda.id);
+      if (busqueda?.nombre) consulta = consulta.ilike('colaborador.nombre', `%${busqueda.nombre.replace(/[\\%_]/g, '\\$&')}%`);
+      const respuesta = await consulta
         .order('fecha_inicio', { ascending: false })
         .order('id', { ascending: false })
         .limit(limite);

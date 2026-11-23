@@ -19,6 +19,21 @@ export const TRAMOS = Object.freeze([
 // HU-21: desde el día 181 el sistema marca el trámite de pensión (DA-10).
 export const DIA_TRAMITE_PENSION = 181;
 export const LISTA_MAXIMA = 200;
+// Búsqueda de la lista (auditoría de T-21 a T-24, opción A): un solo campo, n.º de incapacidad o nombre del colaborador.
+export const BUSQUEDA_MAXIMA = 60;
+
+/**
+ * Lee la búsqueda de la lista. Solo cifras = n.º exacto de la incapacidad; si no, parte del nombre del colaborador.
+ * El asterisco se quita porque la API lo usa como comodín.
+ * @returns {null | { texto: string, id?: number, nombre?: string }} null si no hay búsqueda.
+ */
+export function leerBusqueda(valor) {
+  const texto = typeof valor === 'string' ? valor.replace(/\*/g, ' ').replace(/\s+/g, ' ').trim().slice(0, BUSQUEDA_MAXIMA) : '';
+  if (texto === '') return null;
+  // Un número que no puede ser un id (cero, demasiado largo) no coincide con nada.
+  if (/^\d+$/.test(texto)) return { texto, id: esIdentificador(texto) ? Number(texto) : 0 };
+  return { texto, nombre: texto };
+}
 // numeric(14,2) guarda hasta 12 cifras enteras y la EPS llega a ~3,5 veces el IBC: con este tope ningún valor desborda.
 export const IBC_MAXIMO = 10_000_000_000;
 // DA-53: el reconocimiento se puede recalcular en cualquier estado menos «pagada».
@@ -61,7 +76,7 @@ const ERRORES_IBC = Object.freeze({
  * @returns {{ valor?: string, centavos?: number, error?: string }}
  */
 export function leerIbc(texto) {
-  const limpio = typeof texto === 'string' ? texto.replace(/[\s  $]/g, '') : '';
+  const limpio = typeof texto === 'string' ? texto.replace(/[\s\u00a0\u202f$]/g, '') : '';
   if (limpio === '') return { error: 'Escriba el IBC de la incapacidad.' };
   const valor = leerValor(limpio);
   if (valor.error) return { error: ERRORES_IBC[valor.error] ?? ERROR_FORMATO_IBC };
@@ -95,10 +110,16 @@ function resultadoGuardado(i) {
 
 export function crearControlReconocimiento({ baseDeDatos }) {
   return {
-    /** Apoyo de la Vista: las incapacidades más recientes con su cálculo, si lo tienen. Solo consulta. */
-    async consultarReconocimientos() {
-      const { total, filas } = await baseDeDatos.consultarParaReconocimiento(LISTA_MAXIMA);
-      return { total, filas, limite: LISTA_MAXIMA };
+    /**
+     * Apoyo de la Vista: las incapacidades más recientes con su cálculo, si lo tienen, o las que coinciden con la
+     * búsqueda (n.º o nombre del colaborador). Solo consulta.
+     * @param {string} [q] lo que escribió el auxiliar.
+     */
+    async consultarReconocimientos(q) {
+      const busqueda = leerBusqueda(q);
+      if (busqueda?.id === 0) return { total: 0, filas: [], limite: LISTA_MAXIMA, busqueda: busqueda.texto };
+      const { total, filas } = await baseDeDatos.consultarParaReconocimiento(LISTA_MAXIMA, busqueda);
+      return { total, filas, limite: LISTA_MAXIMA, busqueda: busqueda?.texto ?? '' };
     },
 
     /** Datos de la pantalla de cálculo: la incapacidad y, si ya se calculó, lo guardado. null si no existe. */

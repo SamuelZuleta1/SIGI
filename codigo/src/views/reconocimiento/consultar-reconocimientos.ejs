@@ -5,8 +5,27 @@
 <h1>Reconocimiento económico</h1>
 <p class="sub">Calcule cuánto paga la empresa y cuánto la entidad (EPS o ARL). Abra una incapacidad e ingrese su IBC.</p>
 
+<form class="filtros buscar-lista" method="get" action="/reconocimiento" role="search" novalidate>
+  <div class="buscar">
+    <div class="campo">
+      <label for="q">N.º de incapacidad o colaborador</label>
+      <input id="q" name="q" type="search" value="<%= busqueda %>" maxlength="60" placeholder="Por ejemplo: 104 o Restrepo" autocomplete="off" aria-describedby="ayuda-q">
+    </div>
+    <button class="boton">Buscar</button>
+    <% if (busqueda) { %><a class="boton secundario" href="/reconocimiento">Quitar</a><% } %>
+  </div>
+  <span class="ayuda" id="ayuda-q">Solo cifras: el n.º exacto. Si no, parte del nombre del colaborador.</span>
+</form>
+
 <section class="resultado" aria-label="Incapacidades">
-  <% if (filas.length === 0) { %>
+  <% if (filas.length === 0 && busqueda) { %>
+    <div class="tabla-envuelta">
+      <div class="vacio">
+        <b>Ninguna incapacidad coincide con «<%= busqueda %>».</b>
+        <p>Revise el número o escriba otra parte del nombre del colaborador.</p>
+      </div>
+    </div>
+  <% } else if (filas.length === 0) { %>
     <div class="tabla-envuelta">
       <div class="vacio">
         <b>Aún no hay incapacidades registradas.</b>
@@ -15,8 +34,8 @@
     </div>
   <% } else { %>
     <p class="cuenta-resultado">
-      <span><b><%= filas.length %></b><% if (total > filas.length) { %> de <b><%= total %></b><% } %> <%= total === 1 ? 'incapacidad' : 'incapacidades' %></span>
-      <span>Las más recientes primero</span>
+      <span><b><%= filas.length %></b><% if (total > filas.length) { %> de <b><%= total %></b><% } %> <%= total === 1 ? 'incapacidad' : 'incapacidades' %><% if (busqueda) { %> que coinciden con «<%= busqueda %>»<% } %></span>
+      <span><%= total > filas.length ? 'Las más recientes primero; afine la búsqueda para ver las demás' : 'Las más recientes primero' %></span>
     </p>
     <div class="tabla-envuelta">
       <table class="estados">

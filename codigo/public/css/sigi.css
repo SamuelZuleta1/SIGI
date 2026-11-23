@@ -572,6 +572,11 @@ input[type='file']::file-selector-button {
 .pendientes .fecha { font-variant-numeric: tabular-nums; white-space: nowrap; }
 .pendientes small.toca { color: var(--info); font-weight: 600; }
 
+/* ---------- lista de reconocimiento: un campo de búsqueda (opción A) ---------- */
+.buscar-lista { max-width: 560px; gap: 5px; }
+.buscar-lista .buscar .campo { max-width: none; }
+.buscar-lista .ayuda { font-size: 0.78rem; color: var(--tenue); }
+
 /* ---------- reconocimiento (DA-50, DA-51, opción C): advertencias junto a su dato ---------- */
 .campo .advierte { font-size: 0.78rem; color: var(--aviso); font-weight: 500; }
 .nota-tabla { margin: 6px 2px 0; font-size: 0.78rem; color: var(--tenue); }

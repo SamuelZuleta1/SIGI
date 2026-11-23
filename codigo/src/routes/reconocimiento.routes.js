@@ -28,7 +28,8 @@ export function crearRutasReconocimiento({ control }) {
     res.status(404).pagina('error', { titulo: 'Incapacidad no encontrada', mensaje: 'No hay una incapacidad con ese número.' });
 
   rutas.get('/reconocimiento', permitir('calcularReconocimiento'), async (req, res) => {
-    const datos = await control.consultarReconocimientos();
+    const q = Array.isArray(req.query.q) ? req.query.q[0] : req.query.q;
+    const datos = await control.consultarReconocimientos(typeof q === 'string' ? q : '');
     res.pagina('reconocimiento/consultar-reconocimientos', {
       titulo: 'Reconocimiento económico',
       ...datos,

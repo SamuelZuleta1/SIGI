@@ -184,3 +184,30 @@ describe('DA-50 y DA-51 — advertencias junto a su dato (rutas)', () => {
     expect((await agente.get('/incapacidades/1/reconocimiento')).text).not.toContain('SMMLV');
   });
 });
+
+describe('Lista de reconocimiento — búsqueda (rutas)', () => {
+  it('el formulario GET filtra, cuenta las que coinciden y ofrece quitar la búsqueda', async () => {
+    await control.registrarIncapacidad(formularioDeRegistro({ colaborador: 'Luis Gil', correoColaborador: 'luis@sigi.test' }), USUARIOS.receptor);
+    const agente = await agenteCon(request, app, 'auxiliar');
+    const res = await agente.get('/reconocimiento?q=gil');
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('name="q"');
+    expect(res.text).toContain('value="gil"');
+    expect(res.text).toContain('que coinciden con «gil»');
+    expect(res.text).toContain('href="/incapacidades/2/reconocimiento"');
+    expect(res.text).not.toContain('href="/incapacidades/1/reconocimiento"');
+    expect(res.text).toContain('href="/reconocimiento">Quitar');
+  });
+
+  it('sin coincidencias explica qué revisar; la búsqueda escapa HTML', async () => {
+    const agente = await agenteCon(request, app, 'auxiliar');
+    const res = await agente.get('/reconocimiento?q=%3Cscript%3Ex');
+    expect(res.text).toContain('Ninguna incapacidad coincide con «&lt;script&gt;x»');
+    expect(res.text).not.toContain('<script>x');
+  });
+
+  it('?q repetido toma el primero', async () => {
+    const agente = await agenteCon(request, app, 'auxiliar');
+    expect((await agente.get('/reconocimiento?q=1&q=2')).text).toContain('href="/incapacidades/1/reconocimiento"');
+  });
+});

@@ -1,7 +1,7 @@
 // HU-21 — reconocimiento económico (DS-09: calcularReconocimiento → guardarCalculo), con persistencia falsa.
 // Decisiones: DA-09 (tramos e IBC ÷ 30), DA-10 (trámite de pensión desde el día 181) y DA-46.
 import { beforeEach, describe, expect, it } from 'vitest';
-import { calcularTramos, leerIbc } from '../../src/controllers/reconocimiento.controller.js';
+import { calcularTramos, leerBusqueda, leerIbc } from '../../src/controllers/reconocimiento.controller.js';
 import { crearControlIncapacidades } from '../../src/controllers/control-incapacidades.js';
 import { ErrorDeValidacion } from '../../src/controllers/error-de-validacion.js';
 import { crearBaseDeDatosFalsa } from '../helpers/base-de-datos-falsa.js';
@@ -238,5 +238,32 @@ describe('DA-50 y DA-51 — ARL, licencias, SMMLV y prórrogas', () => {
   it('sin cálculo no hay advertencia del IBC', async () => {
     await registrar(10);
     expect((await control.prepararReconocimiento('1')).advertenciaIbc).toBeNull();
+  });
+});
+
+describe('Lista de reconocimiento — búsqueda por n.º o colaborador', () => {
+  it.each([
+    ['', null],
+    ['   ', null],
+    ['104', { texto: '104', id: 104 }],
+    ['  Gómez  ', { texto: 'Gómez', nombre: 'Gómez' }],
+    ['ana*', { texto: 'ana', nombre: 'ana' }],
+    ['0', { texto: '0', id: 0 }],
+    ['9'.repeat(30), { texto: '9'.repeat(30), id: 0 }],
+  ])('leerBusqueda(%j)', (texto, esperado) => expect(leerBusqueda(texto)).toEqual(esperado));
+
+  it('corta a 60 caracteres y no acepta otra cosa que texto', () => {
+    expect(leerBusqueda('a'.repeat(100)).texto).toHaveLength(60);
+    expect(leerBusqueda(['104'])).toBeNull();
+  });
+
+  it('busca por n.º exacto o por parte del nombre, sin distinguir mayúsculas', async () => {
+    await control.registrarIncapacidad(formularioDeRegistro({ colaborador: 'Ana Restrepo', correoColaborador: 'ana@sigi.test' }), USUARIOS.receptor);
+    await control.registrarIncapacidad(formularioDeRegistro({ colaborador: 'Luis Gil', correoColaborador: 'luis@sigi.test' }), USUARIOS.receptor);
+    expect((await control.consultarReconocimientos('2')).filas.map((f) => f.idIncapacidad)).toEqual([2]);
+    expect((await control.consultarReconocimientos('restre')).filas.map((f) => f.colaborador)).toEqual(['Ana Restrepo']);
+    expect(await control.consultarReconocimientos('nadie')).toMatchObject({ total: 0, filas: [], busqueda: 'nadie' });
+    expect(await control.consultarReconocimientos('0')).toMatchObject({ total: 0, filas: [] });
+    expect((await control.consultarReconocimientos('')).filas).toHaveLength(2);
   });
 });
