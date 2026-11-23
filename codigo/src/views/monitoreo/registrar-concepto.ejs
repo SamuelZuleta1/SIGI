@@ -31,7 +31,7 @@
     <dt>Colaborador</dt><dd><%= incapacidad.colaborador %></dd>
     <dt>Tipo</dt><dd><%= nombresTipo[incapacidad.tipo] %> · <%= incapacidad.entidad %></dd>
     <dt>Inicio</dt><dd><%= fechaBreve(incapacidad.fechaInicio) %> · <%= dias(incapacidad.diasIncapacidad) %></dd>
-    <dt>Hoy</dt><dd>Día <%= prolongada.dia %> de <%= incapacidad.diasIncapacidad %></dd>
+    <dt>Hoy</dt><dd><%= prolongada.dia === 0 ? `Aún no inicia (empieza el ${fechaBreve(incapacidad.fechaInicio)})` : `Día ${prolongada.dia} de ${incapacidad.diasIncapacidad}` %></dd>
     <dt>Prórrogas</dt><dd class="tenue">No se suman las anteriores (por validar): los días y los hitos cuentan desde el inicio de este certificado.</dd>
     <dt>Hito</dt><dd><%= hito.nombre %><% if (prolongada.tramitePension) { %> · en trámite de pensión desde el <%= fechaBreve(prolongada.fechaDia181) %><% } %></dd>
   </dl>

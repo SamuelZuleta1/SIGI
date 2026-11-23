@@ -127,6 +127,15 @@ describe('HU-22.CA2 — registrar el concepto (rutas)', () => {
 });
 
 describe('DA-47 y DA-49 — antes del día 120 (rutas)', () => {
+  it('una incapacidad que aún no inicia muestra «Aún no inicia», no «Día 0»', async () => {
+    await registrar(150, '2026-12-01');
+    const agente = await agenteCon(request, app, 'auxiliar');
+    expect((await agente.get('/prolongadas?ver=espera')).text).toContain('Aún no inicia');
+    const pagina = await agente.get('/incapacidades/2/prolongada');
+    expect(pagina.text).toContain('Aún no inicia (empieza el 1 dic 2026)');
+    expect(pagina.text).not.toContain('Día 0');
+  });
+
   it.each([
     ['dura menos de 120 días', 100, '2026-04-01', 'no llega al día 120'],
     ['dura 150 días pero empezó ayer', 150, '2026-11-22', 'llega el 21 mar 2027'],

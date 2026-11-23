@@ -60,7 +60,7 @@
             <td><a href="/incapacidades/<%= p.idIncapacidad %>/prolongada" aria-label="Abrir la incapacidad <%= p.idIncapacidad %>"><%= p.idIncapacidad %></a></td>
             <td><%= p.colaborador %><small><%= nombresTipo[p.tipo] ?? p.tipo %> · desde el <%= fechaBreve(p.fechaInicio) %></small></td>
             <td><%= p.entidad %></td>
-            <td class="fecha">Día <%= p.dia %><small>de <%= p.diasIncapacidad %></small></td>
+            <td class="fecha"><% if (p.dia === 0) { %>Aún no inicia<small>dura <%= p.diasIncapacidad %></small><% } else { %>Día <%= p.dia %><small>de <%= p.diasIncapacidad %></small><% } %></td>
             <td><%= p.hito.nombre %></td>
             <td>
               <span class="chip <%= clase %>"><%= texto %></span>
