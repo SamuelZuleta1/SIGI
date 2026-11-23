@@ -576,6 +576,7 @@ input[type='file']::file-selector-button {
 .buscar-lista { max-width: 560px; gap: 5px; }
 .buscar-lista .buscar .campo { max-width: none; }
 .buscar-lista .ayuda { font-size: 0.78rem; color: var(--tenue); }
+.lista-reconocimiento small { display: block; margin-top: 1px; color: var(--tenue); font-size: 0.76rem; }
 
 /* ---------- reconocimiento (DA-50, DA-51, opción C): advertencias junto a su dato ---------- */
 .campo .advierte { font-size: 0.78rem; color: var(--aviso); font-weight: 500; }

@@ -193,7 +193,7 @@ describe('Lista de reconocimiento — búsqueda (rutas)', () => {
     expect(res.status).toBe(200);
     expect(res.text).toContain('name="q"');
     expect(res.text).toContain('value="gil"');
-    expect(res.text).toContain('que coinciden con «gil»');
+    expect(res.text).toContain('que coincide con «gil»');
     expect(res.text).toContain('href="/incapacidades/2/reconocimiento"');
     expect(res.text).not.toContain('href="/incapacidades/1/reconocimiento"');
     expect(res.text).toContain('href="/reconocimiento">Quitar');
