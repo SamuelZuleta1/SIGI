@@ -67,6 +67,8 @@ where id = <n.º de la incapacidad>;
 
 - **Alertas de plazos** (HU-12): plazos de transcripción vencidos o por vencer, segundo llamado y hitos de las prolongadas.
 - **Reconocimiento** (HU-21): con el IBC, el reparto entre la empresa y la entidad por tramos.
+- **Prórrogas** (DA-50): en Registrar incapacidad → «Prórroga», buscar la anterior por su n.º y registrar la continuación. Los días se suman al caso: el reconocimiento de la prórroga ya no paga los días 1–2 a la empresa, y un caso de 60 + 40 días aparece en Prolongadas como uno solo de 100 días.
+- **Reglas por tipo** (DA-51): una licencia la paga la EPS al 100 %; un accidente laboral, la empresa el día 1 y la ARL al 100 % desde el día 2.
 - **Prolongadas** (HU-22 a HU-24): incapacidades de más de 90 días, concepto de rehabilitación y suspensión del pago
   (requieren una incapacidad larga con fecha de inicio antigua).
 - **Reportes** (HU-27, HU-28): ausentismo del mes (se envía a SG-SST) y prolongadas.

@@ -9,7 +9,8 @@ import { MAXIMO_COLABORADORES_COINCIDENTES, normalizarTexto } from './estados.co
 import { esIdentificador } from './identificador.js';
 
 // Tramos por regla (DA-09, DA-51). IBC diario = IBC ÷ 30. `aCargo: 'eps'` es la entidad del caso (EPS o ARL): su valor
-// se guarda en valor_eps. Las prórrogas no se acumulan: cada certificado cuenta sus días desde 1 (DA-50, por validar).
+// se guarda en valor_eps. Con prórrogas (DA-50), cada certificado cubre sus días dentro del caso: la prórroga que va del
+// día 31 al 60 ya no paga los días 1 y 2 a la empresa, y desde el día 91 aplica el 50 %.
 export const DIAS_DEL_MES = 30;
 export const REGLAS = Object.freeze({
   // Origen común (enfermedad general y accidente de tránsito): días 1–2 la empresa; 3–90 al 67 % y 91–180 al 50 % la EPS.
@@ -65,16 +66,20 @@ export const IBC_MAXIMO = 10_000_000_000;
 export const MENSAJE_PAGADA = 'La incapacidad está pagada: su reconocimiento ya no se calcula ni se cambia.';
 
 /**
- * Aplica los tramos de la regla del tipo (DA-09, DA-51) a una incapacidad de `dias` días con un IBC en centavos enteros.
+ * Aplica los tramos de la regla del tipo (DA-09, DA-51) a un certificado de `dias` días con un IBC en centavos enteros.
+ * El certificado cubre los días `diasPrevios + 1` a `diasPrevios + dias` del caso (DA-50; 0 si no es prórroga).
  * Cada tramo se redondea al centavo; el valor de la entidad es la suma de sus tramos ya redondeados, así el detalle
  * siempre suma el total. Las licencias no pasan a trámite de pensión.
  * @param {string} [tipo] tipo de la incapacidad; sin tipo, la regla de origen común.
+ * @param {number} [diasPrevios] días del caso antes de este certificado.
  * @returns {{ tramos: object[], valorEmpresa: number, valorEPS: number, tramitePension: boolean, diasPension: number }} en centavos.
  */
-export function calcularTramos(dias, ibcCentavos, tipo) {
+export function calcularTramos(dias, ibcCentavos, tipo, diasPrevios = 0) {
   const regla = reglaDe(tipo);
+  const primero = diasPrevios + 1;
+  const ultimo = diasPrevios + dias;
   const tramos = REGLAS[regla].map((t) => {
-    const diasDelTramo = Math.max(0, Math.min(dias, t.hasta) - t.desde + 1);
+    const diasDelTramo = Math.max(0, Math.min(ultimo, t.hasta) - Math.max(primero, t.desde) + 1);
     const valor = Math.round((ibcCentavos * diasDelTramo * t.porcentaje) / (DIAS_DEL_MES * 100));
     return { ...t, dias: diasDelTramo, valor };
   });
@@ -84,8 +89,8 @@ export function calcularTramos(dias, ibcCentavos, tipo) {
     tramos,
     valorEmpresa: suma('empresa'),
     valorEPS: suma('eps'),
-    tramitePension: conPension && dias >= DIA_TRAMITE_PENSION,
-    diasPension: conPension ? Math.max(0, dias - DIA_TRAMITE_PENSION + 1) : 0,
+    tramitePension: conPension && ultimo >= DIA_TRAMITE_PENSION,
+    diasPension: conPension ? Math.max(0, ultimo - Math.max(DIA_TRAMITE_PENSION, primero) + 1) : 0,
   };
 }
 
@@ -109,7 +114,7 @@ export function leerIbc(texto) {
   return valor;
 }
 
-const aResultado = (dias, ibc, tipo) => ({ ibc, dias, ...calcularTramos(dias, aCentavos(ibc), tipo) });
+const aResultado = (i, ibc) => ({ ibc, dias: i.diasIncapacidad, ...calcularTramos(i.diasIncapacidad, aCentavos(ibc), i.tipo, i.diasPrevios ?? 0) });
 
 /**
  * Lo que está guardado (HU-21): los totales y el trámite de pensión tal como quedaron en la base. El detalle por tramo
@@ -117,7 +122,7 @@ const aResultado = (dias, ibc, tipo) => ({ ibc, dias, ...calcularTramos(dias, aC
  */
 function resultadoGuardado(i) {
   if (i.ibc == null) return null;
-  const desglose = calcularTramos(i.diasIncapacidad, aCentavos(i.ibc), i.tipo);
+  const desglose = calcularTramos(i.diasIncapacidad, aCentavos(i.ibc), i.tipo, i.diasPrevios ?? 0);
   const valorEmpresa = aCentavos(i.valorEmpresa);
   const valorEPS = aCentavos(i.valorEPS);
   return {
@@ -192,7 +197,7 @@ export function crearControlReconocimiento({ baseDeDatos }) {
       const ibc = leerIbc(datos?.ibc);
       if (ibc.error) throw new ErrorDeValidacion({ ibc: ibc.error });
 
-      const resultado = aResultado(incapacidad.diasIncapacidad, ibc.valor, incapacidad.tipo);
+      const resultado = aResultado(incapacidad, ibc.valor);
       const guardado = await baseDeDatos.guardarCalculo(incapacidad.idIncapacidad, {
         ibc: ibc.valor,
         valorEmpresa: centavosATexto(resultado.valorEmpresa),

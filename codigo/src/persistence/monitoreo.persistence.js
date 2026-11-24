@@ -3,6 +3,7 @@
 // guardarFaltaConcepto (HU-23) y guardarSuspensionPago (HU-24), con sus «deshacer» si el aviso al colaborador falla. Las escrituras son
 // condicionadas: si otro usuario cambió la incapacidad entre la consulta y el registro, no se guarda nada.
 import { BLOQUE } from './alertas.persistence.js';
+import { COLUMNAS_CASO, aCaso, columnaDelDia } from './caso.js';
 
 const comprobar = ({ data, error }) => {
   if (error) throw error;
@@ -10,7 +11,8 @@ const comprobar = ({ data, error }) => {
 };
 
 const COLUMNAS =
-  'id, tipo, fecha_inicio, dias_incapacidad, estado, concepto, falta_concepto, pago_suspendido, fecha_concepto, fecha_falta_concepto, fecha_suspension, colaborador(nombre, correo), entidad(nombre)';
+  'id, tipo, fecha_inicio, dias_incapacidad, estado, concepto, falta_concepto, pago_suspendido, fecha_concepto, fecha_falta_concepto, fecha_suspension, ' +
+  `${COLUMNAS_CASO}, colaborador(nombre, correo), entidad(nombre)`;
 
 const aDatos = (f) => ({
   idIncapacidad: f.id,
@@ -28,6 +30,7 @@ const aDatos = (f) => ({
   fechaConcepto: f.fecha_concepto,
   fechaFaltaConcepto: f.fecha_falta_concepto,
   fechaSuspension: f.fecha_suspension,
+  ...aCaso(f),
 });
 
 // Quién y cuándo (DA-23). `por` es el id del usuario que registra.
@@ -35,7 +38,10 @@ const ahora = () => new Date().toISOString();
 
 export function crearPersistenciaMonitoreo(cliente) {
   return {
-    /** DS-10: las incapacidades de más de `dias` días, las más largas primero. Se leen en bloques (máximo de la API). */
+    /**
+     * DS-10: los casos de más de `dias` días (DA-50: días acumulados, en su certificado vigente), los más largos primero.
+     * Se leen en bloques (máximo de la API).
+     */
     async consultarProlongadas(dias) {
       const filas = [];
       for (;;) {
@@ -44,8 +50,9 @@ export function crearPersistenciaMonitoreo(cliente) {
           await cliente
             .from('incapacidad')
             .select(COLUMNAS)
-            .gt('dias_incapacidad', dias)
-            .order('dias_incapacidad', { ascending: false })
+            .gt('dias_acumulados', dias)
+            .eq('tiene_prorroga', false)
+            .order('dias_acumulados', { ascending: false })
             .order('id')
             .range(desde, desde + BLOQUE - 1),
         );
@@ -55,16 +62,22 @@ export function crearPersistenciaMonitoreo(cliente) {
       return filas.map(aDatos);
     },
 
-    /** La incapacidad con lo que necesita el monitoreo. null si no existe. */
+    /** La incapacidad con lo que necesita el monitoreo y, si ya tiene prórroga, su número. null si no existe. */
     async obtenerDatosProlongada(idIncapacidad) {
       const fila = comprobar(await cliente.from('incapacidad').select(COLUMNAS).eq('id', idIncapacidad).maybeSingle());
-      return fila ? aDatos(fila) : null;
+      if (!fila) return null;
+      const datos = aDatos(fila);
+      if (datos.tieneProrroga) {
+        const siguiente = comprobar(await cliente.from('incapacidad').select('id').eq('prorroga_de', idIncapacidad).maybeSingle());
+        datos.prorroga = siguiente?.id ?? null;
+      }
+      return datos;
     },
 
     /**
      * DS-10: guardarConcepto(concepto) — HU-22. Solo si ya llegó al día del concepto y sin concepto; registrar el concepto
-     * resuelve la «falta del concepto». `dia` es la condición de hitos.js (DA-49): `dias_incapacidad >= dia.dias` y
-     * `fecha_inicio <= dia.inicioHasta`. @returns {Promise<boolean>} false si el estado ya no lo permitía.
+     * resuelve la «falta del concepto». `dia` es la condición de hitos.js (DA-49, DA-50): `fecha_dia_N <= hoy` en el
+     * certificado vigente del caso. @returns {Promise<boolean>} false si el estado ya no lo permitía.
      */
     async guardarConcepto(idIncapacidad, concepto, dia, por) {
       const filas = comprobar(
@@ -73,8 +86,8 @@ export function crearPersistenciaMonitoreo(cliente) {
           .update({ concepto, falta_concepto: false, fecha_concepto: ahora(), concepto_por: por })
           .eq('id', idIncapacidad)
           .is('concepto', null)
-          .gte('dias_incapacidad', dia.dias)
-          .lte('fecha_inicio', dia.inicioHasta)
+          .lte(columnaDelDia(dia.n), dia.hoy)
+          .eq('tiene_prorroga', false)
           .select('id'),
       );
       return filas.length === 1;
@@ -103,8 +116,8 @@ export function crearPersistenciaMonitoreo(cliente) {
           .eq('id', idIncapacidad)
           .eq('falta_concepto', false)
           .is('concepto', null)
-          .gte('dias_incapacidad', dia.dias)
-          .lte('fecha_inicio', dia.inicioHasta)
+          .lte(columnaDelDia(dia.n), dia.hoy)
+          .eq('tiene_prorroga', false)
           .select('id'),
       );
       return filas.length === 1;
@@ -132,8 +145,8 @@ export function crearPersistenciaMonitoreo(cliente) {
           .update({ pago_suspendido: true, fecha_suspension: ahora(), suspension_por: por })
           .eq('id', idIncapacidad)
           .eq('pago_suspendido', false)
-          .gte('dias_incapacidad', dia.dias)
-          .lte('fecha_inicio', dia.inicioHasta)
+          .lte(columnaDelDia(dia.n), dia.hoy)
+          .eq('tiene_prorroga', false)
           .select('id'),
       );
       return filas.length === 1;

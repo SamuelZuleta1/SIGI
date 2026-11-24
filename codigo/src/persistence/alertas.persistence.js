@@ -1,6 +1,7 @@
 // Grupo `alertas` de la Base de datos — DS-14 (CU-09).
 // Operación: consultarPlazos → las incapacidades que pueden tener un plazo abierto (HU-12). Solo lectura.
 import { HITOS } from '../controllers/alertas.controller.js';
+import { COLUMNAS_CASO, aCaso } from './caso.js';
 
 // Filas por consulta: igual al máximo que entrega la API de Supabase (supabase/config.toml, max_rows).
 export const BLOQUE = 1000;
@@ -30,9 +31,9 @@ export function crearPersistenciaAlertas(cliente) {
             .select(
               'id, tipo, fecha_inicio, dias_incapacidad, fecha_recepcion, fecha_nacimiento, estado, ' +
                 'documentacion_completa, fecha_aviso_faltantes, segundo_llamado, ' +
-                'colaborador(nombre), entidad(nombre, plazo_transcripcion, plazo_transcripcion_transito)',
+                `${COLUMNAS_CASO}, colaborador(nombre), entidad(nombre, plazo_transcripcion, plazo_transcripcion_transito)`,
             )
-            .or(`estado.is.null,estado.eq.rechazada,documentacion_completa.is.false,dias_incapacidad.gte.${HITOS[0]}`)
+            .or(`estado.is.null,estado.eq.rechazada,documentacion_completa.is.false,dias_acumulados.gte.${HITOS[0]}`)
             .order('id')
             .range(desde, desde + BLOQUE - 1),
         );
@@ -51,6 +52,7 @@ export function crearPersistenciaAlertas(cliente) {
         documentacionCompleta: f.documentacion_completa,
         fechaAvisoFaltantes: f.fecha_aviso_faltantes,
         segundoLlamado: f.segundo_llamado,
+        ...aCaso(f),
         entidad: {
           nombre: f.entidad.nombre,
           plazoTranscripcion: f.entidad.plazo_transcripcion,

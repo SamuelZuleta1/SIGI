@@ -160,12 +160,12 @@ describe('DA-50 y DA-51 — advertencias junto a su dato (rutas)', () => {
     expect(pagina.text).toContain('desde el día siguiente la ARL paga el 100 %');
   });
 
-  it('enfermedad general: sin nota de regla, con la nota de las prórrogas', async () => {
+  it('enfermedad general sin prórroga: sin nota de regla ni de prórroga', async () => {
     const agente = await agenteCon(request, app, 'auxiliar');
     await calcular(agente, '3.000.000');
     const pagina = await agente.get('/incapacidades/1/reconocimiento');
     expect(pagina.text).not.toContain('Origen laboral');
-    expect(pagina.text).toContain('No se suman prórrogas anteriores (por validar)');
+    expect(pagina.text).not.toContain('Prórroga de la');
   });
 
   it.each([

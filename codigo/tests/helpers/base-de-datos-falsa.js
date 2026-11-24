@@ -1,4 +1,6 @@
 // Persistencia falsa en memoria para las pruebas unitarias y HTTP: no usa Supabase.
+import { diasDelCaso, fechasDelCaso, llegoAlDia } from '../../src/controllers/hitos.js';
+import { sumarIntervalo } from '../../src/servicios/dias-habiles.js';
 export const ENTIDADES = Object.freeze([
   { id: 1, nombre: 'ARL SURA', tipo: 'ARL' },
   { id: 2, nombre: 'Nueva EPS', tipo: 'EPS' },
@@ -25,8 +27,18 @@ function cumpleFiltros(i, { estado, entidad, colaboradores, desde, hasta }) {
   return true;
 }
 
-// Condición del día N en la base (hitos.js, DA-49): dura N días o más y empezó a más tardar en `inicioHasta`.
-const cumpleDia = (i, dia) => i.diasIncapacidad >= dia.dias && i.fechaInicio <= dia.inicioHasta;
+// Condición del día N en la base (hitos.js, DA-49, DA-50): `fecha_dia_N <= hoy` en el certificado vigente del caso.
+const cumpleDia = (i, dia) => !i.tieneProrroga && llegoAlDia(i, dia.n, dia.hoy);
+
+// Los datos del caso de una incapacidad guardada (como aCaso de caso.js; DA-50).
+const datosDelCaso = (i) => ({
+  prorrogaDe: i.prorrogaDe ?? null,
+  casoId: i.casoId ?? i.idIncapacidad,
+  diasPrevios: i.diasPrevios ?? 0,
+  diasAcumulados: (i.diasPrevios ?? 0) + i.diasIncapacidad,
+  tieneProrroga: i.tieneProrroga ?? false,
+  ...(i.fechasDia ? { fechasDia: i.fechasDia } : {}),
+});
 
 export function crearBaseDeDatosFalsa() {
   const colaboradores = [];
@@ -105,6 +117,41 @@ export function crearBaseDeDatosFalsa() {
       // estado: null, como el valor por defecto de la tabla (EST-01).
       incapacidades.push({ idIncapacidad, colaboradorId: guardado.id, ...datos, estado: null, creadoPor });
       return idIncapacidad;
+    },
+    // DA-50: como registro.persistence.js y la función registrar_prorroga (reglas y derivados del trigger).
+    async obtenerParaProrroga(idIncapacidad) {
+      const i = incapacidades.find((x) => x.idIncapacidad === idIncapacidad);
+      if (!i) return null;
+      return {
+        idIncapacidad,
+        colaborador: colaboradores.find((c) => c.id === i.colaboradorId).nombre,
+        tipo: i.tipo,
+        entidad: ENTIDADES.find((e) => e.id === i.entidad).nombre,
+        fechaInicio: i.fechaInicio,
+        diasIncapacidad: i.diasIncapacidad,
+        ...datosDelCaso(i),
+        ...(i.tieneProrroga ? { prorroga: incapacidades.find((x) => x.prorrogaDe === idIncapacidad)?.idIncapacidad ?? null } : {}),
+      };
+    },
+    async guardarProrroga(idAnterior, { fechaInicio, diasIncapacidad, fechaRecepcion }, creadoPor) {
+      const a = incapacidades.find((x) => x.idIncapacidad === idAnterior);
+      if (!a) return { rechazo: 'SG010' };
+      if (a.tieneProrroga) return { rechazo: 'SG011' };
+      if (a.tipo.startsWith('licencia_')) return { rechazo: 'SG012' };
+      const fin = sumarIntervalo(a.fechaInicio, { dias: a.diasIncapacidad - 1 });
+      if (fechaInicio <= fin || fechaInicio > sumarIntervalo(fin, { dias: 31 })) return { rechazo: 'SG013' };
+      const idIncapacidad = incapacidades.length + 1;
+      const diasPrevios = (a.diasPrevios ?? 0) + a.diasIncapacidad;
+      incapacidades.push({
+        idIncapacidad, colaboradorId: a.colaboradorId, entidad: a.entidad, tipo: a.tipo, fechaInicio, diasIncapacidad, fechaRecepcion,
+        estado: null, creadoPor, prorrogaDe: idAnterior, casoId: a.casoId ?? a.idIncapacidad, diasPrevios,
+        fechasDia: fechasDelCaso({ fechaInicio, diasIncapacidad, diasPrevios }, a.fechasDia ?? fechasDelCaso(a)),
+        // El monitoreo pasa a la prórroga (como el trigger).
+        concepto: a.concepto, faltaConcepto: a.faltaConcepto, pagoSuspendido: a.pagoSuspendido,
+        fechaConcepto: a.fechaConcepto, fechaFaltaConcepto: a.fechaFaltaConcepto, fechaSuspension: a.fechaSuspension,
+      });
+      a.tieneProrroga = true;
+      return { id: idIncapacidad };
     },
     async consultarIncapacidad(idIncapacidad) {
       const guardada = incapacidades.find((i) => i.idIncapacidad === idIncapacidad);
@@ -468,6 +515,7 @@ export function crearBaseDeDatosFalsa() {
         valorEPS: i.valorEPS ?? null,
         tramitePension: i.tramitePension ?? false,
         fechaCalculo: i.fechaCalculo ?? null,
+        ...datosDelCaso(i),
       };
     },
     async guardarCalculo(idIncapacidad, calculo, por) {
@@ -496,10 +544,14 @@ export function crearBaseDeDatosFalsa() {
         fechaConcepto: i.fechaConcepto ?? null,
         fechaFaltaConcepto: i.fechaFaltaConcepto ?? null,
         fechaSuspension: i.fechaSuspension ?? null,
+        ...datosDelCaso(i),
+        ...(i.tieneProrroga ? { prorroga: incapacidades.find((x) => x.prorrogaDe === i.idIncapacidad)?.idIncapacidad ?? null } : {}),
       };
     },
     async consultarProlongadas(dias) {
-      const ids = incapacidades.filter((i) => i.diasIncapacidad > dias).sort((a, b) => b.diasIncapacidad - a.diasIncapacidad || a.idIncapacidad - b.idIncapacidad);
+      const ids = incapacidades
+        .filter((i) => diasDelCaso(datosDelCaso(i)) > dias && !i.tieneProrroga)
+        .sort((a, b) => diasDelCaso(datosDelCaso(b)) - diasDelCaso(datosDelCaso(a)) || a.idIncapacidad - b.idIncapacidad);
       return Promise.all(ids.map((i) => this.obtenerDatosProlongada(i.idIncapacidad)));
     },
     async guardarConcepto(idIncapacidad, concepto, dia, por) {
@@ -535,7 +587,7 @@ export function crearBaseDeDatosFalsa() {
     // HU-12 (DS-14): como alertas.persistence.js (sin radicar, aviso pendiente o 90 días o más).
     async consultarPlazos() {
       return incapacidades
-        .filter((i) => i.estado == null || i.estado === 'rechazada' || i.documentacionCompleta === false || i.diasIncapacidad >= 90)
+        .filter((i) => i.estado == null || i.estado === 'rechazada' || i.documentacionCompleta === false || diasDelCaso(datosDelCaso(i)) >= 90)
         .map((i) => {
           const { id, nombre } = ENTIDADES.find((e) => e.id === i.entidad);
           const { plazoTranscripcion, plazoTranscripcionTransito } = PLAZOS[id];
@@ -551,6 +603,7 @@ export function crearBaseDeDatosFalsa() {
             documentacionCompleta: i.documentacionCompleta ?? null,
             fechaAvisoFaltantes: i.fechaAvisoFaltantes ?? null,
             segundoLlamado: i.segundoLlamado ?? false,
+            ...datosDelCaso(i),
             entidad: { nombre, plazoTranscripcion, plazoTranscripcionTransito },
           };
         });
@@ -654,7 +707,7 @@ export function crearBaseDeDatosFalsa() {
     // HU-28 (DS-12): como reportes.persistence.js.
     async consultarDatosProlongadas(dias, desde, hasta) {
       return incapacidades
-        .filter((i) => i.diasIncapacidad > dias && i.fechaInicio <= hasta)
+        .filter((i) => diasDelCaso(datosDelCaso(i)) > dias && i.fechaInicio <= hasta)
         .sort((a, b) => a.idIncapacidad - b.idIncapacidad)
         .map((i) => ({
           idIncapacidad: i.idIncapacidad,
@@ -668,6 +721,7 @@ export function crearBaseDeDatosFalsa() {
           concepto: i.concepto == null ? null : true,
           faltaConcepto: i.faltaConcepto ?? false,
           pagoSuspendido: i.pagoSuspendido ?? false,
+          ...datosDelCaso(i),
         }));
     },
     async guardarReporte(tipo, periodo, contenido, por) {

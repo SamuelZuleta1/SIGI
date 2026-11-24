@@ -5,6 +5,11 @@
 %>
 <h1>Registrar incapacidad</h1>
 <p class="sub">Incapacidad o licencia que entregó el colaborador. Todos los campos son obligatorios.</p>
+<%# DA-50 (opción C): una prórroga se registra aparte, con la anterior precargada. %>
+<nav class="segmento" aria-label="Qué va a registrar">
+  <a href="/incapacidades/nueva" aria-current="true">Incapacidad nueva</a>
+  <a href="/incapacidades/prorroga">Prórroga</a>
+</nav>
 
 <% if (registrada) { %>
   <p class="mensaje mensaje-ok" role="status">

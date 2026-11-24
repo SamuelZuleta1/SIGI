@@ -2,7 +2,7 @@
 // Operación: obtenerAlertas → consultarPlazos → calcularVencimientos() → listaAlertas(porVencer, vencidas) (HU-12).
 // Solo informa: no modifica ningún dato ni bloquea ninguna operación (HU-12.CA2, CAR-03).
 import { diasCalendario, diasHabilesRestantes, hoyEnColombia, sumarDiasHabiles, sumarIntervalo } from '../servicios/dias-habiles.js';
-import { HITOS, fechaDelDia } from './hitos.js';
+import { HITOS, diasDelCaso, fechaDelDia } from './hitos.js';
 import { DIAS_POR_VENCER, calcularPlazoRadicacion, puedeRadicar } from './radicacion.controller.js';
 import { DIAS_PARA_ENTREGAR } from './verificacion.controller.js';
 
@@ -77,20 +77,21 @@ function alertaTranscripcion(i, hoy) {
 }
 
 /**
- * Hitos 90/120/150/180 (DA-37): el hito N aplica si la incapacidad dura N días o más y se cumple el día N
- * (inicio + N − 1). Solo mientras la incapacidad está vigente y un solo hito por incapacidad: el próximo
- * si se cumple en 5 días o menos; si no, el último que ya se cumplió.
+ * Hitos 90/120/150/180 (DA-37): el hito N aplica si el caso dura N días o más y se cumple el día N del caso
+ * (DA-50: con sus prórrogas, en la fecha real de ese día). Solo en el certificado vigente del caso, mientras está
+ * vigente, y un solo hito por caso: el próximo si se cumple en 5 días o menos; si no, el último que ya se cumplió.
  */
 function alertaHito(i, hoy) {
+  if (i.tieneProrroga) return null;
   const fechaFin = sumarIntervalo(i.fechaInicio, { dias: i.diasIncapacidad - 1 });
   if (hoy > fechaFin) return null;
-  const hitos = HITOS.filter((n) => i.diasIncapacidad >= n).map((n) => ({ n, fecha: fechaDelDia(i.fechaInicio, n) }));
+  const hitos = HITOS.filter((n) => diasDelCaso(i) >= n && fechaDelDia(i, n) != null).map((n) => ({ n, fecha: fechaDelDia(i, n) }));
   const proximo = hitos.find((h) => h.fecha >= hoy);
   const elegido = proximo && estadoDelPlazo(hoy, proximo.fecha) ? proximo : hitos.findLast((h) => h.fecha < hoy);
   if (!elegido) return null;
   return alerta(i, `hito${elegido.n}`, estadoDelPlazo(hoy, elegido.fecha), elegido.fecha, hoy, {
     fechaInicio: i.fechaInicio,
-    diasIncapacidad: i.diasIncapacidad,
+    diasIncapacidad: diasDelCaso(i),
   });
 }
 

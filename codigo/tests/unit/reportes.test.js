@@ -315,6 +315,8 @@ describe('HU-28 — consolidarProlongadas → clasificarPorHito (DS-12)', () => 
       fechaInicio: '2026-05-01',
       fechaFin: '2026-11-16',
       diasIncapacidad: 200,
+      diasPrevios: 0,
+      diasCaso: 200,
       diaAlCorte: 184,
       hito: 180,
       hitosEnPeriodo: [{ dia: 180, fecha: '2026-10-27' }],
