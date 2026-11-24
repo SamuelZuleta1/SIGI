@@ -610,12 +610,16 @@ export function crearBaseDeDatosFalsa() {
       return registrarConciliacion(entidadId, datos, por);
     },
     async deshacerConciliacion(id) {
-      // Como deshacer_conciliacion (DA-59): quita la marca de archivo preparado de las incapacidades cuyos pagos libera.
-      for (const p of pagos) {
-        if (p.conciliacionId !== id) continue;
-        const i = incapacidades.find((x) => x.idIncapacidad === p.idIncapacidad);
-        if (i && !i.enviadaAGestionDocumental) Object.assign(i, { fechaArchivoPreparado: null, archivoPreparadoPor: null });
+      // Como deshacer_conciliacion (DA-59): con una incapacidad ya enviada falla sin cambiar nada; si no, quita la marca
+      // de archivo preparado de las incapacidades cuyos pagos libera.
+      const afectadas = pagos
+        .filter((p) => p.conciliacionId === id)
+        .map((p) => incapacidades.find((x) => x.idIncapacidad === p.idIncapacidad))
+        .filter(Boolean);
+      if (afectadas.some((i) => i.enviadaAGestionDocumental)) {
+        throw Object.assign(new Error(`La conciliación ${id} incluye una incapacidad ya enviada a Gestión Documental: no se deshace`), { code: 'SG001' });
       }
+      for (const i of afectadas) Object.assign(i, { fechaArchivoPreparado: null, archivoPreparadoPor: null });
       for (const p of pagos) if (p.conciliacionId === id) Object.assign(p, { conciliado: false, conciliacionId: null });
       for (const p of pagosConsignados) if (p.conciliacionId === id) p.conciliacionId = null;
       const i = conciliaciones.findIndex((c) => c.id === id);

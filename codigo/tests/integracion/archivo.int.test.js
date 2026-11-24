@@ -181,14 +181,17 @@ describe('HU-30 — envío al archivo (persistencia real)', () => {
     expect(lista.conteos.enviada).toBeGreaterThanOrEqual(1);
     expect((await baseDeDatos.obtenerPagadas()).map((p) => p.idIncapacidad)).not.toContain(id);
 
-    // Ya enviada: ni deshacer el archivo preparado ni deshacer la conciliación le quitan las marcas.
+    // Ya enviada: deshacer el archivo preparado no le quita las marcas y su conciliación ya no se deshace (DA-11).
     await baseDeDatos.deshacerArchivoPreparado(id);
-    comprobar(await servidor.rpc('deshacer_conciliacion', { p_id: conciliaciones.at(-1) }));
+    const { error: errorDeshacer } = await servidor.rpc('deshacer_conciliacion', { p_id: conciliaciones.at(-1) });
+    expect(errorDeshacer?.code).toBe('SG001');
     const despues = comprobar(
       await servidor.from('incapacidad').select('enviada_a_gestion_documental, fecha_archivo_preparado').eq('id', id).single(),
     );
     expect(despues.enviada_a_gestion_documental).toBe(true);
     expect(despues.fecha_archivo_preparado).not.toBeNull();
+    const susPagos = comprobar(await servidor.from('pago').select('conciliado, conciliacion_id').eq('incapacidad_id', id));
+    expect(susPagos.every((p) => p.conciliado && p.conciliacion_id === conciliaciones.at(-1))).toBe(true);
   });
 
   it('las restricciones impiden marcarla enviada sin fecha o sin archivo preparado', async () => {

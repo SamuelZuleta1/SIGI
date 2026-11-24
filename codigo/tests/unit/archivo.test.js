@@ -297,14 +297,16 @@ describe('HU-30.CA1 — registrar el envío al archivo (DA-60)', () => {
     expect((await errores(control.registrarEnvioArchivo(String(id), { entregado: true }, USUARIOS.auxiliar))).estado).toMatch(/ya está registrado/);
   });
 
-  it('una enviada ya no se archiva, no admite pagos y ni deshacer el archivo ni deshacer la conciliación le quitan las marcas', async () => {
+  it('una enviada ya no se archiva, no admite pagos, deshacer el archivo no le quita las marcas y su conciliación ya no se deshace', async () => {
     const id = await preparada();
     await control.registrarEnvioArchivo(String(id), { entregado: true }, USUARIOS.auxiliar);
     expect((await errores(control.archivarIncapacidad(String(id), USUARIOS.auxiliar))).estado).toMatch(/ya se envió a Gestión Documental/);
     expect(await baseDeDatos.guardarPago(id, { valor: '1000.00', fechaPago: '2026-11-12' }, 'id-auxiliar')).toBeNull();
     await baseDeDatos.deshacerArchivoPreparado(id);
-    await baseDeDatos.deshacerConciliacion(1); // la conciliación de su pago (ver `pagada`)
+    // La conciliación de su pago (ver `pagada`): falla y la deja como estaba (DA-11).
+    await expect(baseDeDatos.deshacerConciliacion(1)).rejects.toMatchObject({ code: 'SG001' });
     const incapacidad = baseDeDatos.incapacidades.find((i) => i.idIncapacidad === id);
+    expect(baseDeDatos.pagos.filter((p) => p.idIncapacidad === id).every((p) => p.conciliado && p.conciliacionId === 1)).toBe(true);
     expect(incapacidad).toMatchObject({ enviadaAGestionDocumental: true, archivoPreparadoPor: USUARIOS.auxiliar.id });
     expect(incapacidad.fechaArchivoPreparado).toEqual(expect.any(String));
     expect((await control.prepararArchivo(String(id))).situacion).toBe('enviada');
