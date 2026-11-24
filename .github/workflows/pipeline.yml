@@ -6,8 +6,8 @@
 #   * push a main           → lo anterior y, antes de la integración, aplica las migraciones pendientes.
 #   * workflow_dispatch     → ejecución manual (mismo comportamiento que un push a la rama elegida).
 #
-# No hay job de despliegue: SIGI todavía no se publica en ningún proveedor (no hay vercel.json ni .vercel/). Cuando
-# se decida dónde publicarla, el deploy se agrega como un job más con `needs: [quality, security, migrate]`.
+# Despliegue: SIGI se publica en Vercel (proyecto `sigi`, Root Directory `codigo`, ver codigo/vercel.json). Vercel
+# despliega solo con cada push a main mediante su integración con GitHub; este pipeline no tiene job de deploy.
 name: pipeline
 
 on:

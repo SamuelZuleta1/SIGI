@@ -33,6 +33,18 @@ npm run dev                 # http://localhost:3000
 - El correo sale por el servidor SMTP de `.env`. Si no hay uno, los registros se guardan igual
   y la pantalla avisa que no se pudo enviar el correo.
 
+## Despliegue (Vercel)
+
+SIGI se publica en Vercel; cada push a `main` despliega automáticamente.
+
+- Proyecto `sigi`, con **Root Directory = `codigo`**. La app corre como una sola función serverless:
+  `api/index.js` (monta la app con `src/arranque.js`) y `vercel.json` (rutas, archivos incluidos, 30 s).
+- Variables de entorno en Vercel (Production): las de Supabase (`SUPABASE_URL`, `SUPABASE_ANON_KEY`,
+  `SUPABASE_SERVICE_ROLE_KEY`), el SMTP (`SMTP_*`), las seis `CORREO_*` y `DEMO_PASSWORD`.
+  Cambiarlas exige un Redeploy.
+- Mailpit y `localhost` no existen en Vercel: el SMTP debe ser accesible desde internet.
+- Límites del plan Hobby: unos 4,5 MB por petición (evidencias grandes fallan) y 10 s por función.
+
 ## Pruebas
 
 ```bash
@@ -55,9 +67,10 @@ Las pruebas de integración crean sus propios datos y los borran al terminar.
 ```
 codigo/
 ├── public/        css/ y js/
+├── api/           index.js (función de Vercel)
 ├── scripts/       crear-usuarios-demo.js
 ├── supabase/      config.toml, migrations/, seed.sql
-├── src/           app.js, config/, middleware/, routes/, views/,
+├── src/           app.js, arranque.js, config/, middleware/, routes/, views/,
 │                  controllers/, models/, persistence/, servicios/
 └── tests/         unit/, http/, integracion/, helpers/
 ```
