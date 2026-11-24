@@ -73,16 +73,9 @@ export function crearApp(dependencias) {
   return app;
 }
 
-// Solo escucha cuando se ejecuta directamente (`npm start`), no al importarla en las pruebas.
+// Solo escucha cuando se ejecuta directamente (`npm start`), no al importarla en las pruebas ni en Vercel.
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  const { crearServicioSesion } = await import('./servicios/sesion.js');
-  const { crearBaseDeDatos } = await import('./persistence/base-de-datos.js');
-  const { crearControlIncapacidades } = await import('./controllers/control-incapacidades.js');
+  const { crearAppDeProduccion } = await import('./arranque.js');
   const puerto = Number(process.env.PORT) || 3000;
-  const { crearServicioCorreo } = await import('./servicios/correo.js');
-  const { crearTransporte, destinatariosPorArea, remitente } = await import('./config/correo.js');
-  const correo = crearServicioCorreo({ transporte: crearTransporte(), remitente: remitente(), destinatarios: destinatariosPorArea() });
-  const control = crearControlIncapacidades({ baseDeDatos: crearBaseDeDatos(), correo });
-  const { configurarAccesoRapido } = await import('./config/acceso-rapido.js');
-  crearApp({ sesion: crearServicioSesion(), control, accesoRapido: configurarAccesoRapido() }).listen(puerto, () => console.log(`SIGI en http://localhost:${puerto}`));
+  (await crearAppDeProduccion()).listen(puerto, () => console.log(`SIGI en http://localhost:${puerto}`));
 }
