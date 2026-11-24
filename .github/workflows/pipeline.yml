@@ -1,0 +1,235 @@
+# Pipeline de SIGI: calidad, seguridad, migraciones y pruebas de integración.
+#
+# Estrategia de ramas:
+#   * pull_request          → solo calidad y seguridad (no toca la base de datos).
+#   * push a modulo-** / feature/** / bugfix/** → calidad, seguridad e integración contra Supabase en la nube.
+#   * push a main           → lo anterior y, antes de la integración, aplica las migraciones pendientes.
+#   * workflow_dispatch     → ejecución manual (mismo comportamiento que un push a la rama elegida).
+#
+# No hay job de despliegue: SIGI todavía no se publica en ningún proveedor (no hay vercel.json ni .vercel/). Cuando
+# se decida dónde publicarla, el deploy se agrega como un job más con `needs: [quality, security, migrate]`.
+name: pipeline
+
+on:
+  push:
+    branches: [main, 'modulo-**', 'feature/**', 'bugfix/**']
+  pull_request:
+  workflow_dispatch:
+
+# Una ejecución por rama. Solo se cancela la anterior en los PR (no tocan la base de datos): en un push, cancelar a
+# mitad de la integración dejaría en la nube los datos de prueba que su afterAll no alcanzó a borrar.
+concurrency:
+  group: pipeline-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    # La aplicación vive en codigo/ (la raíz del repositorio es documentación + código).
+    working-directory: codigo
+
+env:
+  NODE_VERSION: '22'
+  # Misma versión del CLI que se usa en local. Fija (no `latest`): con `latest`, setup-cli consulta la API de GitHub
+  # sin token y puede agotar el límite de 60 peticiones por hora.
+  SUPABASE_CLI_VERSION: '2.109.0'
+
+jobs:
+  # ---------------------------------------------------------------------------------------------------------------
+  quality:
+    name: 🔍 Calidad
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: codigo/package-lock.json
+
+      - name: Instalar dependencias (lockfile exacto)
+        run: npm ci
+
+      # No hay TypeScript ni ESLint: la comprobación de sintaxis es `node --check` sobre cada módulo. No se importa
+      # src/app.js para ejecutarlo: abriría el puerto y pediría las variables de Supabase.
+      - name: Sintaxis de todos los módulos
+        run: find src scripts tests -name '*.js' -print0 | xargs -0 -n1 node --check
+
+      # Unitarias y HTTP: sin red, con persistencia y correo falsos.
+      - name: Pruebas unitarias y HTTP
+        run: npm test
+
+  # ---------------------------------------------------------------------------------------------------------------
+  security:
+    name: 🛡️ Seguridad
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          # TruffleHog necesita el historial para revisar los commits del push o del PR.
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: npm audit (dependencias de producción, nivel alto o crítico)
+        id: audit
+        run: npm audit --omit=dev --audit-level=high
+
+      # Solo secretos verificados (que de verdad funcionan): evita falsos positivos con las claves de ejemplo.
+      - name: TruffleHog (secretos en el código y en el historial)
+        id: trufflehog
+        uses: trufflesecurity/trufflehog@main
+        with:
+          extra_args: --only-verified --exclude-paths=.github/trufflehog-exclude.txt
+
+      # SAST informativo: no bloquea por ruido; los hallazgos quedan en el registro del job.
+      - name: Semgrep (OWASP Top 10, secretos, JavaScript y Node.js)
+        id: semgrep
+        continue-on-error: true
+        working-directory: .
+        run: |
+          # pipx viene en los runners; `pip install` del Python del sistema choca con PEP 668 en Ubuntu 24.04.
+          pipx run semgrep scan --error \
+            --config p/owasp-top-ten --config p/secrets --config p/javascript --config p/nodejsscan \
+            codigo/src codigo/scripts codigo/supabase
+
+      - name: Resumen
+        if: always()
+        working-directory: .
+        run: |
+          {
+            echo "### 🛡️ Seguridad"
+            echo "| Revisión | Resultado |"
+            echo "| --- | --- |"
+            echo "| npm audit | ${{ steps.audit.outcome }} |"
+            echo "| TruffleHog | ${{ steps.trufflehog.outcome }} |"
+            echo "| Semgrep (informativo) | ${{ steps.semgrep.outcome }} |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # ---------------------------------------------------------------------------------------------------------------
+  # Migraciones: solo en push a main (nunca en PR). Hay un único proyecto de Supabase, compartido por todas las ramas:
+  # en las ramas de módulo las migraciones se aplican a mano (`npm run db:migrar`) antes de subirlas; main se asegura
+  # de que la nube tenga todas las del repositorio.
+  migrate:
+    name: 🗄️ Migraciones
+    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main'
+    needs: [quality, security]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # Dos ejecuciones nunca migran a la vez la misma base de datos (sin cancelar la que va en curso).
+    concurrency:
+      group: supabase-migraciones
+      cancel-in-progress: false
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Comprobar los secrets
+        run: |
+          faltan=""
+          for nombre in SUPABASE_ACCESS_TOKEN SUPABASE_DB_PASSWORD SUPABASE_PROJECT_ID; do
+            [ -n "${!nombre}" ] || faltan="$faltan $nombre"
+          done
+          if [ -n "$faltan" ]; then
+            echo "::error::Faltan los secrets de GitHub Actions:$faltan"
+            exit 1
+          fi
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: ${{ env.SUPABASE_CLI_VERSION }}
+
+      - name: Vincular el proyecto
+        run: supabase link --project-ref "$SUPABASE_PROJECT_ID" --password "$SUPABASE_DB_PASSWORD"
+
+      # El historial remoto coincide con supabase/migrations/ (todas se aplicaron con el CLI, nunca desde el panel),
+      # así que no hace falta reconciliar con `migration repair`. Se muestra el estado para dejarlo en el registro.
+      - name: Estado de las migraciones
+        run: supabase migration list --linked
+
+      # Solo aplica las que faltan. Las migraciones nuevas deben dejar RLS activado en toda tabla y los permisos
+      # mínimos (solo service_role ejecuta las funciones), como las existentes.
+      - name: Aplicar las migraciones pendientes
+        run: supabase db push --linked --include-all --password "$SUPABASE_DB_PASSWORD" --yes
+
+      # PostgREST recarga su caché de esquema para ver las columnas y funciones nuevas sin esperar.
+      - name: Recargar el esquema de la API
+        run: supabase db query --linked "notify pgrst, 'reload schema';"
+
+  # ---------------------------------------------------------------------------------------------------------------
+  # Integración contra Supabase en la nube y correo real por SMTP (Mailpit como servicio). Solo en push: crea sus
+  # propios datos y los borra al terminar. En main solo corre si las migraciones se aplicaron (si Seguridad falla, las
+  # migraciones se saltan y la integración también).
+  integration:
+    name: 🔗 Integración (Supabase + SMTP)
+    needs: [quality, migrate]
+    if: >-
+      always() &&
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
+      needs.quality.result == 'success' &&
+      (needs.migrate.result == 'success' ||
+       (github.ref != 'refs/heads/main' && needs.migrate.result == 'skipped'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    # Las pruebas de integración comparten la base de datos: una ejecución a la vez entre todas las ramas.
+    concurrency:
+      group: supabase-integracion
+      cancel-in-progress: false
+    services:
+      mailpit:
+        image: axllent/mailpit:v1.20.0
+        ports:
+          - 1025:1025 # SMTP
+          - 8025:8025 # API web
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+      DEMO_PASSWORD: ${{ secrets.DEMO_PASSWORD }}
+      # Correo: todo queda en el Mailpit del job; nada sale a buzones reales.
+      SMTP_HOST: localhost
+      SMTP_PORT: '1025'
+      SMTP_FROM: SIGI CI <sigi@sigi.test>
+      MAILPIT_URL: http://localhost:8025
+      CORREO_AUXILIAR: auxiliar@sigi.test
+      CORREO_COORDINACION: coordinacion@sigi.test
+      CORREO_CONTABILIDAD: contabilidad@sigi.test
+      CORREO_CARTERA: cartera@sigi.test
+      CORREO_SGSST: sgsst@sigi.test
+      CORREO_GESTION_DOCUMENTAL: gestion.documental@sigi.test
+    steps:
+      # Primero el checkout: los pasos `run` se ejecutan en codigo/, que no existe antes.
+      - uses: actions/checkout@v5
+
+      - name: Comprobar los secrets
+        run: |
+          faltan=""
+          for nombre in SUPABASE_URL SUPABASE_SERVICE_ROLE_KEY SUPABASE_ANON_KEY DEMO_PASSWORD; do
+            [ -n "${!nombre}" ] || faltan="$faltan $nombre"
+          done
+          if [ -n "$faltan" ]; then
+            echo "::error::Faltan los secrets de GitHub Actions:$faltan"
+            exit 1
+          fi
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: codigo/package-lock.json
+
+      - name: Instalar dependencias (lockfile exacto)
+        run: npm ci
+
+      - name: Pruebas de integración
+        run: npm run test:int
