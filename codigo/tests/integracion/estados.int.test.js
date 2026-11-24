@@ -65,6 +65,7 @@ describe('HU-11 — consultar estados (base de datos)', () => {
       fechaInicio: '2026-11-03',
       diasIncapacidad: 5,
       estado: null,
+      enviadaAGestionDocumental: false,
     });
     expect(r.conteos).toEqual({ registrada: 1, transcrita: 1, cobrada: 0, rechazada: 1, pagada: 0 });
   });

@@ -601,6 +601,7 @@ input[type='file']::file-selector-button {
 .segmento a[aria-current='true'][data-respuesta='aprobo'] svg { color: var(--ok); }
 .segmento a[aria-current='true'][data-respuesta='rechazo'] svg { color: var(--mal); }
 .radicar[hidden] { display: none; }
+.error-casilla { margin: 4px 0 0 24px; font-size: 0.78rem; font-weight: 500; color: var(--mal); } /* HU-30: bajo su casilla */
 .paso .separado { margin-top: 6px; }
 .boton.peligro { background: var(--mal); border-color: var(--mal); color: var(--panel); }
 @media (hover: hover) { .boton.peligro:hover { background: color-mix(in srgb, var(--mal) 86%, var(--texto)); border-color: transparent; } }

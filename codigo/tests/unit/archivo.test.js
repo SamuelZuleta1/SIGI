@@ -4,7 +4,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { crearControlIncapacidades } from '../../src/controllers/control-incapacidades.js';
 import { ErrorDeAviso } from '../../src/controllers/error-de-aviso.js';
 import { ErrorDeValidacion } from '../../src/controllers/error-de-validacion.js';
-import { ErrorAlEliminarEpicrisis, MENSAJE_SIN_CONCILIAR, pagoConciliado } from '../../src/controllers/archivo.controller.js';
+import {
+  ErrorAlEliminarEpicrisis,
+  MENSAJE_SIN_CONCILIAR,
+  MENSAJE_SIN_ENTREGA,
+  LIMITE_ENVIADAS,
+  pagoConciliado,
+  situacionArchivo,
+} from '../../src/controllers/archivo.controller.js';
 import { MENSAJE_EPICRISIS_ARCHIVADA } from '../../src/controllers/registro.controller.js';
 import { MENSAJE_PAGO_ARCHIVADA } from '../../src/controllers/cobro.controller.js';
 import { crearBaseDeDatosFalsa } from '../helpers/base-de-datos-falsa.js';
@@ -62,7 +69,8 @@ describe('HU-29.CA1 — lista de pagadas', () => {
     expect(lista.ver).toBe('por_archivar');
     expect(lista.pagadas.map((p) => p.idIncapacidad)).toEqual([a]);
     expect(lista.pagadas[0].totalPagado).toBe('420000.00');
-    expect(lista.conteos).toEqual({ por_archivar: 1, sin_conciliar: 1, preparado: 1 });
+    expect(lista.conteos).toEqual({ por_archivar: 1, sin_conciliar: 1, preparado: 1, enviada: 1 });
+    expect((await control.consultarPagadas('enviada')).pagadas.map((p) => p.idIncapacidad)).toEqual([enviada]);
     expect((await control.consultarPagadas('sin_conciliar')).pagadas.map((p) => [p.idIncapacidad, p.pagosSinConciliar])).toEqual([[b, 1]]);
     expect((await control.consultarPagadas('preparado')).pagadas.map((p) => p.idIncapacidad)).toEqual([c]);
     expect((await control.consultarPagadas('otra')).ver).toBe('por_archivar');
@@ -224,5 +232,114 @@ describe('HU-29.CA3 — pago no identificado', () => {
     expect((await errores(control.archivarIncapacidad(String(id), USUARIOS.auxiliar))).estado).toMatch(/Solo se archivan las incapacidades pagadas/);
     expect(await control.archivarIncapacidad('99', USUARIOS.auxiliar)).toBeNull();
     expect(await control.archivarIncapacidad('x', USUARIOS.auxiliar)).toBeNull();
+  });
+});
+
+describe('HU-30.CA1 — registrar el envío al archivo (DA-60)', () => {
+  const preparada = async (opciones) => {
+    const id = await pagada(opciones);
+    await control.archivarIncapacidad(String(id), USUARIOS.auxiliar);
+    return id;
+  };
+
+  it('con el archivo preparado y la casilla marcada: queda enviada con quién y cuándo, sin correo nuevo', async () => {
+    const id = await preparada();
+    expect(await control.registrarEnvioArchivo(String(id), { entregado: true }, USUARIOS.auxiliar)).toEqual({ idIncapacidad: id });
+
+    const incapacidad = baseDeDatos.incapacidades.find((i) => i.idIncapacidad === id);
+    expect(incapacidad.enviadaAGestionDocumental).toBe(true);
+    expect(incapacidad.fechaEnvioArchivo).toEqual(expect.any(String));
+    expect(incapacidad.envioArchivoPor).toBe(USUARIOS.auxiliar.id);
+    expect(enviados).toHaveLength(1); // solo el aviso de HU-29
+
+    const archivo = await control.prepararArchivo(String(id));
+    expect(archivo.situacion).toBe('enviada');
+    expect(archivo.envioArchivoPor).toBe(USUARIOS.auxiliar.correo);
+    const lista = await control.consultarPagadas('enviada');
+    expect(lista.pagadas.map((p) => p.idIncapacidad)).toEqual([id]);
+    expect(lista.conteos).toMatchObject({ preparado: 0, enviada: 1 });
+  });
+
+  it('sin la casilla no registra nada', async () => {
+    const id = await preparada();
+    expect((await errores(control.registrarEnvioArchivo(String(id), {}, USUARIOS.auxiliar))).entregado).toBe(MENSAJE_SIN_ENTREGA);
+    expect((await errores(control.registrarEnvioArchivo(String(id), { entregado: 'si' }, USUARIOS.auxiliar))).entregado).toBe(MENSAJE_SIN_ENTREGA);
+    expect(baseDeDatos.incapacidades.find((i) => i.idIncapacidad === id).enviadaAGestionDocumental).toBeFalsy();
+  });
+
+  it('sin el archivo preparado no se registra el envío', async () => {
+    const id = await pagada();
+    expect((await errores(control.registrarEnvioArchivo(String(id), { entregado: true }, USUARIOS.auxiliar))).estado).toMatch(
+      /Primero archive la incapacidad/,
+    );
+    const sinConciliar = await pagada({ conciliado: false });
+    expect((await errores(control.registrarEnvioArchivo(String(sinConciliar), { entregado: true }, USUARIOS.auxiliar))).estado).toMatch(
+      /Primero archive la incapacidad/,
+    );
+  });
+
+  it('no se registra dos veces ni cambia quién ni cuándo', async () => {
+    const id = await preparada();
+    await control.registrarEnvioArchivo(String(id), { entregado: true }, USUARIOS.auxiliar);
+    const { fechaEnvioArchivo } = baseDeDatos.incapacidades.find((i) => i.idIncapacidad === id);
+    expect((await errores(control.registrarEnvioArchivo(String(id), { entregado: true }, { id: 'otro' }))).estado).toMatch(/ya está registrado/);
+    expect(baseDeDatos.incapacidades.find((i) => i.idIncapacidad === id)).toMatchObject({ fechaEnvioArchivo, envioArchivoPor: USUARIOS.auxiliar.id });
+  });
+
+  it('si la base ya no lo permite (otro lo registró a la vez) explica por qué', async () => {
+    const id = await preparada();
+    vi.spyOn(baseDeDatos, 'guardarEnvio').mockImplementationOnce(async (idIncapacidad, por) => {
+      Object.assign(baseDeDatos.incapacidades.find((i) => i.idIncapacidad === idIncapacidad), {
+        enviadaAGestionDocumental: true, fechaEnvioArchivo: new Date().toISOString(), envioArchivoPor: 'id-otro',
+      });
+      return false;
+    });
+    expect((await errores(control.registrarEnvioArchivo(String(id), { entregado: true }, USUARIOS.auxiliar))).estado).toMatch(/ya está registrado/);
+  });
+
+  it('una enviada ya no se archiva, no admite pagos y ni deshacer el archivo ni deshacer la conciliación le quitan las marcas', async () => {
+    const id = await preparada();
+    await control.registrarEnvioArchivo(String(id), { entregado: true }, USUARIOS.auxiliar);
+    expect((await errores(control.archivarIncapacidad(String(id), USUARIOS.auxiliar))).estado).toMatch(/ya se envió a Gestión Documental/);
+    expect(await baseDeDatos.guardarPago(id, { valor: '1000.00', fechaPago: '2026-11-12' }, 'id-auxiliar')).toBeNull();
+    await baseDeDatos.deshacerArchivoPreparado(id);
+    await baseDeDatos.deshacerConciliacion(1); // la conciliación de su pago (ver `pagada`)
+    const incapacidad = baseDeDatos.incapacidades.find((i) => i.idIncapacidad === id);
+    expect(incapacidad).toMatchObject({ enviadaAGestionDocumental: true, archivoPreparadoPor: USUARIOS.auxiliar.id });
+    expect(incapacidad.fechaArchivoPreparado).toEqual(expect.any(String));
+    expect((await control.prepararArchivo(String(id))).situacion).toBe('enviada');
+  });
+
+  it('«Enviadas» solo lee las más recientes hasta el tope y avisa si hay más', async () => {
+    const ids = [await preparada({ colaborador: 'Primera' }), await preparada({ colaborador: 'Segunda' })];
+    for (const id of ids) await control.registrarEnvioArchivo(String(id), { entregado: true }, USUARIOS.auxiliar);
+    baseDeDatos.incapacidades.find((i) => i.idIncapacidad === ids[1]).fechaEnvioArchivo = '2099-01-01T00:00:00.000Z';
+    const obtener = vi.spyOn(baseDeDatos, 'obtenerEnviadas');
+
+    expect((await control.consultarPagadas('por_archivar')).conteos.enviada).toBe(2);
+    expect(obtener).not.toHaveBeenCalled(); // fuera de su pestaña solo se cuentan
+
+    const lista = await control.consultarPagadas('enviada');
+    expect(obtener).toHaveBeenCalledWith(LIMITE_ENVIADAS);
+    obtener.mockRestore();
+    expect(lista.pagadas.map((p) => p.idIncapacidad)).toEqual([ids[1], ids[0]]);
+    expect(lista.limitado).toBe(false);
+
+    const limitado = vi.spyOn(baseDeDatos, 'contarEnviadas').mockResolvedValueOnce(LIMITE_ENVIADAS + 1);
+    expect((await control.consultarPagadas('enviada')).limitado).toBe(true);
+    limitado.mockRestore();
+  });
+
+  it('una que no existe o no está pagada', async () => {
+    expect(await control.registrarEnvioArchivo('99', { entregado: true }, USUARIOS.auxiliar)).toBeNull();
+    expect(await control.registrarEnvioArchivo('x', { entregado: true }, USUARIOS.auxiliar)).toBeNull();
+    const id = await pagada();
+    baseDeDatos.incapacidades[0].estado = 'cobrada';
+    expect((await errores(control.registrarEnvioArchivo(String(id), { entregado: true }, USUARIOS.auxiliar))).estado).toMatch(/Solo se registra/);
+  });
+
+  it('situacionArchivo: la enviada manda sobre las demás', () => {
+    expect(situacionArchivo({ enviadaAGestionDocumental: true, fechaArchivoPreparado: 'x', pagos: [] })).toBe('enviada');
+    expect(situacionArchivo({ enviadaAGestionDocumental: false, fechaArchivoPreparado: 'x', pagos: [] })).toBe('preparado');
   });
 });

@@ -1,24 +1,28 @@
 <%
   // HU-29.CA1 (DS-13; DA-59): las pagadas que aún no se envían a Gestión Documental, por su situación.
-  const pestanas = [['por_archivar', 'Por archivar'], ['sin_conciliar', 'Pago sin conciliar'], ['preparado', 'Archivo preparado']];
+  // HU-30 (DA-60): la pestaña «Enviadas» guarda las que ya cerraron el ciclo.
+  const pestanas = [['por_archivar', 'Por archivar'], ['sin_conciliar', 'Pago sin conciliar'], ['preparado', 'Archivo preparado'], ['enviada', 'Enviadas']];
   const explicacion = {
     por_archivar: 'Su pago está identificado y conciliado: ábralas para archivarlas.',
     sin_conciliar: 'Su pago aún no se concilia con lo consignado por la entidad: no se pueden archivar todavía.',
-    preparado: 'Ya se eliminó la epicrisis y se avisó a Gestión Documental. Falta entregar los documentos físicos.',
+    preparado: 'Ya se eliminó la epicrisis y se avisó a Gestión Documental. Ábralas para registrar la entrega de los documentos físicos.',
+    enviada: 'Los documentos físicos ya se entregaron a Gestión Documental. Fin del ciclo.',
   };
   const vacios = {
     por_archivar: ['No hay incapacidades por archivar.', 'Aparecerán aquí cuando su pago quede conciliado.'],
     sin_conciliar: ['Todas las pagadas tienen el pago conciliado.', 'Aquí quedan las que tienen algún pago sin conciliar.'],
     preparado: ['No hay archivos preparados pendientes de entrega.', 'Aparecerán aquí después de archivar una incapacidad.'],
+    enviada: ['Aún no hay incapacidades enviadas a Gestión Documental.', 'Aparecerán aquí al registrar la entrega de los documentos físicos.'],
   };
   const chip = {
     por_archivar: ['al_dia', 'Conciliado'],
     sin_conciliar: ['por_vencer', 'Sin conciliar'],
     preparado: ['registrada', 'Archivo preparado'],
+    enviada: ['pagada', 'Enviada'],
   };
 %>
 <h1>Archivo</h1>
-<p class="sub">Las incapacidades pagadas que aún no se envían a Gestión Documental. Solo se archivan las que tienen el pago identificado y conciliado.</p>
+<p class="sub">Las incapacidades pagadas y su envío a Gestión Documental. Solo se archivan las que tienen el pago identificado y conciliado.</p>
 <nav aria-label="Archivo">
   <ul class="pestanas">
     <% for (const [valor, nombre] of pestanas) { %>
@@ -42,8 +46,11 @@
   <% } else { %>
     <p class="cuenta-resultado">
       <span><b><%= pagadas.length %></b> <%= pagadas.length === 1 ? 'incapacidad' : 'incapacidades' %> · <%= explicacion[ver] %></span>
-      <span>Las más recientes primero</span>
+      <span><%= ver === 'enviada' ? 'Las enviadas más recientemente primero' : 'Las más recientes primero' %></span>
     </p>
+    <% if (limitado) { %>
+      <p class="mensaje mensaje-info">Se muestran las <%= limite %> enviadas más recientes de <%= conteos.enviada %>.</p>
+    <% } %>
     <div class="tabla-envuelta">
       <table class="estados pendientes">
         <thead>
@@ -58,7 +65,8 @@
             <td class="fecha"><%= pesos(p.totalPagado) %><small><%= p.pagos.length === 1 ? '1 pago' : `${p.pagos.length} pagos` %><%= p.pagosSinConciliar > 0 ? ` · ${p.pagosSinConciliar} sin conciliar` : '' %></small></td>
             <td>
               <span class="chip <%= clase %>"><%= texto %></span>
-              <% if (p.situacion !== 'preparado' && p.tieneEpicrisis) { %><span class="chip registrada">Con epicrisis</span><% } %>
+              <% if (p.situacion === 'enviada') { %><small>el <%= fechaBreve(fechaEnColombia(p.fechaEnvioArchivo)) %></small><% } %>
+              <% if (['por_archivar', 'sin_conciliar'].includes(p.situacion) && p.tieneEpicrisis) { %><span class="chip registrada">Con epicrisis</span><% } %>
             </td>
           </tr>
           <% } %>

@@ -47,6 +47,7 @@ describe('HU-11.CA1 — lista las que cumplen los filtros con su estado', () => 
       fechaInicio: '2026-11-10',
       diasIncapacidad: 5,
       estado: 'cobrada',
+      enviadaAGestionDocumental: false,
     });
   });
 

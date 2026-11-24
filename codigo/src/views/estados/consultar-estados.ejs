@@ -100,7 +100,11 @@
             <td><%= i.entidad %></td>
             <td><%= fechaBreve(i.fechaInicio) %></td>
             <td class="num"><%= i.diasIncapacidad %></td>
-            <td><span class="chip <%= estado %>"><%= nombresEstado[estado] %></span></td>
+            <td>
+              <span class="chip <%= estado %>"><%= nombresEstado[estado] %></span>
+              <%# HU-30 (DA-60): el estado sigue en «pagada»; el fin del ciclo se marca aparte. %>
+              <% if (i.enviadaAGestionDocumental) { %><span class="chip registrada">Enviada a Gestión Documental</span><% } %>
+            </td>
           </tr>
           <% } %>
         </tbody>

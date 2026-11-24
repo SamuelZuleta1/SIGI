@@ -1,6 +1,7 @@
 // Grupo `archivo` de la Interfaz de incapacidades — DS-13 (CU-17).
 // Operaciones de la Vista: consultarPagadas (HU-29.CA1, GET /archivo) y archivarIncapacidad (HU-29.CA2/CA3, desde una
 // pantalla por incapacidad: GET/POST /incapacidades/:id/archivo). DA-59.
+// registrarEnvioArchivo (HU-30, POST /incapacidades/:id/archivo/envio): último paso de esa misma pantalla. DA-60.
 import { Router } from 'express';
 import { ErrorAlEliminarEpicrisis } from '../controllers/archivo.controller.js';
 import { ErrorDeAviso } from '../controllers/error-de-aviso.js';
@@ -29,6 +30,7 @@ export function crearRutasArchivo({ control }) {
       titulo: 'Archivar incapacidad',
       errores: {},
       preparado: false,
+      enviada: false,
       ...ayudas,
       ...datos,
     });
@@ -39,13 +41,15 @@ export function crearRutasArchivo({ control }) {
     res.pagina('archivo/consultar-pagadas', { titulo: 'Archivo', ...datos, ...ayudas });
   });
 
-  // Tras archivar se vuelve con ?preparado=1; la confirmación solo aparece si de verdad quedó preparado.
+  // Tras archivar se vuelve con ?preparado=1 y tras registrar el envío con ?enviada=1; cada confirmación solo aparece
+  // si la incapacidad de verdad está en ese punto.
   rutas.get('/incapacidades/:id/archivo', permitir('consultarPagadas'), async (req, res) => {
     const archivo = await control.prepararArchivo(req.params.id);
     if (!archivo) return noExiste(res);
     await pagina(res, 200, {
       archivo,
       preparado: req.query.preparado === '1' && archivo.situacion === 'preparado',
+      enviada: req.query.enviada === '1' && archivo.situacion === 'enviada',
     });
   });
 
@@ -72,6 +76,20 @@ export function crearRutasArchivo({ control }) {
       if (!archivo) return noExiste(res);
       if (error instanceof ErrorDeValidacion) return pagina(res, 409, { archivo, errores: error.errores });
       await pagina(res, 502, { archivo, errores: { aviso: error instanceof ErrorDeAviso ? AVISO_FALLIDO : EPICRISIS_FALLIDA } });
+    }
+  });
+
+  // registrarEnvioArchivo() — HU-30.CA1. Sin la casilla: 400; sin archivo preparado o ya enviada: 409.
+  rutas.post('/incapacidades/:id/archivo/envio', permitir('registrarEnvioArchivo'), async (req, res) => {
+    try {
+      const resultado = await control.registrarEnvioArchivo(req.params.id, { entregado: req.body?.entregado === 'si' }, req.usuario);
+      if (!resultado) return noExiste(res);
+      res.redirect(303, `/incapacidades/${resultado.idIncapacidad}/archivo?enviada=1`);
+    } catch (error) {
+      if (!(error instanceof ErrorDeValidacion)) throw error;
+      const archivo = await control.prepararArchivo(req.params.id);
+      if (!archivo) return noExiste(res);
+      await pagina(res, error.errores.entregado ? 400 : 409, { archivo, errores: error.errores });
     }
   });
 

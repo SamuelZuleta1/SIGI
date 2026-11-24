@@ -21,6 +21,7 @@ async function pagada({ colaborador = 'Ana María Gómez', conciliado = true, ep
   return pago.idIncapacidad;
 }
 const archivar = (agente, id) => agente.post(`/incapacidades/${id}/archivo`).type('form').send({});
+const registrarEnvio = (agente, id, datos = { entregado: 'si' }) => agente.post(`/incapacidades/${id}/archivo/envio`).type('form').send(datos);
 
 beforeEach(() => {
   baseDeDatos = crearBaseDeDatosFalsa();
@@ -157,5 +158,75 @@ describe('HU-29.CA3 — pago no identificado', () => {
     expect(res.text).toContain('aún no está identificado y conciliado: no se puede archivar');
     expect(enviados).toHaveLength(0);
     expect(baseDeDatos.documentos).toHaveLength(1);
+  });
+});
+
+describe('HU-30.CA1 — registrar el envío (POST /incapacidades/:id/archivo/envio)', () => {
+  it('con el archivo preparado ofrece el paso final; al registrarlo confirma el fin del ciclo y pasa a «Enviadas»', async () => {
+    const id = await pagada({ colaborador: 'Ana Gómez' });
+    const agente = await agenteCon(request, app, 'auxiliar');
+    expect((await agente.get(`/incapacidades/${id}/archivo`)).text).not.toContain('/archivo/envio');
+    await archivar(agente, id);
+    const antes = await agente.get(`/incapacidades/${id}/archivo`);
+    expect(antes.text).toContain('Entregar los documentos físicos');
+    expect(antes.text).toContain(`action="/incapacidades/${id}/archivo/envio"`);
+
+    const res = await registrarEnvio(agente, id);
+    expect(res.status).toBe(303);
+    expect(res.headers.location).toBe(`/incapacidades/${id}/archivo?enviada=1`);
+    const despues = await agente.get(res.headers.location);
+    expect(despues.text).toContain(`Envío registrado: la incapacidad n.º ${id} quedó enviada a Gestión Documental. Fin del ciclo.`);
+    expect(despues.text).toContain('Enviada a Gestión Documental');
+    expect(despues.text).toContain('auxiliar@sigi.test');
+    expect(despues.text).not.toContain('/archivo/envio');
+    expect(enviados).toHaveLength(1);
+
+    expect((await agente.get('/archivo?ver=preparado')).text).not.toContain('Ana Gómez');
+    const enviadas = await agente.get('/archivo?ver=enviada');
+    expect(enviadas.text).toContain('Ana Gómez');
+    expect(enviadas.text).toMatch(/Enviadas<span class="n"><span class="oculto">: <\/span>1/);
+    expect(enviadas.text).not.toContain('Se muestran las');
+
+    // Consultar estados (HU-11) también muestra el fin del ciclo; el estado sigue en «Pagada».
+    const estados = await agente.get('/estados?estado=pagada');
+    expect(estados.text).toContain('Enviada a Gestión Documental');
+  });
+
+  it('sin la casilla: 400 con el error junto a ella y nada registrado', async () => {
+    const id = await pagada();
+    const agente = await agenteCon(request, app, 'auxiliar');
+    await archivar(agente, id);
+    const res = await registrarEnvio(agente, id, {});
+    expect(res.status).toBe(400);
+    expect(res.text).toContain('id="error-entregado"');
+    expect(res.text).toContain('aria-invalid="true"');
+    expect(res.text).toContain('href="/archivo" aria-current="page"'); // el menú sigue en «Archivo»
+    expect(baseDeDatos.incapacidades[0].enviadaAGestionDocumental).toBeFalsy();
+    expect((await agente.get('/estados?estado=pagada')).text).not.toContain('Enviada a Gestión Documental');
+  });
+
+  it('sin archivo preparado o ya enviada: 409; la confirmación no aparece por la URL', async () => {
+    const id = await pagada();
+    const agente = await agenteCon(request, app, 'auxiliar');
+    const sinPreparar = await registrarEnvio(agente, id);
+    expect(sinPreparar.status).toBe(409);
+    expect(sinPreparar.text).toContain('Primero archive la incapacidad');
+    expect((await agente.get(`/incapacidades/${id}/archivo?enviada=1`)).text).not.toContain('Envío registrado:');
+
+    await archivar(agente, id);
+    await registrarEnvio(agente, id);
+    const otraVez = await registrarEnvio(agente, id);
+    expect(otraVez.status).toBe(409);
+    expect(otraVez.text).toContain('ya está registrado');
+  });
+
+  it('solo el auxiliar registra el envío (DA-02); una que no existe: 404', async () => {
+    const id = await pagada();
+    await archivar(await agenteCon(request, app, 'auxiliar'), id);
+    for (const rol of ['receptor', 'lider', 'contabilidad', 'cartera']) {
+      expect((await registrarEnvio(await agenteCon(request, app, rol), id)).status).toBe(403);
+    }
+    expect(baseDeDatos.incapacidades[0].enviadaAGestionDocumental).toBeFalsy();
+    expect((await registrarEnvio(await agenteCon(request, app, 'auxiliar'), 99)).status).toBe(404);
   });
 });

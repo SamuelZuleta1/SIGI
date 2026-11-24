@@ -1,10 +1,12 @@
 <%
   // HU-29.CA2/CA3 (DS-13; DA-11, DA-12, DA-59): archivar una incapacidad pagada. Solo con el pago conciliado; elimina la
-  // epicrisis y envía los datos (sin adjuntos) a Gestión Documental. El envío de los físicos es HU-30.
+  // epicrisis y envía los datos (sin adjuntos) a Gestión Documental. HU-30 (DA-60, opción A): último paso de la línea
+  // de tiempo, la entrega de los documentos físicos; con eso la incapacidad queda enviada (fin del ciclo).
   const ICONOS = {
     pago: '<rect x="3.5" y="6" width="17" height="12" rx="1.5"/><circle cx="12" cy="12" r="2.5"/>',
     archivo: '<rect x="3.5" y="4" width="17" height="5" rx="1"/><path d="M5 9v10.5h14V9M10 13h4"/>',
     alerta: '<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12M12 15.5v.01"/>',
+    hecho: '<path d="M5 12.5l4.5 4.5L19 7.5"/>',
   };
   const dias = (n) => (n === 1 ? '1 día' : `${n} días`);
   const a = archivo;
@@ -21,6 +23,11 @@
   <% if (preparado) { %>
     <p class="mensaje mensaje-ok entra" role="status">
       Archivo preparado: se eliminó la epicrisis (si la tenía) y se envió el correo a Gestión Documental. Falta entregar los documentos físicos.
+    </p>
+  <% } %>
+  <% if (enviada) { %>
+    <p class="mensaje mensaje-ok entra" role="status">
+      Envío registrado: la incapacidad n.º <%= a.idIncapacidad %> quedó enviada a Gestión Documental. Fin del ciclo.
     </p>
   <% } %>
 
@@ -60,14 +67,44 @@
     <h2 id="titulo-archivo">Archivo</h2>
     <% if (errores.estado) { %><p class="mensaje mensaje-aviso" role="alert"><%= errores.estado %></p><% } %>
     <ol class="linea-tiempo">
-      <% if (a.situacion === 'preparado') { %>
+      <% if (a.situacion === 'preparado' || a.situacion === 'enviada') { %>
         <li class="<%= preparado ? 'entra' : '' %>">
           <span class="punto hecho"><svg viewBox="0 0 24 24" aria-hidden="true"><%- ICONOS.archivo %></svg></span>
           <div class="paso">
             <p class="titulo"><b>Archivo preparado</b><span class="tenue">el <%= fechaBreve(fechaEnColombia(a.fechaArchivoPreparado)) %></span></p>
-            <p class="tenue">Se avisó a Gestión Documental. Falta entregar los documentos físicos y registrar el envío.</p>
+            <p class="tenue">Se eliminó la epicrisis (si la tenía) y se avisó a Gestión Documental.</p>
           </div>
         </li>
+        <% if (a.situacion === 'enviada') { %>
+        <li class="<%= enviada ? 'entra' : '' %>">
+          <span class="punto hecho"><svg viewBox="0 0 24 24" aria-hidden="true"><%- ICONOS.hecho %></svg></span>
+          <div class="paso">
+            <p class="titulo">
+              <b>Enviada a Gestión Documental</b>
+              <span class="tenue">el <%= fechaBreve(fechaEnColombia(a.fechaEnvioArchivo)) %><% if (a.envioArchivoPor) { %> · <%= a.envioArchivoPor %><% } %></span>
+            </p>
+            <p class="tenue">Fin del ciclo de la incapacidad.</p>
+          </div>
+        </li>
+        <% } else { %>
+        <li>
+          <span class="punto actual"><svg viewBox="0 0 24 24" aria-hidden="true"><%- ICONOS.archivo %></svg></span>
+          <div class="paso">
+            <p class="titulo"><b>Entregar los documentos físicos</b></p>
+            <p class="tenue">Lleve la carpeta a Gestión Documental y registre el envío. Con eso la incapacidad queda cerrada; no se puede deshacer.</p>
+            <form class="radicar" method="post" action="/incapacidades/<%= a.idIncapacidad %>/archivo/envio" novalidate data-un-envio>
+              <div>
+                <label class="casilla">
+                  <input type="checkbox" name="entregado" value="si"<%- errores.entregado ? ' aria-invalid="true" aria-describedby="error-entregado" autofocus' : '' %>>
+                  <span>Entregué los documentos físicos a Gestión Documental<small>Se guarda con la fecha de hoy y su usuario.</small></span>
+                </label>
+                <% if (errores.entregado) { %><p class="error-casilla" id="error-entregado"><%= errores.entregado %></p><% } %>
+              </div>
+              <div class="acciones"><button class="boton" data-enviando="Registrando…">Registrar el envío</button></div>
+            </form>
+          </div>
+        </li>
+        <% } %>
       <% } else if (a.situacion === 'sin_conciliar') { %>
         <li>
           <span class="punto rechazo"><svg viewBox="0 0 24 24" aria-hidden="true"><%- ICONOS.alerta %></svg></span>

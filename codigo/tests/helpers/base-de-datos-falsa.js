@@ -52,6 +52,9 @@ export function crearBaseDeDatosFalsa() {
     estado: i.estado,
     enviadaAGestionDocumental: i.enviadaAGestionDocumental ?? false,
     fechaArchivoPreparado: i.fechaArchivoPreparado ?? null,
+    fechaEnvioArchivo: i.fechaEnvioArchivo ?? null,
+    // Como el embed usuario!incapacidad_envio_archivo_por_fkey(correo): las pruebas usan ids `id-<rol>`.
+    envioArchivoPor: i.envioArchivoPor ? `${i.envioArchivoPor.replace(/^id-/, '')}@sigi.test` : null,
     pagos: pagos
       .filter((p) => p.idIncapacidad === i.idIncapacidad)
       .sort((a, b) => a.fechaPago.localeCompare(b.fechaPago) || a.idPago - b.idPago)
@@ -428,6 +431,7 @@ export function crearBaseDeDatosFalsa() {
           fechaInicio: i.fechaInicio,
           diasIncapacidad: i.diasIncapacidad,
           estado: i.estado,
+          enviadaAGestionDocumental: i.enviadaAGestionDocumental ?? false,
         }));
       return { total: filas.length, filas: filas.slice(0, limite) };
     },
@@ -688,7 +692,7 @@ export function crearBaseDeDatosFalsa() {
       const { creadoPor, ...datos } = r;
       return datos;
     },
-    // HU-29 (DS-13): como archivo.persistence.js y preparar_archivo (DA-59).
+    // HU-29 / HU-30 (DS-13): como archivo.persistence.js, preparar_archivo y registrar_envio_archivo (DA-59, DA-60).
     async obtenerPagadas() {
       return incapacidades
         .filter((i) => i.estado === 'pagada' && !i.enviadaAGestionDocumental)
@@ -710,6 +714,22 @@ export function crearBaseDeDatosFalsa() {
     async deshacerArchivoPreparado(idIncapacidad) {
       const i = incapacidades.find((x) => x.idIncapacidad === idIncapacidad);
       if (i && !i.enviadaAGestionDocumental) Object.assign(i, { fechaArchivoPreparado: null, archivoPreparadoPor: null });
+    },
+    async contarEnviadas() {
+      return incapacidades.filter((i) => i.enviadaAGestionDocumental).length;
+    },
+    async obtenerEnviadas(limite) {
+      return incapacidades
+        .filter((i) => i.enviadaAGestionDocumental)
+        .sort((a, b) => (b.fechaEnvioArchivo ?? '').localeCompare(a.fechaEnvioArchivo ?? '') || b.idIncapacidad - a.idIncapacidad)
+        .slice(0, limite)
+        .map((i) => datosArchivo(i));
+    },
+    async guardarEnvio(idIncapacidad, por) {
+      const i = incapacidades.find((x) => x.idIncapacidad === idIncapacidad);
+      if (!i || i.estado !== 'pagada' || i.fechaArchivoPreparado == null || i.enviadaAGestionDocumental) return false;
+      Object.assign(i, { enviadaAGestionDocumental: true, fechaEnvioArchivo: new Date().toISOString(), envioArchivoPor: por });
+      return true;
     },
     async eliminarEpicrisis(idIncapacidad) {
       let eliminadas = 0;

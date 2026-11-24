@@ -1,6 +1,7 @@
 // Grupo `archivo` de la Base de datos — DS-13 (CU-17).
 // Operaciones: obtenerPagadas (HU-29.CA1), obtenerDatosArchivo y obtenerEstadoPago (apoyo de la Vista y del Control),
-// guardarArchivoPreparado con su «deshacer» (si el correo a Gestión Documental falla) y eliminarEpicrisis (DA-12).
+// guardarArchivoPreparado con su «deshacer» (si el correo a Gestión Documental falla), eliminarEpicrisis (DA-12) y
+// guardarEnvio, contarEnviadas y obtenerEnviadas (HU-30, DA-60).
 import { BLOQUE } from './alertas.persistence.js';
 import { crearAlmacenDocumentos } from './almacen-documentos.js';
 
@@ -11,6 +12,7 @@ const comprobar = ({ data, error }) => {
 
 const COLUMNAS =
   'id, tipo, fecha_inicio, dias_incapacidad, estado, enviada_a_gestion_documental, fecha_archivo_preparado, ' +
+  'fecha_envio_archivo, envio:usuario!incapacidad_envio_archivo_por_fkey(correo), ' +
   'colaborador(nombre), entidad(nombre), pago(id, valor, fecha_pago, conciliado), documento(id, tipo)';
 
 const aDatos = (f) => ({
@@ -23,6 +25,8 @@ const aDatos = (f) => ({
   estado: f.estado,
   enviadaAGestionDocumental: f.enviada_a_gestion_documental,
   fechaArchivoPreparado: f.fecha_archivo_preparado,
+  fechaEnvioArchivo: f.fecha_envio_archivo,
+  envioArchivoPor: f.envio?.correo ?? null,
   pagos: [...f.pago]
     .sort((a, b) => a.fecha_pago.localeCompare(b.fecha_pago) || a.id - b.id)
     .map((p) => ({ idPago: p.id, valor: p.valor, fechaPago: p.fecha_pago, conciliado: p.conciliado })),
@@ -33,7 +37,8 @@ export function crearPersistenciaArchivo(cliente, almacen = crearAlmacenDocument
   return {
     /**
      * DS-13: obtenerPagadas() — HU-29.CA1. Las pagadas que aún no se enviaron a Gestión Documental, con sus pagos y
-     * documentos, de la más reciente a la más antigua. Se leen en bloques (máximo de la API).
+     * documentos, de la más reciente a la más antigua. Se leen en bloques (máximo de la API). Las enviadas van aparte
+     * (contarEnviadas, obtenerEnviadas): son un historial que solo crece (DA-60).
      */
     async obtenerPagadas() {
       const filas = [];
@@ -94,6 +99,39 @@ export function crearPersistenciaArchivo(cliente, almacen = crearAlmacenDocument
           .in('id', epicrisis.map((d) => d.id)),
       );
       return epicrisis.length;
+    },
+
+    /**
+     * DS-13: guardarEnvio(idIncapacidad) — HU-30. En un solo UPDATE (`registrar_envio_archivo`) comprueba que está
+     * pagada, con el archivo preparado y sin enviar, y guarda el envío con quién y cuándo (DA-23, DA-60).
+     * @returns {Promise<boolean>} false si el estado ya no lo permitía.
+     */
+    async guardarEnvio(idIncapacidad, por) {
+      return comprobar(await cliente.rpc('registrar_envio_archivo', { p_incapacidad_id: idIncapacidad, p_por: por })) === true;
+    },
+
+    /** HU-30 (DA-60): cuántas incapacidades ya se enviaron a Gestión Documental (pestaña «Enviadas»). */
+    async contarEnviadas() {
+      const { count, error } = await cliente
+        .from('incapacidad')
+        .select('id', { count: 'exact', head: true })
+        .eq('enviada_a_gestion_documental', true);
+      if (error) throw error;
+      return count ?? 0;
+    },
+
+    /** HU-30 (DA-60): las `limite` enviadas más recientes, por fecha de envío. */
+    async obtenerEnviadas(limite) {
+      const filas = comprobar(
+        await cliente
+          .from('incapacidad')
+          .select(COLUMNAS)
+          .eq('enviada_a_gestion_documental', true)
+          .order('fecha_envio_archivo', { ascending: false })
+          .order('id', { ascending: false })
+          .limit(limite),
+      );
+      return filas.map(aDatos);
     },
   };
 }

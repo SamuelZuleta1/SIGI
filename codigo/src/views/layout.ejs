@@ -126,7 +126,7 @@
       <% } %>
       <% if (puede('consultarPagadas')) { %>
       <li>
-        <a href="/archivo" <%- ruta === '/archivo' || /^\/incapacidades\/\d+\/archivo$/.test(ruta) ? 'aria-current="page"' : '' %>>
+        <a href="/archivo" <%- ruta === '/archivo' || /^\/incapacidades\/\d+\/archivo(\/envio)?$/.test(ruta) ? 'aria-current="page"' : '' %>>
           <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="4" width="17" height="5" rx="1"/><path d="M5 9v10.5h14V9M10 13h4"/></svg>
           Archivo
         </a>

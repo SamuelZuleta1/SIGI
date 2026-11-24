@@ -1,6 +1,7 @@
 // HU-29 contra Supabase (nube): preparar_archivo solo marca una pagada con todos sus pagos conciliados; al archivar se
 // elimina la epicrisis de Storage y de `documento` (la historia clínica se conserva); deshacer quita la marca; con el
-// archivo preparado registrar_pago ya no admite pagos (DA-11, DA-12, DA-59).
+// archivo preparado registrar_pago ya no admite pagos (DA-11, DA-12, DA-59). HU-30: registrar_envio_archivo cierra el
+// ciclo con quién y cuándo, solo una vez y solo con el archivo preparado; después nada lo deshace (DA-60).
 // Requisitos: proyecto vinculado, migraciones aplicadas y `npm run db:usuarios`.
 import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
@@ -152,5 +153,47 @@ describe('HU-29 — archivo (persistencia real)', () => {
     const sinMarca = comprobar(await servidor.from('incapacidad').select('fecha_archivo_preparado, archivo_preparado_por').eq('id', id).single());
     expect(sinMarca).toEqual({ fecha_archivo_preparado: null, archivo_preparado_por: null });
     expect(await control.archivarIncapacidad(String(id), auxiliar)).toEqual({ idIncapacidad: id, epicrisisEliminadas: 0 });
+  });
+});
+
+describe('HU-30 — envío al archivo (persistencia real)', () => {
+  it('HU-30.CA1 — registra el envío con quién y cuándo, una sola vez; queda en «Enviadas» con el correo de quien lo hizo', async () => {
+    const { id, idPago } = await pagada('Envío');
+    await conciliar(idPago);
+    expect(await baseDeDatos.guardarEnvio(id, auxiliar.id)).toBe(false); // sin archivo preparado
+    await control.archivarIncapacidad(String(id), auxiliar);
+
+    expect(await control.registrarEnvioArchivo(String(id), { entregado: true }, auxiliar)).toEqual({ idIncapacidad: id });
+    const fila = comprobar(
+      await servidor.from('incapacidad').select('enviada_a_gestion_documental, fecha_envio_archivo, envio_archivo_por').eq('id', id).single(),
+    );
+    expect(fila.enviada_a_gestion_documental).toBe(true);
+    expect(fila.fecha_envio_archivo).not.toBeNull();
+    expect(fila.envio_archivo_por).toBe(auxiliar.id);
+
+    expect(await baseDeDatos.guardarEnvio(id, auxiliar.id)).toBe(false);
+    const otraVez = comprobar(await servidor.from('incapacidad').select('fecha_envio_archivo').eq('id', id).single());
+    expect(otraVez.fecha_envio_archivo).toBe(fila.fecha_envio_archivo);
+
+    const lista = await control.consultarPagadas('enviada');
+    const enviada = lista.pagadas.find((p) => p.idIncapacidad === id);
+    expect(enviada).toMatchObject({ situacion: 'enviada', envioArchivoPor: auxiliar.correo });
+    expect(lista.conteos.enviada).toBeGreaterThanOrEqual(1);
+    expect((await baseDeDatos.obtenerPagadas()).map((p) => p.idIncapacidad)).not.toContain(id);
+
+    // Ya enviada: ni deshacer el archivo preparado ni deshacer la conciliación le quitan las marcas.
+    await baseDeDatos.deshacerArchivoPreparado(id);
+    comprobar(await servidor.rpc('deshacer_conciliacion', { p_id: conciliaciones.at(-1) }));
+    const despues = comprobar(
+      await servidor.from('incapacidad').select('enviada_a_gestion_documental, fecha_archivo_preparado').eq('id', id).single(),
+    );
+    expect(despues.enviada_a_gestion_documental).toBe(true);
+    expect(despues.fecha_archivo_preparado).not.toBeNull();
+  });
+
+  it('las restricciones impiden marcarla enviada sin fecha o sin archivo preparado', async () => {
+    const { id } = await pagada('Restricción');
+    const { error } = await servidor.from('incapacidad').update({ enviada_a_gestion_documental: true }).eq('id', id);
+    expect(error?.code).toBe('23514');
   });
 });

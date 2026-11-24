@@ -38,7 +38,7 @@ export function crearPersistenciaEstados(cliente) {
         await filtrar(
           cliente
             .from('incapacidad')
-            .select('id, tipo, fecha_inicio, dias_incapacidad, estado, colaborador(nombre), entidad(nombre)', { count: 'exact' }),
+            .select('id, tipo, fecha_inicio, dias_incapacidad, estado, enviada_a_gestion_documental, colaborador(nombre), entidad(nombre)', { count: 'exact' }),
           filtros,
         )
           .order('fecha_inicio', { ascending: false })
@@ -55,6 +55,7 @@ export function crearPersistenciaEstados(cliente) {
           fechaInicio: f.fecha_inicio,
           diasIncapacidad: f.dias_incapacidad,
           estado: f.estado,
+          enviadaAGestionDocumental: f.enviada_a_gestion_documental,
         })),
       };
     },
