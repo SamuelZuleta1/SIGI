@@ -23,16 +23,34 @@ export function borrarSesion(res) {
   res.clearCookie(COOKIE_RENOVACION, opcionesCookie());
 }
 
-/** Rechaza los envíos de formularios que vienen de otro sitio (CSRF). */
+const hostDe = (url) => {
+  try {
+    return new URL(url).host;
+  } catch {
+    return null; // URL inválida u «Origin: null»
+  }
+};
+
+/**
+ * Rechaza los envíos que no vienen de las propias páginas de SIGI (CSRF). Para POST y demás métodos que cambian
+ * datos exige una prueba positiva de mismo origen; si no hay ninguna, rechaza (nunca se acepta por omisión, DA-62):
+ *   1. `Sec-Fetch-Site`, si viene, debe ser `same-origin` (los navegadores actuales la envían siempre).
+ *   2. `Origin`, si viene, debe ser el mismo host.
+ *   3. Sin `Origin`, `Referer` debe ser del mismo host (Referrer-Policy: same-origin lo conserva en el sitio).
+ *   4. Sin `Origin` ni `Referer`, solo pasa con `Sec-Fetch-Site: same-origin`.
+ */
 export function mismoOrigen(req, res, next) {
   if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) return next();
+  const rechazar = () => res.status(403).send('Origen no permitido');
+  const host = req.get('host');
+  const sitio = req.get('sec-fetch-site');
+  if (sitio && sitio !== 'same-origin') return rechazar();
+
   const origen = req.get('origin');
-  if (origen) {
-    let host = null;
-    try { host = new URL(origen).host; } catch { /* origen inválido */ }
-    if (host !== req.get('host')) return res.status(403).send('Origen no permitido');
-  }
-  next();
+  if (origen) return hostDe(origen) === host ? next() : rechazar();
+  const referente = req.get('referer');
+  if (referente) return hostDe(referente) === host ? next() : rechazar();
+  return sitio === 'same-origin' ? next() : rechazar();
 }
 
 /** Lee las cookies y deja en req.usuario { id, correo, rol } si la sesión es válida. */
