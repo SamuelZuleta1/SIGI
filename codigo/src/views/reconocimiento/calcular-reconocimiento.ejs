@@ -1,8 +1,8 @@
 <%
-  // HU-21 (DS-09; DA-09, DA-10): el auxiliar ingresa el IBC y el sistema aplica los tramos del procedimiento.
+  // HU-21 (DS-09; DA-09, DA-10, DA-51): el auxiliar ingresa el IBC y el sistema aplica los tramos de la regla del tipo.
   const dias = (n) => (n === 1 ? '1 día' : `${n} días`);
-  // DA-50 y DA-51 (opción C): cada advertencia va junto a su dato.
-  const { incapacidad, resultado, aCargoDe, reglaPorValidar, advertenciaIbc } = reconocimiento;
+  // DA-50 y DA-51 (opción C): cada advertencia o nota va junto a su dato.
+  const { incapacidad, resultado, aCargoDe, regla, advertenciaIbc } = reconocimiento;
   const cargo = { empresa: 'Empresa', eps: aCargoDe };
 %>
 <h1>Reconocimiento económico</h1>
@@ -60,7 +60,7 @@
               <td><%= t.nombre %></td>
               <td class="num cifra"><%= t.dias %></td>
               <td class="num cifra"><%= t.porcentaje %> %</td>
-              <td><%= cargo[t.aCargo] %><% if (t.aCargo === 'eps' && reglaPorValidar) { %> <span class="chip por_vencer">Regla por validar</span><% } %></td>
+              <td><%= cargo[t.aCargo] %></td>
               <td class="num cifra"><%= pesos(t.valor / 100) %></td>
             </tr>
             <% } %>
@@ -71,8 +71,10 @@
           </tfoot>
         </table>
       </div>
-      <% if (reglaPorValidar) { %>
-        <p class="nota-tabla">Regla por validar: a <%= (nombresTipo[incapacidad.tipo] ?? incapacidad.tipo).toLowerCase() %> se le aplican los tramos de la EPS para la enfermedad general.</p>
+      <% if (regla === 'laboral') { %>
+        <p class="nota-tabla">Origen laboral: el día del evento lo paga la empresa y desde el día siguiente la ARL paga el 100 % (Ley 776 de 2002).</p>
+      <% } else if (regla === 'licencia') { %>
+        <p class="nota-tabla">Licencia: la EPS paga el 100 % de todos los días y la empresa no asume ninguno (Ley 2114 de 2021).</p>
       <% } %>
       <p class="nota-tabla">No se suman prórrogas anteriores (por validar): los días cuentan desde 1 en este certificado.</p>
       <% if (resultado.tramitePension) { %>

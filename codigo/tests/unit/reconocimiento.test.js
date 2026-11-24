@@ -211,21 +211,23 @@ describe('DA-50 y DA-51 — ARL, licencias, SMMLV y prórrogas', () => {
   const registrarComo = (tipo, entidad) =>
     control.registrarIncapacidad(formularioDeRegistro({ tipo, entidad: String(entidad), diasIncapacidad: '30' }), USUARIOS.receptor);
 
-  it('enfermedad general con EPS: a cargo de la EPS y sin regla por validar', async () => {
+  it('enfermedad general con EPS: a cargo de la EPS, regla de origen común', async () => {
     await registrarComo('enfermedad_general', 2);
-    expect(await control.prepararReconocimiento('1')).toMatchObject({ aCargoDe: 'EPS', reglaPorValidar: false });
+    expect(await control.prepararReconocimiento('1')).toMatchObject({ aCargoDe: 'EPS', regla: 'comun' });
   });
 
-  it('accidente laboral con ARL: a cargo de la ARL y con la regla por validar', async () => {
+  it('accidente laboral con ARL: el día del evento la empresa y desde el día 2 la ARL al 100 %', async () => {
     await registrarComo('accidente_laboral', 1);
-    expect(await control.prepararReconocimiento('1')).toMatchObject({ aCargoDe: 'ARL', reglaPorValidar: true });
+    expect(await control.prepararReconocimiento('1')).toMatchObject({ aCargoDe: 'ARL', regla: 'laboral' });
+    const r = await control.calcularReconocimiento('1', { ibc: '3.000.000' }, USUARIOS.auxiliar);
+    expect(r).toMatchObject({ valorEmpresa: 10_000_000, valorEPS: 290_000_000 }); // 1 × 100.000 y 29 × 100.000
   });
 
-  it('una licencia aplica los mismos tramos con la regla por validar', async () => {
+  it('una licencia: la EPS paga el 100 % de todos los días y la empresa nada', async () => {
     await registrarComo('licencia_maternidad', 2);
     const r = await control.calcularReconocimiento('1', { ibc: '3.000.000' }, USUARIOS.auxiliar);
-    expect(r).toMatchObject({ valorEmpresa: 20_000_000, valorEPS: calcularTramos(30, 300_000_000).valorEPS });
-    expect((await control.prepararReconocimiento('1')).reglaPorValidar).toBe(true);
+    expect(r).toMatchObject({ valorEmpresa: 0, valorEPS: 300_000_000 });
+    expect((await control.prepararReconocimiento('1')).regla).toBe('licencia');
   });
 
   it('un IBC por debajo de 1 SMMLV se calcula igual y advierte', async () => {
@@ -284,5 +286,36 @@ describe('Observaciones del code-review', () => {
     expect(leerIbc('0').error).toBe('El IBC debe ser mayor que cero.');
     expect(leerIbc('abc').error).toBe('Escriba el IBC en pesos, por ejemplo 2.800.000 o 2.800.000,50.');
     expect(leerIbc('9'.repeat(20)).error).toMatch(/^El IBC no puede superar/);
+  });
+});
+
+describe('DA-51 — reglas reales por tipo (calcularTramos)', () => {
+  const IBC_3M = 300_000_000; // $ 3.000.000 → $ 100.000 por día
+
+  it('accidente de tránsito usa la regla de origen común (EPS, 67 % y 50 %)', () => {
+    expect(calcularTramos(100, IBC_3M, 'accidente_transito')).toMatchObject(calcularTramos(100, IBC_3M, 'enfermedad_general'));
+  });
+
+  it('enfermedad laboral: 1 día la empresa y 179 la ARL al 100 % en 180 días', () => {
+    const r = calcularTramos(180, IBC_3M, 'enfermedad_laboral');
+    expect(r).toMatchObject({ valorEmpresa: 10_000_000, valorEPS: 1_790_000_000, tramitePension: false });
+  });
+
+  it('origen laboral: desde el día 181 pasa a trámite y esos días no se suman', () => {
+    const r = calcularTramos(190, IBC_3M, 'accidente_laboral');
+    expect(r).toMatchObject({ tramitePension: true, diasPension: 10, valorEPS: 1_790_000_000 });
+  });
+
+  it('licencia de maternidad de 126 días: $ 12.600.000 a cargo de la EPS y sin trámite de pensión', () => {
+    const r = calcularTramos(126, IBC_3M, 'licencia_maternidad');
+    expect(r).toMatchObject({ valorEmpresa: 0, valorEPS: 1_260_000_000, tramitePension: false, diasPension: 0 });
+  });
+
+  it('licencia de paternidad de 14 días: $ 1.400.000 a cargo de la EPS', () => {
+    expect(calcularTramos(14, IBC_3M, 'licencia_paternidad')).toMatchObject({ valorEmpresa: 0, valorEPS: 140_000_000 });
+  });
+
+  it('sin tipo usa la regla de origen común (DA-09)', () => {
+    expect(calcularTramos(10, IBC_3M)).toMatchObject({ valorEmpresa: 20_000_000, valorEPS: 53_600_000 });
   });
 });

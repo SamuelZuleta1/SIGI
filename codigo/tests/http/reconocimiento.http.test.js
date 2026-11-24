@@ -148,22 +148,23 @@ describe('DA-53 — incapacidad pagada (rutas)', () => {
 });
 
 describe('DA-50 y DA-51 — advertencias junto a su dato (rutas)', () => {
-  it('ARL: la tabla dice «A cargo de la ARL», marca la regla por validar y explica por qué', async () => {
+  it('ARL: la tabla dice «A cargo de la ARL» y explica la regla de origen laboral', async () => {
     await control.registrarIncapacidad(formularioDeRegistro({ tipo: 'accidente_laboral', entidad: '1', diasIncapacidad: '30' }), USUARIOS.receptor);
     const agente = await agenteCon(request, app, 'auxiliar');
     await calcular(agente, '3.000.000', 2);
     const pagina = await agente.get('/incapacidades/2/reconocimiento');
     expect(pagina.text).toContain('A cargo de la ARL');
     expect(pagina.text).not.toContain('A cargo de la EPS');
-    expect(pagina.text).toContain('Regla por validar');
-    expect(pagina.text).toContain('a accidente laboral se le aplican los tramos de la EPS');
+    expect(pagina.text).not.toContain('Regla por validar');
+    expect(pagina.text).toContain('Día 1 (día del evento)');
+    expect(pagina.text).toContain('desde el día siguiente la ARL paga el 100 %');
   });
 
-  it('enfermedad general: sin «Regla por validar», con la nota de las prórrogas', async () => {
+  it('enfermedad general: sin nota de regla, con la nota de las prórrogas', async () => {
     const agente = await agenteCon(request, app, 'auxiliar');
     await calcular(agente, '3.000.000');
     const pagina = await agente.get('/incapacidades/1/reconocimiento');
-    expect(pagina.text).not.toContain('Regla por validar');
+    expect(pagina.text).not.toContain('Origen laboral');
     expect(pagina.text).toContain('No se suman prórrogas anteriores (por validar)');
   });
 
