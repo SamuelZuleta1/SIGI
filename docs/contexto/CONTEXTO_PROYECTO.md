@@ -1,6 +1,6 @@
 # CONTEXTO DEL PROYECTO — SIGI
 
-> Contexto permanente para el desarrollo. Antes de crear o modificar código, lee la sección 18.
+> Contexto permanente del proyecto: requisitos, diseño y decisiones. Antes de crear o modificar código, revisa también `docs/auditoria/03_decisiones.md`.
 > Fuente: Primera Entrega (Visión y Alcance, Acta de Constitución, casos de uso) y Segunda Entrega (análisis y diseño).
 
 ---
@@ -340,7 +340,18 @@ Se trabaja **módulo por módulo, del 1 al 12**. Cada módulo se programa, se pr
 
 - Primera Entrega (Visión y Alcance, Acta, diagrama de casos de uso) y Segunda Entrega (casos de uso documentados, 14 diagramas de secuencia y 14 de comunicación, diagrama de clases, 7 de actividades, 2 de estados, componentes, despliegue y estructura de carpetas) **terminadas**.
 - **Auditoría de trazabilidad: aprobada (2026-11-16).** Hallazgos y decisiones en `docs/auditoria/` (DA-01 a DA-25). Las decisiones prevalecen sobre este archivo donde lo contradigan.
-- **Código (2026-11-16):** base del proyecto (T-00a a T-00d) en la rama `modulo-00-base`; módulo 1, Acceso y seguridad (T-01 y T-02: HU-01 y permisos de HU-02) en la rama `modulo-01-acceso`. Estilo visual elegido: «Operativa» (barra lateral, azul, fuente Inter alojada en el proyecto). De HU-02 falta la operación «ver documento», que llega con HU-06. Módulo 2, Registro y recepción, en la rama `modulo-02-registro`: T-03 (HU-03, registrar incapacidad) hecha; el colaborador se identifica por su correo y se crea al registrar si no existe (DA-03, DA-04). T-04 (HU-04, registrar documentos) hecha: lista con una fila por tipo de documento (se elige el archivo o se arrastra a la fila), archivos en el bucket privado con ruta `incapacidades/{id}/{tipo}-{uuid}.{ext}`; el canal sale del rol (receptor: aviso al auxiliar; auxiliar: original pendiente, sin aviso). T-05 (HU-05, registrar reemplazo) hecha: el líder busca la incapacidad por su número y escribe el nombre de quien reemplaza; si ya había un reemplazo, el campo llega con ese nombre y guardar otro lo sustituye (DA-22). El líder solo ve colaborador, fecha de inicio y días, sin tipo ni entidad. Con esto queda completo el módulo 2. Próximo paso: T-06 (HU-06, verificar documentación) de `docs/plan_desarrollo.md`.
+- **Código: completado (2026-11-23).** El plan de desarrollo (`docs/plan_desarrollo.md`, T-00 a T-31) está terminado. Los 12 módulos y las 30 historias de usuario (HU-01 a HU-30) están implementados, probados y verificados contra sus criterios de aceptación:
+  - **Base y acceso (M1):** Node.js + Express + EJS con arquitectura MVC y capa de Persistencia (14 grupos), Supabase en la nube (base de datos, Auth y Storage privado) y correo SMTP. Inicio de sesión con Supabase Auth, permisos por rol según los diagramas de secuencia (DA-02) e historia clínica y epicrisis visibles solo para el auxiliar (HU-02). Acceso rápido por actor con los 10 usuarios de demostración. Estilo visual «Operativa».
+  - **Registro y verificación (M2–M3):** registro de la incapacidad y de sus documentos por canal, reemplazo por el líder, verificación documental con aviso de faltantes y segundo llamado (HU-03 a HU-08).
+  - **Radicación, estados y cobro (M4–M6):** preparación y registro de la radicación con evidencia, consulta de estados y alertas de plazos en días hábiles, cobrada, rechazo con causal y registro de pagos (HU-09 a HU-15).
+  - **Seguimiento y escalamiento (M7):** pendientes de pago, seguimientos, acuerdos de pago, requerimientos, traslado a Cartera y Jurídica y su decisión (HU-16 a HU-20).
+  - **Reconocimiento y prolongadas (M8–M9):** cálculo del reparto empresa/entidad por tramos con advertencia del IBC frente al SMMLV y seguimiento de las incapacidades prolongadas: concepto de rehabilitación, falta de concepto y suspensión del pago (HU-21 a HU-24).
+  - **Conciliación, reportes y archivo (M10–M12):** pagos consignados por Contabilidad y conciliación transaccional, reportes de ausentismo y de prolongadas, archivo de la pagada y conciliada con eliminación de la epicrisis y registro del envío físico a Gestión Documental, que cierra el ciclo (HU-25 a HU-30).
+  - **Calidad:** las operaciones que cambian varias filas son funciones transaccionales en Postgres (RLS activado en todas las tablas; solo el servidor ejecuta las funciones). Si el correo de aviso falla, el registro se deshace o se informa. 1128 pruebas unitarias y HTTP, 181 de integración contra Supabase y un recorrido completo del diagrama de actividades AD-01 con los usuarios de demostración (T-31, `docs/guia_demo.md`).
+  - Las decisiones tomadas durante el desarrollo están en `docs/auditoria/03_decisiones.md` (DA-01 a DA-62) y la trazabilidad en `docs/auditoria/01_matriz_trazabilidad.md`.
+- **Limitaciones conocidas de esta versión:**
+  - Los festivos de Colombia están en una lista fija que cubre 2026 y 2027 (`codigo/src/servicios/dias-habiles.js`). Fuera de esos años solo se descuentan sábados y domingos, así que los plazos en días hábiles (alertas, faltantes, segundo llamado) pueden quedar uno o varios días más cortos. La lista debe ampliarse cada año.
+  - El SMMLV está registrado para 2025 y 2026 (`codigo/src/servicios/smmlv.js`). Para otro año se usa el más cercano disponible y la advertencia dice cuál; también debe actualizarse cada año.
 - Nombre del sistema e integrantes: se usan los de la Segunda Entrega.
 - **Pendientes de definición** — **resueltos en la auditoría**: 1→DA-04, 2→DA-02, 3→DA-03, 4→DA-13, 5→DA-09, 6→DA-20, 7→DA-21, 8→DA-11. Texto original:
   1. Correo del colaborador: Colaborador solo tiene `nombre`, pero recibe 4 correos (HU-07, HU-22, HU-23, HU-24).
@@ -351,16 +362,3 @@ Se trabaja **módulo por módulo, del 1 al 12**. Cada módulo se programa, se pr
   6. Filtros de la consulta de estados (HU-11).
   7. Contenido (columnas) del reporte de ausentismo (HU-27).
   8. Cómo se sabe que el pago de una incapacidad está «identificado y conciliado» (HU-29).
-
-## 18. Instrucciones para la IA que ayude a programar
-
-1. Lee este archivo antes de crear o modificar código importante.
-2. Respeta las decisiones ya tomadas: arquitectura MVC con Persistencia, una clase por capa, 14 grupos, Node.js + Express + EJS, Supabase y SMTP.
-3. No inventes requisitos, entidades, campos, estados, procesos, pantallas, roles ni funcionalidades que no estén en este archivo.
-4. Usa los nombres de clases, atributos y operaciones definidos aquí.
-5. No cambies el comportamiento definido (estados, reglas, plazos, porcentajes) sin una justificación aprobada por el equipo.
-6. Si una tarea depende de un pendiente de la sección 17, detente y pregunta; no lo resuelvas con una suposición.
-7. Pregunta antes de cualquier decisión que cambie cómo funciona el sistema o su estructura.
-8. Mantén el código coherente con los requisitos y el diseño: si encuentras una contradicción, señálala en lugar de corregirla en silencio.
-9. Trabaja solo en el módulo en curso (sección 16). No adelantes código de módulos siguientes ni cambies uno ya cerrado sin avisar.
-10. Al terminar un módulo, verifica uno por uno los criterios de aceptación de sus historias y actualiza la sección 17 con el módulo cerrado.

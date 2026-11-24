@@ -42,6 +42,14 @@ npm run test:int    # integración, contra el proyecto de Supabase en la nube
 
 Las pruebas de integración crean sus propios datos y los borran al terminar.
 
+## Limitaciones conocidas
+
+- **Festivos:** la lista fija de `src/servicios/dias-habiles.js` cubre 2026 y 2027. Fuera de esos años
+  solo se descuentan sábados y domingos, así que los plazos en días hábiles (alertas, faltantes,
+  segundo llamado) pueden quedar más cortos. Hay que ampliar la lista cada año.
+- **SMMLV:** `src/servicios/smmlv.js` tiene 2025 y 2026. Para otro año se usa el más cercano
+  disponible y la advertencia del IBC dice cuál; también se actualiza cada año.
+
 ## Estructura
 
 ```
