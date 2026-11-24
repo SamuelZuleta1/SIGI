@@ -31,11 +31,16 @@
     <dt>Colaborador</dt><dd><%= incapacidad.colaborador %></dd>
     <dt>Tipo</dt><dd><%= nombresTipo[incapacidad.tipo] %> · <%= incapacidad.entidad %></dd>
     <dt>Inicio</dt><dd><%= fechaBreve(incapacidad.fechaInicio) %> · <%= dias(incapacidad.diasIncapacidad) %></dd>
-    <dt>Hoy</dt><dd><%= prolongada.dia === 0 ? `Aún no inicia (empieza el ${fechaBreve(incapacidad.fechaInicio)})` : `Día ${prolongada.dia} de ${incapacidad.diasIncapacidad}` %></dd>
-    <dt>Prórrogas</dt><dd class="tenue">No se suman las anteriores (por validar): los días y los hitos cuentan desde el inicio de este certificado.</dd>
+    <dt>Hoy</dt><dd><%= prolongada.dia === 0 ? `Aún no inicia (empieza el ${fechaBreve(incapacidad.fechaInicio)})` : `Día ${prolongada.dia} de ${prolongada.diasCaso} del caso` %></dd>
+    <% if (incapacidad.prorrogaDe) { %>
+    <dt>Prórroga de</dt><dd>n.º <%= incapacidad.prorrogaDe %> · este certificado cubre los días <%= incapacidad.diasPrevios + 1 %> a <%= prolongada.diasCaso %> del caso</dd>
+    <% } %>
     <dt>Hito</dt><dd><%= hito.nombre %><% if (prolongada.tramitePension) { %> · en trámite de pensión desde el <%= fechaBreve(prolongada.fechaDia181) %><% } %></dd>
   </dl>
 
+  <% if (!prolongada.vigente) { %>
+    <p class="mensaje mensaje-info" role="status">El caso continúa en la <a href="/incapacidades/<%= incapacidad.prorroga %>/prolongada">prórroga n.º <%= incapacidad.prorroga %></a>: el concepto, la falta y la suspensión se registran allí.</p>
+  <% } %>
   <% if (suspensionConfirmada) { %>
     <p class="mensaje mensaje-ok entra" role="status">Suspensión del pago registrada y colaborador avisado.</p>
   <% } %>
@@ -44,7 +49,7 @@
   <% } else if (!prolongada.hitoAlcanzado && prolongada.fechaDia120) { %>
     <p class="mensaje mensaje-info" role="status">Aún no llega al día 120: llega el <%= fechaBreve(prolongada.fechaDia120) %>, cuando se pide el concepto de rehabilitación a la entidad.</p>
   <% } else if (!prolongada.hitoAlcanzado) { %>
-    <p class="mensaje mensaje-info" role="status">Dura <%= dias(incapacidad.diasIncapacidad) %>: no llega al día 120, cuando se pide el concepto de rehabilitación.</p>
+    <p class="mensaje mensaje-info" role="status">Dura <%= dias(prolongada.diasCaso) %>: no llega al día 120, cuando se pide el concepto de rehabilitación.</p>
   <% } %>
 
   <section class="radicaciones" aria-labelledby="titulo-concepto">

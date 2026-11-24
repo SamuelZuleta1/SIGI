@@ -1,0 +1,75 @@
+<%
+  // DA-50 (opción C): prórroga de una incapacidad. Paso 1: el n.º de la anterior. Paso 2: el formulario con colaborador,
+  // tipo y entidad de la anterior; solo se escriben la fecha de inicio (sugerida: el día siguiente al fin), los días y
+  // la recepción.
+  const dias = (n) => (n === 1 ? '1 día' : `${n} días`);
+  const atributos = (campo) =>
+    (errores[campo] ? ` aria-invalid="true" aria-describedby="error-${campo}"` : '') + (campo === primerError ? ' autofocus' : '');
+  const anterior = preparada?.anterior;
+%>
+<h1>Registrar incapacidad</h1>
+<p class="sub">Prórroga: un certificado nuevo que continúa a otro. Sus días se suman a los del caso.</p>
+<nav class="segmento" aria-label="Qué va a registrar">
+  <a href="/incapacidades/nueva">Incapacidad nueva</a>
+  <a href="/incapacidades/prorroga" aria-current="true">Prórroga</a>
+</nav>
+
+<% if (!anterior) { %>
+  <form class="formulario" method="get" action="/incapacidades/prorroga" novalidate>
+    <div class="buscar">
+      <div class="campo <%= errorNumero ? 'invalido' : '' %>">
+        <label for="anterior">Incapacidad anterior n.º</label>
+        <input id="anterior" name="anterior" type="text" inputmode="numeric" pattern="[0-9]*" value="<%= numero %>" maxlength="18" autocomplete="off" required autofocus<%- errorNumero ? ' aria-invalid="true" aria-describedby="error-anterior"' : '' %>>
+      </div>
+      <button class="boton">Buscar</button>
+    </div>
+    <% if (errorNumero) { %>
+      <p class="mensaje mensaje-error" id="error-anterior" role="alert"><%= errorNumero %> Revise el número del certificado anterior.</p>
+    <% } else { %>
+      <p class="ayuda">Es el número que SIGI mostró al registrar el certificado anterior; también aparece en Consultar estados.</p>
+    <% } %>
+  </form>
+<% } else { %>
+  <div class="formulario">
+    <dl class="resumen">
+      <dt>Prórroga de</dt><dd>n.º <%= anterior.idIncapacidad %> · <%= fechaBreve(anterior.fechaInicio) %> – <%= fechaBreve(anterior.fechaFin) %> · <%= dias(anterior.diasIncapacidad) %></dd>
+      <dt>Colaborador</dt><dd><%= anterior.colaborador %></dd>
+      <dt>Tipo y entidad</dt><dd><%= tipos[anterior.tipo] ?? anterior.tipo %> · <%= anterior.entidad %></dd>
+      <dt>Días del caso</dt><dd><%= dias(anterior.diasCaso) %> hasta ahora: esta prórroga empieza en el día <%= anterior.diasCaso + 1 %></dd>
+    </dl>
+
+    <% if (preparada.impedimento) { %>
+      <p class="mensaje mensaje-error" role="alert"><%= preparada.impedimento %></p>
+      <div class="acciones">
+        <% if (anterior.prorroga) { %><a class="boton" href="/incapacidades/prorroga?anterior=<%= anterior.prorroga %>">Prorrogar la n.º <%= anterior.prorroga %></a><% } %>
+        <a class="boton secundario" href="/incapacidades/prorroga">Otra incapacidad</a>
+      </div>
+    <% } else { %>
+      <% if (primerError) { %><p class="mensaje mensaje-error" role="alert">No se registró. Revise los campos marcados.</p><% } %>
+      <form class="prorroga" method="post" action="/incapacidades/prorroga" novalidate>
+        <input type="hidden" name="anterior" value="<%= anterior.idIncapacidad %>">
+        <div class="campos">
+          <div class="campo <%= errores.fechaInicio ? 'invalido' : '' %>">
+            <label for="fechaInicio">Fecha de inicio</label>
+            <input id="fechaInicio" name="fechaInicio" type="date" value="<%= valores.fechaInicio %>" min="<%= anterior.fechaSugerida %>" max="<%= anterior.fechaMaxima %>" required<%- atributos('fechaInicio') %>>
+            <% if (errores.fechaInicio) { %><span class="error" id="error-fechaInicio"><%= errores.fechaInicio %></span><% } else { %><span class="ayuda">Sugerida: el día siguiente al fin de la anterior. Hasta el <%= fechaBreve(anterior.fechaMaxima) %>.</span><% } %>
+          </div>
+          <div class="campo <%= errores.diasIncapacidad ? 'invalido' : '' %>">
+            <label for="diasIncapacidad">Días de esta prórroga</label>
+            <input id="diasIncapacidad" name="diasIncapacidad" type="number" inputmode="numeric" min="1" max="9999" step="1" value="<%= valores.diasIncapacidad %>" required<%- atributos('diasIncapacidad') %><%- primerError ? '' : ' autofocus' %>>
+            <% if (errores.diasIncapacidad) { %><span class="error" id="error-diasIncapacidad"><%= errores.diasIncapacidad %></span><% } %>
+          </div>
+          <div class="campo <%= errores.fechaRecepcion ? 'invalido' : '' %>">
+            <label for="fechaRecepcion">Fecha de recepción</label>
+            <input id="fechaRecepcion" name="fechaRecepcion" type="date" value="<%= valores.fechaRecepcion %>" required<%- atributos('fechaRecepcion') %>>
+            <% if (errores.fechaRecepcion) { %><span class="error" id="error-fechaRecepcion"><%= errores.fechaRecepcion %></span><% } %>
+          </div>
+        </div>
+        <div class="acciones">
+          <button class="boton">Registrar prórroga</button>
+          <a class="boton secundario" href="/incapacidades/prorroga">Otra incapacidad</a>
+        </div>
+      </form>
+    <% } %>
+  </div>
+<% } %>

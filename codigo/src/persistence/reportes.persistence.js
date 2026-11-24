@@ -4,6 +4,7 @@
 // migración: la tabla `reporte` ya tiene `contenido` (DA-21) y admite el tipo «prolongadas».
 import { BLOQUE } from './alertas.persistence.js';
 import { sumarIntervalo } from '../servicios/dias-habiles.js';
+import { COLUMNAS_CASO, aCaso } from './caso.js';
 
 // Las incapacidades que empezaron más de VENTANA días antes del mes solo pueden tocarlo si duran más de VENTANA días:
 // se leen aparte, para no leer todo el histórico.
@@ -76,7 +77,8 @@ export function crearPersistenciaReportes(cliente) {
               cliente
                 .from('incapacidad')
                 .select(
-                  'id, colaborador_id, tipo, fecha_inicio, dias_incapacidad, estado, concepto, falta_concepto, pago_suspendido, colaborador(nombre), entidad(nombre)',
+                  'id, colaborador_id, tipo, fecha_inicio, dias_incapacidad, estado, concepto, falta_concepto, pago_suspendido, ' +
+                    `${COLUMNAS_CASO}, colaborador(nombre), entidad(nombre)`,
                 ),
             )
               .order('id')
@@ -88,8 +90,9 @@ export function crearPersistenciaReportes(cliente) {
         return filas;
       };
       const [recientes, largas] = await Promise.all([
-        leer((q) => q.gt('dias_incapacidad', dias).gte('fecha_inicio', limite).lte('fecha_inicio', hasta)),
-        leer((q) => q.lt('fecha_inicio', limite).gt('dias_incapacidad', Math.max(dias, VENTANA))),
+        // DA-50: más de `dias` días del caso (acumulados con las prórrogas).
+        leer((q) => q.gt('dias_acumulados', dias).gte('fecha_inicio', limite).lte('fecha_inicio', hasta)),
+        leer((q) => q.lt('fecha_inicio', limite).gt('dias_incapacidad', VENTANA).gt('dias_acumulados', dias)),
       ]);
       return [...largas, ...recientes].map((f) => ({
         idIncapacidad: f.id,
@@ -103,6 +106,7 @@ export function crearPersistenciaReportes(cliente) {
         concepto: f.concepto == null ? null : true,
         faltaConcepto: f.falta_concepto,
         pagoSuspendido: f.pago_suspendido,
+        ...aCaso(f),
       }));
     },
 

@@ -6,6 +6,7 @@
 // para mostrar a qué incapacidad se le registran los documentos y armar el aviso al auxiliar.
 import { randomUUID } from 'node:crypto';
 import { crearAlmacenDocumentos } from './almacen-documentos.js';
+import { COLUMNAS_CASO, aCaso } from './caso.js';
 
 const EXTENSIONES = { 'application/pdf': 'pdf', 'image/jpeg': 'jpg', 'image/png': 'png' };
 
@@ -43,6 +44,55 @@ export function crearPersistenciaRegistro(cliente, almacen = crearAlmacenDocumen
         }),
       );
       return Number(id);
+    },
+
+    /**
+     * DA-50: la incapacidad que se va a prorrogar (sin información clínica), con los datos de su caso y, si ya tiene
+     * prórroga, su número. null si no existe.
+     */
+    async obtenerParaProrroga(idIncapacidad) {
+      const fila = comprobar(
+        await cliente
+          .from('incapacidad')
+          .select(`id, tipo, fecha_inicio, dias_incapacidad, ${COLUMNAS_CASO}, colaborador(nombre), entidad(nombre)`)
+          .eq('id', idIncapacidad)
+          .maybeSingle(),
+      );
+      if (!fila) return null;
+      const datos = {
+        idIncapacidad: fila.id,
+        colaborador: fila.colaborador.nombre,
+        tipo: fila.tipo,
+        entidad: fila.entidad.nombre,
+        fechaInicio: fila.fecha_inicio,
+        diasIncapacidad: fila.dias_incapacidad,
+        ...aCaso(fila),
+      };
+      if (datos.tieneProrroga) {
+        const siguiente = comprobar(await cliente.from('incapacidad').select('id').eq('prorroga_de', idIncapacidad).maybeSingle());
+        datos.prorroga = siguiente?.id ?? null;
+      }
+      return datos;
+    },
+
+    /**
+     * DS-01: guardarIncapacidad de una prórroga (DA-50), con la función `registrar_prorroga`: toma colaborador, entidad y
+     * tipo de la anterior y vuelve a comprobar las reglas con ella bloqueada.
+     * @returns {Promise<{ id: number } | { rechazo: string }>} el id nuevo, o el código con que la base la rechazó.
+     */
+    async guardarProrroga(idAnterior, { fechaInicio, diasIncapacidad, fechaRecepcion }, creadoPor) {
+      const { data, error } = await cliente.rpc('registrar_prorroga', {
+        p_anterior: idAnterior,
+        p_fecha_inicio: fechaInicio,
+        p_dias: diasIncapacidad,
+        p_fecha_recepcion: fechaRecepcion,
+        p_creado_por: creadoPor,
+      });
+      // SG010–SG013: la anterior no existe, ya tiene prórroga, es licencia o la fecha no cabe. 23505: la prórroga de
+      // la misma anterior entró a la vez (unique de prorroga_de).
+      if (error && (/^SG01[0-3]$/.test(error.code ?? '') || error.code === '23505')) return { rechazo: error.code };
+      if (error) throw error;
+      return { id: Number(data) };
     },
 
     /**

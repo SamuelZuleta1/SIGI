@@ -7,6 +7,7 @@ import { TAMANO_MAXIMO_ARCHIVO } from '../controllers/registro.controller.js';
 import { permitir } from '../middleware/autenticacion.js';
 import { NOMBRES_TIPO_DOCUMENTO, TIPOS_DOCUMENTO } from '../models/documento.model.js';
 import { NOMBRES_TIPO_INCAPACIDAD } from '../models/incapacidad.model.js';
+import { fechaBreve } from '../servicios/dias-habiles.js';
 
 // Los archivos se reciben en memoria y el Control los pasa al bucket privado: nunca tocan el disco del servidor.
 // Un campo de archivo por tipo de documento (DA-06).
@@ -46,6 +47,58 @@ export function crearRutasRegistro({ control }) {
       if (!(error instanceof ErrorDeValidacion)) throw error;
       const valores = Object.fromEntries(CAMPOS.map((campo) => [campo, String(req.body?.[campo] ?? '').slice(0, 200)]));
       await formulario(res, 400, { valores, errores: error.errores });
+    }
+  });
+
+  // ----- prórroga (DA-50, opción C): se busca la anterior por su n.º y el formulario llega con lo que no cambia -----
+
+  const CAMPOS_PRORROGA = ['fechaInicio', 'diasIncapacidad', 'fechaRecepcion'];
+  const paginaProrroga = (res, estado, datos = {}) =>
+    res.status(estado).pagina('registro/registrar-prorroga', {
+      titulo: 'Registrar prórroga',
+      tipos: NOMBRES_TIPO_INCAPACIDAD,
+      fechaBreve,
+      numero: '',
+      errorNumero: null,
+      preparada: null,
+      valores: {},
+      errores: {},
+      primerError: null,
+      ...datos,
+    });
+
+  // Paso 1 (sin ?anterior): el n.º de la incapacidad que se prorroga. Paso 2: el formulario con la anterior precargada.
+  rutas.get('/incapacidades/prorroga', permitir('registrarIncapacidad'), async (req, res) => {
+    const numero = String(req.query.anterior ?? '').trim().slice(0, 20);
+    if (numero === '') return paginaProrroga(res, 200);
+    const preparada = await control.prepararProrroga(numero);
+    if (!preparada) return paginaProrroga(res, 404, { numero, errorNumero: 'No hay una incapacidad con ese número.' });
+    await paginaProrroga(res, 200, {
+      numero,
+      preparada,
+      valores: { fechaInicio: preparada.anterior.fechaSugerida, fechaRecepcion: hoy() },
+    });
+  });
+
+  // registrarIncapacidad de una prórroga (DA-50). Datos no válidos: 400; la anterior ya no admite prórroga: 409.
+  rutas.post('/incapacidades/prorroga', permitir('registrarIncapacidad'), async (req, res) => {
+    const numero = String(req.body?.anterior ?? '').trim().slice(0, 20);
+    try {
+      const resultado = await control.registrarProrroga(numero, req.body, req.usuario);
+      if (!resultado) return paginaProrroga(res, 404, { numero, errorNumero: 'No hay una incapacidad con ese número.' });
+      res.redirect(303, `/incapacidades/nueva?registrada=${resultado.idIncapacidad}`);
+    } catch (error) {
+      if (!(error instanceof ErrorDeValidacion)) throw error;
+      const preparada = await control.prepararProrroga(numero);
+      if (!preparada) return paginaProrroga(res, 404, { numero, errorNumero: 'No hay una incapacidad con ese número.' });
+      const valores = Object.fromEntries(CAMPOS_PRORROGA.map((campo) => [campo, String(req.body?.[campo] ?? '').slice(0, 20)]));
+      await paginaProrroga(res, error.errores.anterior ? 409 : 400, {
+        numero,
+        preparada: error.errores.anterior ? { ...preparada, impedimento: error.errores.anterior } : preparada,
+        valores,
+        errores: error.errores,
+        primerError: CAMPOS_PRORROGA.find((campo) => error.errores[campo]) ?? null,
+      });
     }
   });
 

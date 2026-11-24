@@ -2,6 +2,8 @@
 // Operaciones: consultarParaReconocimiento y obtenerDatosReconocimiento (apoyo de la Vista) y
 // guardarCalculo (HU-21): guarda el IBC, el valor de la empresa, el de la EPS y el trámite de pensión (DA-10).
 
+import { COLUMNAS_CASO, aCaso } from './caso.js';
+
 const comprobar = ({ data, error }) => {
   if (error) throw error;
   return data;
@@ -21,10 +23,12 @@ const aDatos = (f) => ({
   valorEPS: f.valor_eps,
   tramitePension: f.tramite_pension,
   fechaCalculo: f.fecha_calculo,
+  ...aCaso(f),
 });
 
 const COLUMNAS =
-  'id, tipo, fecha_inicio, dias_incapacidad, estado, ibc, valor_empresa, valor_eps, tramite_pension, fecha_calculo, colaborador(nombre), entidad(nombre, tipo)';
+  'id, tipo, fecha_inicio, dias_incapacidad, estado, ibc, valor_empresa, valor_eps, tramite_pension, fecha_calculo, ' +
+  `${COLUMNAS_CASO}, colaborador(nombre), entidad(nombre, tipo)`;
 
 export function crearPersistenciaReconocimiento(cliente) {
   return {

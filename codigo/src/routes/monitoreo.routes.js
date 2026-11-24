@@ -51,6 +51,8 @@ export function crearRutasMonitoreo({ control }) {
   rutas.get('/incapacidades/:id/prolongada', permitir('consultarReporteProlongadas'), async (req, res) => {
     const prolongada = await control.prepararProlongada(req.params.id);
     if (!prolongada) return noExiste(res);
+    // DA-50: un certificado con prórroga lleva al vigente del caso (si también tiene prórroga, se sigue la cadena).
+    if (prolongada.continuaEn) return res.redirect(`/incapacidades/${prolongada.continuaEn}/prolongada`);
     await pagina(res, 200, {
       prolongada,
       conceptoRegistrado: req.query.concepto === '1' && prolongada.estadoConcepto === 'registrado',
@@ -62,6 +64,7 @@ export function crearRutasMonitoreo({ control }) {
   const volverAlFormulario = async (req, res, estado, errores, valores = {}) => {
     const prolongada = await control.prepararProlongada(req.params.id);
     if (!prolongada) return noExiste(res);
+    if (prolongada.continuaEn) return res.redirect(303, `/incapacidades/${prolongada.continuaEn}/prolongada`);
     await pagina(res, estado, { prolongada, errores, valores });
   };
 

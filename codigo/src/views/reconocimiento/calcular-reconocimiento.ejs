@@ -1,8 +1,8 @@
 <%
-  // HU-21 (DS-09; DA-09, DA-10): el auxiliar ingresa el IBC y el sistema aplica los tramos del procedimiento.
+  // HU-21 (DS-09; DA-09, DA-10, DA-51): el auxiliar ingresa el IBC y el sistema aplica los tramos de la regla del tipo.
   const dias = (n) => (n === 1 ? '1 día' : `${n} días`);
-  // DA-50 y DA-51 (opción C): cada advertencia va junto a su dato.
-  const { incapacidad, resultado, aCargoDe, reglaPorValidar, advertenciaIbc } = reconocimiento;
+  // DA-50 y DA-51 (opción C): cada advertencia o nota va junto a su dato.
+  const { incapacidad, resultado, aCargoDe, regla, advertenciaIbc } = reconocimiento;
   const cargo = { empresa: 'Empresa', eps: aCargoDe };
 %>
 <h1>Reconocimiento económico</h1>
@@ -17,7 +17,7 @@
     <dt>Incapacidad</dt><dd>n.º <%= incapacidad.idIncapacidad %></dd>
     <dt>Colaborador</dt><dd><%= incapacidad.colaborador %></dd>
     <dt>Tipo</dt><dd><%= nombresTipo[incapacidad.tipo] %> · <%= incapacidad.entidad %></dd>
-    <dt>Inicio</dt><dd><%= fechaBreve(incapacidad.fechaInicio) %> · <%= dias(incapacidad.diasIncapacidad) %></dd>
+    <dt>Inicio</dt><dd><%= fechaBreve(incapacidad.fechaInicio) %> · <%= dias(incapacidad.diasIncapacidad) %><% if (incapacidad.diasPrevios) { %> · días <%= incapacidad.diasPrevios + 1 %> a <%= incapacidad.diasPrevios + incapacidad.diasIncapacidad %> del caso<% } %></dd>
   </dl>
 
   <% if (errores.estado) { %><p class="mensaje mensaje-error" role="alert"><%= errores.estado %></p><% } %>
@@ -60,7 +60,7 @@
               <td><%= t.nombre %></td>
               <td class="num cifra"><%= t.dias %></td>
               <td class="num cifra"><%= t.porcentaje %> %</td>
-              <td><%= cargo[t.aCargo] %><% if (t.aCargo === 'eps' && reglaPorValidar) { %> <span class="chip por_vencer">Regla por validar</span><% } %></td>
+              <td><%= cargo[t.aCargo] %></td>
               <td class="num cifra"><%= pesos(t.valor / 100) %></td>
             </tr>
             <% } %>
@@ -71,10 +71,14 @@
           </tfoot>
         </table>
       </div>
-      <% if (reglaPorValidar) { %>
-        <p class="nota-tabla">Regla por validar: a <%= (nombresTipo[incapacidad.tipo] ?? incapacidad.tipo).toLowerCase() %> se le aplican los tramos de la EPS para la enfermedad general.</p>
+      <% if (regla === 'laboral') { %>
+        <p class="nota-tabla">Origen laboral: el día del evento lo paga la empresa y desde el día siguiente la ARL paga el 100 % (Ley 776 de 2002).</p>
+      <% } else if (regla === 'licencia') { %>
+        <p class="nota-tabla">Licencia: la EPS paga el 100 % de todos los días y la empresa no asume ninguno (Ley 2114 de 2021).</p>
       <% } %>
-      <p class="nota-tabla">No se suman prórrogas anteriores (por validar): los días cuentan desde 1 en este certificado.</p>
+      <% if (incapacidad.diasPrevios) { %>
+        <p class="nota-tabla">Prórroga de la <a href="/incapacidades/<%= incapacidad.prorrogaDe %>/reconocimiento">n.º <%= incapacidad.prorrogaDe %></a>: este certificado cubre los días <%= incapacidad.diasPrevios + 1 %> a <%= incapacidad.diasPrevios + incapacidad.diasIncapacidad %> del caso, y los tramos se aplican a esos días.</p>
+      <% } %>
       <% if (resultado.tramitePension) { %>
         <p class="mensaje mensaje-aviso separado" role="status">Trámite de pensión: la incapacidad supera los 180 días (<%= dias(resultado.diasPension) %> desde el día 181). Esos días no se incluyen en el cálculo.</p>
       <% } %>

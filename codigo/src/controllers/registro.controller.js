@@ -7,7 +7,9 @@ import { TIPOS_DOCUMENTO } from '../models/documento.model.js';
 import { TIPOS_INCAPACIDAD } from '../models/incapacidad.model.js';
 import { TAMANO_MAXIMO_ARCHIVO, tipoDeArchivo } from './archivo.js';
 import { ErrorDeValidacion } from './error-de-validacion.js';
+import { diasDelCaso } from './hitos.js';
 import { esIdentificador } from './identificador.js';
+import { fechaBreve, sumarIntervalo } from '../servicios/dias-habiles.js';
 
 const fecha = (mensaje) => z.string({ error: mensaje }).pipe(z.iso.date({ error: mensaje }));
 
@@ -39,6 +41,34 @@ const datosDeIncapacidad = z.object({
     .max(9999, 'Revise los días de incapacidad.'),
   fechaRecepcion: fecha('Escriba la fecha de recepción.'),
 });
+
+// DA-50: lo que se escribe de una prórroga; colaborador, tipo y entidad salen de la anterior.
+const datosDeProrroga = datosDeIncapacidad.pick({ fechaInicio: true, diasIncapacidad: true, fechaRecepcion: true });
+
+// DA-50 (Decreto 1427 de 2022): prórroga = sin interrupción mayor a 30 días; las licencias no se prorrogan.
+export const INTERRUPCION_MAXIMA = 30;
+const LICENCIAS = new Set(['licencia_maternidad', 'licencia_paternidad']);
+const MENSAJES_PRORROGA = Object.freeze({
+  tieneProrroga: (a) => `La incapacidad n.º ${a.idIncapacidad} ya tiene su prórroga (n.º ${a.prorroga}): registre la nueva como prórroga de esa.`,
+  licencia: 'Una licencia de maternidad o paternidad no tiene prórroga.',
+  fecha: (a) =>
+    `La prórroga debe empezar entre el ${fechaBreve(a.fechaSugerida)} (día siguiente al fin de la anterior) y el ${fechaBreve(a.fechaMaxima)} (${INTERRUPCION_MAXIMA} días después).`,
+});
+
+/** La anterior de una prórroga, con su fin y el rango de fechas en que puede empezar la prórroga (DA-50). */
+function conVentana(anterior) {
+  const fechaFin = sumarIntervalo(anterior.fechaInicio, { dias: anterior.diasIncapacidad - 1 });
+  return {
+    ...anterior,
+    fechaFin,
+    diasCaso: diasDelCaso(anterior),
+    fechaSugerida: sumarIntervalo(fechaFin, { dias: 1 }),
+    fechaMaxima: sumarIntervalo(fechaFin, { dias: INTERRUPCION_MAXIMA + 1 }),
+  };
+}
+
+/** Por qué no se le puede registrar una prórroga a la anterior, o null si se puede. */
+const impedimentoDeProrroga = (a) => (a.tieneProrroga ? MENSAJES_PRORROGA.tieneProrroga(a) : LICENCIAS.has(a.tipo) ? MENSAJES_PRORROGA.licencia : null);
 
 // Límites de la subida (el tamaño es el del bucket `documentos`; ver archivo.js).
 export { TAMANO_MAXIMO_ARCHIVO };
@@ -77,6 +107,51 @@ export function crearControlRegistro({ baseDeDatos, correo }) {
         usuario.id,
       );
       return { idIncapacidad };
+    },
+
+    /**
+     * DA-50: la incapacidad que se va a prorrogar, con el rango de fechas en que puede empezar la prórroga y, si no se
+     * puede prorrogar, por qué (`impedimento`). null si el número no corresponde a ninguna.
+     */
+    async prepararProrroga(idAnterior) {
+      const anterior = esIdentificador(idAnterior) ? await baseDeDatos.obtenerParaProrroga(Number(idAnterior)) : null;
+      if (!anterior) return null;
+      const datos = conVentana(anterior);
+      return { anterior: datos, impedimento: impedimentoDeProrroga(datos) };
+    },
+
+    /**
+     * DS-01: registrarIncapacidad de una prórroga (DA-50). Colaborador, tipo y entidad son los de la anterior; se
+     * escriben la fecha de inicio, los días y la fecha de recepción. Reglas: la anterior no tiene prórroga ni es una
+     * licencia, y la prórroga empieza entre el día siguiente al fin de la anterior y 30 días después. La base las
+     * vuelve a comprobar con la anterior bloqueada (dos prórrogas a la vez de la misma no se cruzan).
+     * @returns {Promise<null | { idIncapacidad: number }>} null si la anterior no existe.
+     * @throws {ErrorDeValidacion} datos no válidos (por campo) o la anterior no admite prórroga (`anterior`).
+     */
+    async registrarProrroga(idAnterior, datos, usuario) {
+      const preparada = await this.prepararProrroga(idAnterior);
+      if (!preparada) return null;
+      const { anterior, impedimento } = preparada;
+      if (impedimento) throw new ErrorDeValidacion({ anterior: impedimento });
+
+      const resultado = datosDeProrroga.safeParse(datos ?? {});
+      const errores = {};
+      if (!resultado.success) {
+        for (const problema of resultado.error.issues) errores[problema.path[0]] ??= problema.message;
+      } else if (resultado.data.fechaInicio < anterior.fechaSugerida || resultado.data.fechaInicio > anterior.fechaMaxima) {
+        errores.fechaInicio = MENSAJES_PRORROGA.fecha(anterior);
+      }
+      if (Object.keys(errores).length > 0) throw new ErrorDeValidacion(errores);
+
+      const guardada = await baseDeDatos.guardarProrroga(anterior.idIncapacidad, resultado.data, usuario.id);
+      if (guardada.rechazo) {
+        // Otro usuario se adelantó o cambió la anterior: se explica con lo que hay ahora.
+        const ahora = await this.prepararProrroga(anterior.idIncapacidad);
+        throw new ErrorDeValidacion(
+          ahora?.impedimento ? { anterior: ahora.impedimento } : { fechaInicio: MENSAJES_PRORROGA.fecha(ahora?.anterior ?? anterior) },
+        );
+      }
+      return { idIncapacidad: guardada.id };
     },
 
     /** Datos que identifican la incapacidad, o null si el número no corresponde a ninguna. */

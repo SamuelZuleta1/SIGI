@@ -51,7 +51,7 @@
           <td><%= f.colaborador %><small><%= tipo(f.tipo) %></small></td>
           <td><%= f.entidad %></td>
           <td class="fecha"><%= fechaBreve(f.fechaInicio) %><small>hasta el <%= fechaBreve(f.fechaFin) %></small></td>
-          <td class="fecha"><% if (f.diaAlCorte === 0) { %>Aún no inicia<% } else { %>Día <%= f.diaAlCorte %><% } %><small>de <%= f.diasIncapacidad %></small></td>
+          <td class="fecha"><% if (f.diaAlCorte === 0) { %>Aún no inicia<% } else { %>Día <%= f.diaAlCorte %><% } %><small>de <%= f.diasCaso ?? f.diasIncapacidad %><% if (f.diasPrevios) { %> · prórroga desde el día <%= f.diasPrevios + 1 %><% } %></small></td>
           <td><% if (f.hitosEnPeriodo.length === 0) { %><span class="tenue">—</span><% } else { %><span class="hitos-mes"><% for (const h of f.hitosEnPeriodo) { %><% if (h.fecha > corte) { %><span class="chip por_vencer">Día <%= h.dia %> · <%= fechaBreve(h.fecha) %> · próximo</span><% } else { %><span class="chip registrada">Día <%= h.dia %> · <%= fechaBreve(h.fecha) %></span><% } %><% } %></span><% } %></td>
           <td><span class="chip <%= clase %>"><%= textoConcepto %></span><% if (f.pagoSuspendido) { %> <span class="chip por_vencer">Pago suspendido</span><% } %></td>
           <td><%= estado(f.estado) %></td>
