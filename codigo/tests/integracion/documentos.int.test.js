@@ -123,6 +123,7 @@ describe('HU-04 — registrar la documentación recibida (base de datos y Storag
       diasIncapacidad: 5,
       originalPendiente: false,
       archivoPreparado: false,
+      epicrisisEliminada: false,
     });
     expect(await baseDeDatos.consultarIncapacidad(2 ** 40)).toBeNull();
   });

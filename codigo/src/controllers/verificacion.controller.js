@@ -45,7 +45,8 @@ export function compararConRequisitos(incapacidad, documentos, { epsTranscribio 
   const exencion = admiteExencion(incapacidad) && epsTranscribio;
   // DA-59: al preparar el archivo (HU-29) se elimina la epicrisis. Que ya no esté no es un faltante: se muestra como
   // eliminada, sin afirmar si se archivó con ella o con la transcripción (DA-26 no se guarda).
-  const epicrisisEliminada = Boolean(incapacidad.archivoPreparado);
+  // `epicrisisEliminada` sigue aunque se deshaga la preparación (correo a Gestión Documental o conciliación fallidos).
+  const epicrisisEliminada = Boolean(incapacidad.archivoPreparado || incapacidad.epicrisisEliminada);
   const delTipo = (tipo) => documentos.filter((d) => d.tipo === tipo).map((d) => d.idDocumento);
   const requisitos = documentosObligatorios(incapacidad, { epsTranscribio: exencion }).map(({ tipo, exento }) => {
     const recibidos = delTipo(tipo);

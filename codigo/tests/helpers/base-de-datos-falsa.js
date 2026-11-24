@@ -167,6 +167,7 @@ export function crearBaseDeDatosFalsa() {
         diasIncapacidad: guardada.diasIncapacidad,
         originalPendiente: guardada.originalPendiente ?? false,
         archivoPreparado: guardada.fechaArchivoPreparado != null,
+        epicrisisEliminada: guardada.epicrisisEliminadaEn != null,
       };
     },
     async guardarDocumentos(idIncapacidad, nuevos, creadoPor, { originalPendiente = false } = {}) {
@@ -795,6 +796,10 @@ export function crearBaseDeDatosFalsa() {
       return true;
     },
     async eliminarEpicrisis(idIncapacidad) {
+      // Como eliminarEpicrisis (B4): si hay epicrisis, marca la eliminación (no la quita ningún deshacer).
+      const incapacidad = incapacidades.find((i) => i.idIncapacidad === idIncapacidad);
+      const hay = documentos.some((d) => d.idIncapacidad === idIncapacidad && d.tipo === 'epicrisis');
+      if (hay && incapacidad && incapacidad.epicrisisEliminadaEn == null) incapacidad.epicrisisEliminadaEn = new Date().toISOString();
       let eliminadas = 0;
       for (let k = documentos.length - 1; k >= 0; k--) {
         if (documentos[k].idIncapacidad === idIncapacidad && documentos[k].tipo === 'epicrisis') {

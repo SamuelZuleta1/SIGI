@@ -91,6 +91,15 @@ export function crearPersistenciaArchivo(cliente, almacen = crearAlmacenDocument
         await cliente.from('documento').select('id, archivo').eq('incapacidad_id', idIncapacidad).eq('tipo', 'epicrisis'),
       );
       if (epicrisis.length === 0) return 0;
+      // B4 (DA-59): la marca va antes de borrar y no la quita ningún deshacer. Si el borrado falla, la epicrisis sigue
+      // ahí y se muestra recibida (la marca solo cuenta cuando ya no queda ninguna).
+      comprobar(
+        await cliente
+          .from('incapacidad')
+          .update({ epicrisis_eliminada_en: new Date().toISOString() })
+          .eq('id', idIncapacidad)
+          .is('epicrisis_eliminada_en', null),
+      );
       await almacen.eliminar(epicrisis.map((d) => d.archivo));
       comprobar(
         await cliente

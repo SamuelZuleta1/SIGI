@@ -154,6 +154,20 @@ describe('HU-29 — archivo (persistencia real)', () => {
     expect(sinMarca).toEqual({ fecha_archivo_preparado: null, archivo_preparado_por: null });
     expect(await control.archivarIncapacidad(String(id), auxiliar)).toEqual({ idIncapacidad: id, epicrisisEliminadas: 0 });
   });
+
+  it('B4 — si el correo falla, la epicrisis eliminada queda marcada y la verificación no la da por faltante', async () => {
+    const { id, idPago } = await pagada('Correo epicrisis');
+    await conciliar(idPago);
+    await documento(id, 'epicrisis');
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    vi.spyOn(correo, 'enviarParaArchivo').mockRejectedValueOnce(new Error('SMTP caído'));
+    expect(await control.archivarIncapacidad(String(id), auxiliar).catch((e) => e)).toBeInstanceOf(ErrorDeAviso);
+    const fila = comprobar(await servidor.from('incapacidad').select('fecha_archivo_preparado, epicrisis_eliminada_en').eq('id', id).single());
+    expect(fila.fecha_archivo_preparado).toBeNull();
+    expect(fila.epicrisis_eliminada_en).not.toBeNull();
+    const { resultado } = await control.verificarDocumentacion(String(id));
+    expect(resultado.requisitos.find((r) => r.tipo === 'epicrisis').estado).toBe('eliminada');
+  });
 });
 
 describe('HU-30 — envío al archivo (persistencia real)', () => {
