@@ -63,6 +63,11 @@ const MENSAJES_PAGO = {
 };
 const mensajePago = (estado) => MENSAJES_PAGO[estado ?? 'null'] ?? 'La incapacidad no admite registrar un pago.';
 
+// Con el archivo preparado (HU-29, DA-59) la incapacidad ya no admite pagos.
+export const MENSAJE_PAGO_ARCHIVADA = 'El archivo de esta incapacidad ya está preparado: no admite más pagos.';
+const admitePago = (i) => puedeRegistrarPago(i.estado) && !i.archivoPreparado;
+const mensajeDePago = (i) => (i && i.archivoPreparado ? MENSAJE_PAGO_ARCHIVADA : mensajePago(i?.estado));
+
 // numeric(14,2): hasta 12 cifras enteras (DA-40).
 export const VALOR_MAXIMO_CIFRAS = 12;
 
@@ -142,7 +147,7 @@ export function crearControlCobro({ baseDeDatos, hoy = hoyEnColombia }) {
         hoy: hoy(),
         puedeRegistrarCobrada: puedeRegistrarCobrada(incapacidad.estado),
         puedeRegistrarRechazo: puedeRegistrarRechazo(incapacidad.estado),
-        puedeRegistrarPago: puedeRegistrarPago(incapacidad.estado),
+        puedeRegistrarPago: admitePago(incapacidad),
         totalPagado: centavosATexto(incapacidad.pagos.reduce((total, p) => total + aCentavos(p.valor), 0)),
         fechaPrometida:
           incapacidad.tiempoPago != null && incapacidad.fechaCobrada
@@ -212,7 +217,7 @@ export function crearControlCobro({ baseDeDatos, hoy = hoyEnColombia }) {
     async registrarPago(idIncapacidad, datos, usuario) {
       const actual = esIdentificador(idIncapacidad) ? await baseDeDatos.obtenerDatosCobro(Number(idIncapacidad)) : null;
       if (!actual) return null;
-      if (!puedeRegistrarPago(actual.estado)) throw new ErrorDeValidacion({ estado: mensajePago(actual.estado) });
+      if (!admitePago(actual)) throw new ErrorDeValidacion({ estado: mensajeDePago(actual) });
 
       const valor = leerValor(datos?.valor);
       const fechaPago = leerFechaPago(datos?.fechaPago, { hoy: hoy(), fechaInicio: actual.fechaInicio });
@@ -225,7 +230,7 @@ export function crearControlCobro({ baseDeDatos, hoy = hoyEnColombia }) {
       // Otro usuario cambió el estado entre la consulta y el registro: la transacción no guardó el pago.
       if (idPago == null) {
         const ahora = await baseDeDatos.obtenerDatosCobro(actual.idIncapacidad);
-        throw new ErrorDeValidacion({ estado: mensajePago(ahora?.estado) });
+        throw new ErrorDeValidacion({ estado: mensajeDePago(ahora) });
       }
       return { idIncapacidad: actual.idIncapacidad, idPago };
     },

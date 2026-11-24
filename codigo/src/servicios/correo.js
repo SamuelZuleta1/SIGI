@@ -4,6 +4,7 @@
 // Ningún correo lleva adjuntos ni información clínica (CAR-11, DA-12):
 // solo los datos de identificación del trámite.
 
+import { NOMBRES_TIPO_DOCUMENTO } from '../models/documento.model.js';
 import { NOMBRES_ESTADO_INCAPACIDAD } from '../models/incapacidad.model.js';
 import { pesos } from './moneda.js';
 
@@ -183,12 +184,22 @@ export function crearServicioCorreo({ transporte, remitente, destinatarios }) {
         ),
       ]),
 
-    // DS-13 → Gestión Documental (solo datos, sin adjuntos: DA-12)
-    enviarParaArchivo: (incapacidad) =>
+    // DS-13 → Gestión Documental (solo datos, sin adjuntos: DA-12, DA-59). `documentos`: los tipos que quedan en el
+    // expediente (los físicos los entrega el auxiliar: HU-30); `epicrisisEliminadas`: cuántas se eliminaron de SIGI.
+    enviarParaArchivo: (incapacidad, { documentos = [], epicrisisEliminadas = 0 } = {}) =>
       enviar(destinatarios.gestionDocumental, `Incapacidad pagada para archivo — n.º ${incapacidad.idIncapacidad}`, [
-        'Esta incapacidad está pagada y conciliada. Se envía para archivo.',
+        'Esta incapacidad está pagada y su pago está identificado y conciliado. Se envía para archivo.',
+        'Los documentos físicos los entregará el auxiliar de Administración de Personal.',
         '',
         ...resumen(incapacidad),
+        ...(incapacidad.totalPagado != null ? [`Total pagado por la entidad: ${moneda(incapacidad.totalPagado)}`] : []),
+        '',
+        ...(documentos.length > 0
+          ? ['Documentos del expediente:', ...lista([...new Set(documentos)].map((t) => NOMBRES_TIPO_DOCUMENTO[t] ?? t))]
+          : ['El expediente no tiene documentos registrados en SIGI.']),
+        epicrisisEliminadas > 0
+          ? 'La epicrisis se eliminó de SIGI al archivar (información reservada).'
+          : 'La incapacidad no tenía epicrisis registrada en SIGI.',
       ]),
   };
 }

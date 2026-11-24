@@ -42,6 +42,22 @@ export function crearBaseDeDatosFalsa() {
   const conciliaciones = [];
   const reportes = [];
   const nombreEntidad = (id) => ENTIDADES.find((e) => e.id === id).nombre;
+  const datosArchivo = (i) => ({
+    idIncapacidad: i.idIncapacidad,
+    colaborador: colaboradores.find((c) => c.id === i.colaboradorId).nombre,
+    entidad: nombreEntidad(i.entidad),
+    tipo: i.tipo,
+    fechaInicio: i.fechaInicio,
+    diasIncapacidad: i.diasIncapacidad,
+    estado: i.estado,
+    enviadaAGestionDocumental: i.enviadaAGestionDocumental ?? false,
+    fechaArchivoPreparado: i.fechaArchivoPreparado ?? null,
+    pagos: pagos
+      .filter((p) => p.idIncapacidad === i.idIncapacidad)
+      .sort((a, b) => a.fechaPago.localeCompare(b.fechaPago) || a.idPago - b.idPago)
+      .map(({ idPago, valor, fechaPago, conciliado }) => ({ idPago, valor, fechaPago, conciliado })),
+    documentos: documentos.filter((d) => d.idIncapacidad === i.idIncapacidad).map(({ idDocumento, tipo }) => ({ idDocumento, tipo })),
+  });
   // Como registrar_conciliacion (DA-56): comprueba que lo comparado sigue igual y lo guarda todo junto.
   const registrarConciliacion = (entidadId, { consignadosVistos, pares, detalle, saldos }, por) => {
     const pendientes = pagosConsignados.filter((p) => p.entidadId === entidadId && p.conciliacionId == null).map((p) => p.id).sort((a, b) => a - b);
@@ -206,6 +222,7 @@ export function crearBaseDeDatosFalsa() {
         fechaRechazo: guardada.fechaRechazo ?? null,
         tiempoPago: guardada.tiempoPago ?? null,
         fechaCobrada: guardada.fechaCobrada ?? null,
+        archivoPreparado: guardada.fechaArchivoPreparado != null,
         radicaciones: radicaciones
           .filter((r) => r.idIncapacidad === idIncapacidad)
           .map(({ idRadicacion, radicado, evidencia, fecha }) => ({ idRadicacion, radicado, conEvidencia: Boolean(evidencia), fecha })),
@@ -214,10 +231,10 @@ export function crearBaseDeDatosFalsa() {
           .map(({ idPago, valor, fechaPago }) => ({ idPago, valor, fechaPago })),
       };
     },
-    // Como registrar_pago: solo desde cobrada o pagada; guarda el pago y pone pagada (DA-08).
+    // Como registrar_pago: solo desde cobrada o pagada y sin el archivo preparado (DA-59); guarda el pago y pone pagada (DA-08).
     async guardarPago(idIncapacidad, { valor, fechaPago }, creadoPor) {
       const incapacidad = incapacidades.find((i) => i.idIncapacidad === idIncapacidad);
-      if (!incapacidad || !['cobrada', 'pagada'].includes(incapacidad.estado)) return null;
+      if (!incapacidad || !['cobrada', 'pagada'].includes(incapacidad.estado) || incapacidad.fechaArchivoPreparado != null) return null;
       const idPago = pagos.length + 1;
       pagos.push({ idPago, idIncapacidad, valor, fechaPago, conciliado: false, creadoPor });
       incapacidad.estado = 'pagada';
@@ -663,6 +680,39 @@ export function crearBaseDeDatosFalsa() {
       if (!r) return null;
       const { creadoPor, ...datos } = r;
       return datos;
+    },
+    // HU-29 (DS-13): como archivo.persistence.js y preparar_archivo (DA-59).
+    async obtenerPagadas() {
+      return incapacidades
+        .filter((i) => i.estado === 'pagada' && !i.enviadaAGestionDocumental)
+        .sort((a, b) => b.fechaInicio.localeCompare(a.fechaInicio) || b.idIncapacidad - a.idIncapacidad)
+        .map((i) => datosArchivo(i));
+    },
+    async obtenerDatosArchivo(idIncapacidad) {
+      const i = incapacidades.find((x) => x.idIncapacidad === idIncapacidad);
+      return i ? datosArchivo(i) : null;
+    },
+    async guardarArchivoPreparado(idIncapacidad, por) {
+      const i = incapacidades.find((x) => x.idIncapacidad === idIncapacidad);
+      if (!i || i.estado !== 'pagada' || i.fechaArchivoPreparado != null || i.enviadaAGestionDocumental) return false;
+      const suyos = pagos.filter((p) => p.idIncapacidad === idIncapacidad);
+      if (suyos.length === 0 || suyos.some((p) => !p.conciliado)) return false;
+      Object.assign(i, { fechaArchivoPreparado: new Date().toISOString(), archivoPreparadoPor: por });
+      return true;
+    },
+    async deshacerArchivoPreparado(idIncapacidad) {
+      const i = incapacidades.find((x) => x.idIncapacidad === idIncapacidad);
+      if (i && !i.enviadaAGestionDocumental) Object.assign(i, { fechaArchivoPreparado: null, archivoPreparadoPor: null });
+    },
+    async eliminarEpicrisis(idIncapacidad) {
+      let eliminadas = 0;
+      for (let k = documentos.length - 1; k >= 0; k--) {
+        if (documentos[k].idIncapacidad === idIncapacidad && documentos[k].tipo === 'epicrisis') {
+          documentos.splice(k, 1);
+          eliminadas++;
+        }
+      }
+      return eliminadas;
     },
     async consultarReemplazo(idIncapacidad) {
       return reemplazos.find((r) => r.idIncapacidad === idIncapacidad)?.reemplazo ?? null;

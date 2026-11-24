@@ -170,6 +170,15 @@
                 </div>
               </li>
             <% } %>
+          <% } else if (incapacidad.archivoPreparado) { %>
+            <li>
+              <span class="punto"><svg viewBox="0 0 24 24" aria-hidden="true"><%- ICONOS.nueva %></svg></span>
+              <div class="paso">
+                <p class="titulo"><b>Archivo preparado</b></p>
+                <p class="tenue">La incapacidad ya se envió para archivo: no admite más pagos.</p>
+                <% if (errores.estado) { %><p class="mensaje mensaje-error separado" role="alert"><%= errores.estado %></p><% } %>
+              </div>
+            </li>
           <% } %>
         <% } else { %>
           <li class="<%= rechazoRegistrado ? 'entra' : '' %>">

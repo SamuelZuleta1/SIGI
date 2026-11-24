@@ -19,7 +19,7 @@ export function crearPersistenciaCobro(cliente) {
         await cliente
           .from('incapacidad')
           .select(
-            'id, tipo, fecha_inicio, dias_incapacidad, estado, causal_rechazo, fecha_rechazo, tiempo_pago, fecha_cobrada, ' +
+            'id, tipo, fecha_inicio, dias_incapacidad, estado, causal_rechazo, fecha_rechazo, tiempo_pago, fecha_cobrada, fecha_archivo_preparado, ' +
               'colaborador(nombre), entidad(nombre), radicacion(id, radicado, evidencia, creado_en), ' +
               'pago(id, valor, fecha_pago)',
           )
@@ -41,6 +41,8 @@ export function crearPersistenciaCobro(cliente) {
         fechaRechazo: fila.fecha_rechazo,
         tiempoPago: fila.tiempo_pago,
         fechaCobrada: fila.fecha_cobrada,
+        // Con el archivo preparado (HU-29, DA-59) ya no se registran pagos.
+        archivoPreparado: fila.fecha_archivo_preparado != null,
         radicaciones: fila.radicacion.map((r) => ({
           idRadicacion: r.id,
           radicado: r.radicado,

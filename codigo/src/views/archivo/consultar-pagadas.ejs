@@ -1,0 +1,69 @@
+<%
+  // HU-29.CA1 (DS-13; DA-59): las pagadas que aún no se envían a Gestión Documental, por su situación.
+  const pestanas = [['por_archivar', 'Por archivar'], ['sin_conciliar', 'Pago sin conciliar'], ['preparado', 'Archivo preparado']];
+  const explicacion = {
+    por_archivar: 'Su pago está identificado y conciliado: ábralas para archivarlas.',
+    sin_conciliar: 'Su pago aún no se concilia con lo consignado por la entidad: no se pueden archivar todavía.',
+    preparado: 'Ya se eliminó la epicrisis y se avisó a Gestión Documental. Falta entregar los documentos físicos.',
+  };
+  const vacios = {
+    por_archivar: ['No hay incapacidades por archivar.', 'Aparecerán aquí cuando su pago quede conciliado.'],
+    sin_conciliar: ['Todas las pagadas tienen el pago conciliado.', 'Aquí quedan las que tienen algún pago sin conciliar.'],
+    preparado: ['No hay archivos preparados pendientes de entrega.', 'Aparecerán aquí después de archivar una incapacidad.'],
+  };
+  const chip = {
+    por_archivar: ['al_dia', 'Conciliado'],
+    sin_conciliar: ['por_vencer', 'Sin conciliar'],
+    preparado: ['registrada', 'Archivo preparado'],
+  };
+%>
+<h1>Archivo</h1>
+<p class="sub">Las incapacidades pagadas que aún no se envían a Gestión Documental. Solo se archivan las que tienen el pago identificado y conciliado.</p>
+<nav aria-label="Archivo">
+  <ul class="pestanas">
+    <% for (const [valor, nombre] of pestanas) { %>
+    <li>
+      <a href="/archivo<%= valor === 'por_archivar' ? '' : `?ver=${valor}` %>"<%- valor === ver ? ' aria-current="page"' : '' %>>
+        <%= nombre %><span class="n"><span class="oculto">: </span><%= conteos[valor] %></span>
+      </a>
+    </li>
+    <% } %>
+  </ul>
+</nav>
+
+<section class="resultado" aria-label="Incapacidades pagadas">
+  <% if (pagadas.length === 0) { %>
+    <div class="tabla-envuelta">
+      <div class="vacio">
+        <b><%= vacios[ver][0] %></b>
+        <p><%= vacios[ver][1] %></p>
+      </div>
+    </div>
+  <% } else { %>
+    <p class="cuenta-resultado">
+      <span><b><%= pagadas.length %></b> <%= pagadas.length === 1 ? 'incapacidad' : 'incapacidades' %> · <%= explicacion[ver] %></span>
+      <span>Las más recientes primero</span>
+    </p>
+    <div class="tabla-envuelta">
+      <table class="estados pendientes">
+        <thead>
+          <tr><th scope="col">N.º</th><th scope="col">Colaborador</th><th scope="col">Entidad</th><th scope="col">Pagado</th><th scope="col">Situación</th></tr>
+        </thead>
+        <tbody>
+          <% for (const p of pagadas) { const [clase, texto] = chip[p.situacion]; %>
+          <tr>
+            <td><a href="/incapacidades/<%= p.idIncapacidad %>/archivo" aria-label="Abrir la incapacidad <%= p.idIncapacidad %>"><%= p.idIncapacidad %></a></td>
+            <td><%= p.colaborador %><small><%= nombresTipo[p.tipo] ?? p.tipo %> · desde el <%= fechaBreve(p.fechaInicio) %></small></td>
+            <td><%= p.entidad %></td>
+            <td class="fecha"><%= pesos(p.totalPagado) %><small><%= p.pagos.length === 1 ? '1 pago' : `${p.pagos.length} pagos` %><%= p.pagosSinConciliar > 0 ? ` · ${p.pagosSinConciliar} sin conciliar` : '' %></small></td>
+            <td>
+              <span class="chip <%= clase %>"><%= texto %></span>
+              <% if (p.situacion !== 'preparado' && p.tieneEpicrisis) { %><span class="chip registrada">Con epicrisis</span><% } %>
+            </td>
+          </tr>
+          <% } %>
+        </tbody>
+      </table>
+    </div>
+  <% } %>
+</section>

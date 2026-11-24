@@ -3,6 +3,7 @@ import { Router } from 'express';
 import { exigirSesion } from '../middleware/autenticacion.js';
 import { NOMBRES_DE_ROL } from '../config/permisos.js';
 import { crearRutasAlertas } from './alertas.routes.js';
+import { crearRutasArchivo } from './archivo.routes.js';
 import { crearRutasCobro } from './cobro.routes.js';
 import { crearRutasCobroJuridico } from './cobro-juridico.routes.js';
 import { crearRutasConciliacion } from './conciliacion.routes.js';
@@ -46,6 +47,7 @@ export function crearRutas(dependencias) {
     rutas.use(crearRutasMonitoreo(dependencias));
     rutas.use(crearRutasConciliacion(dependencias));
     rutas.use(crearRutasReportes(dependencias));
+    rutas.use(crearRutasArchivo(dependencias));
   }
 
   // Solo para las pruebas: rutas de ensayo detrás de la sesión.
