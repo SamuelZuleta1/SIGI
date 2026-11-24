@@ -4,7 +4,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { crearControlIncapacidades } from '../../src/controllers/control-incapacidades.js';
 import { ErrorDeAviso } from '../../src/controllers/error-de-aviso.js';
 import { ErrorDeValidacion } from '../../src/controllers/error-de-validacion.js';
-import { MENSAJE_SIN_CONCILIAR, pagoConciliado } from '../../src/controllers/archivo.controller.js';
+import { ErrorAlEliminarEpicrisis, MENSAJE_SIN_CONCILIAR, pagoConciliado } from '../../src/controllers/archivo.controller.js';
+import { MENSAJE_EPICRISIS_ARCHIVADA } from '../../src/controllers/registro.controller.js';
 import { MENSAJE_PAGO_ARCHIVADA } from '../../src/controllers/cobro.controller.js';
 import { crearBaseDeDatosFalsa } from '../helpers/base-de-datos-falsa.js';
 import { DESTINATARIOS, crearCorreoFalso } from '../helpers/correo-falso.js';
@@ -147,14 +148,48 @@ describe('HU-29.CA2 — archivar con el pago conciliado', () => {
     expect(enviarParaArchivo).toHaveBeenCalledTimes(2);
   });
 
-  it('si no se puede eliminar la epicrisis, quita la marca y no envía el correo', async () => {
+  it('si no se puede eliminar la epicrisis, quita la marca, no envía el correo y lo dice con su propio error', async () => {
     const id = await pagada({ documentos: ['epicrisis'] });
+    vi.spyOn(console, 'error').mockImplementation(() => {});
     baseDeDatos.eliminarEpicrisis = async () => {
       throw new Error('Storage caído');
     };
-    await expect(control.archivarIncapacidad(String(id), USUARIOS.auxiliar)).rejects.toThrow('Storage caído');
+    const error = await control.archivarIncapacidad(String(id), USUARIOS.auxiliar).catch((e) => e);
+    expect(error).toBeInstanceOf(ErrorAlEliminarEpicrisis);
+    expect(error).toMatchObject({ idIncapacidad: id, deshecho: true });
+    expect(error.cause.message).toBe('Storage caído');
     expect(baseDeDatos.incapacidades.find((i) => i.idIncapacidad === id).fechaArchivoPreparado).toBeNull();
     expect(enviados).toHaveLength(0);
+  });
+
+  it('si además no se puede quitar la marca, el error lo dice (deshecho: false)', async () => {
+    const id = await pagada();
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    baseDeDatos.eliminarEpicrisis = async () => {
+      throw new Error('Storage caído');
+    };
+    baseDeDatos.deshacerArchivoPreparado = async () => {
+      throw new Error('BD caída');
+    };
+    expect(await control.archivarIncapacidad(String(id), USUARIOS.auxiliar).catch((e) => e)).toMatchObject({ deshecho: false });
+  });
+
+  it('con el archivo preparado no se registra una epicrisis nueva; los demás documentos sí (CAR-11)', async () => {
+    const id = await pagada();
+    await control.archivarIncapacidad(String(id), USUARIOS.auxiliar);
+    const documento = (tipo) => ({ tipo, contenido: PDF });
+    expect((await errores(control.registrarDocumentos(String(id), [documento('soporte_incapacidad'), documento('epicrisis')], USUARIOS.auxiliar))).documento1).toBe(
+      MENSAJE_EPICRISIS_ARCHIVADA,
+    );
+    expect(baseDeDatos.documentos).toHaveLength(0);
+    expect((await control.registrarDocumentos(String(id), [documento('historia_clinica')], USUARIOS.auxiliar)).cantidad).toBe(1);
+  });
+
+  it('deshacer una conciliación quita la marca de archivo preparado de sus incapacidades (DA-59)', async () => {
+    const id = await pagada();
+    await control.archivarIncapacidad(String(id), USUARIOS.auxiliar);
+    await baseDeDatos.deshacerConciliacion(1);
+    expect((await control.prepararArchivo(String(id))).situacion).toBe('sin_conciliar');
   });
 
   it('con el archivo preparado ya no se registran pagos (DA-59)', async () => {

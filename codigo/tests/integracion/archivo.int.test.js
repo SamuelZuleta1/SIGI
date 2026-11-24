@@ -132,6 +132,17 @@ describe('HU-29 — archivo (persistencia real)', () => {
     expect(await existeEnStorage(epicrisis)).toBe(true);
   });
 
+  it('deshacer_conciliacion quita la marca de archivo preparado de las incapacidades cuyos pagos libera', async () => {
+    const { id, idPago } = await pagada('Deshacer');
+    await conciliar(idPago);
+    expect(await baseDeDatos.guardarArchivoPreparado(id, auxiliar.id)).toBe(true);
+    comprobar(await servidor.rpc('deshacer_conciliacion', { p_id: conciliaciones.at(-1) }));
+    const fila = comprobar(await servidor.from('incapacidad').select('fecha_archivo_preparado').eq('id', id).single());
+    expect(fila.fecha_archivo_preparado).toBeNull();
+    const pago = comprobar(await servidor.from('pago').select('conciliado').eq('id', idPago).single());
+    expect(pago.conciliado).toBe(false);
+  });
+
   it('si el correo falla se quita la marca y el reintento completa el archivo', async () => {
     const { id, idPago } = await pagada('Correo');
     await conciliar(idPago);

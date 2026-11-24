@@ -116,6 +116,7 @@ export function crearBaseDeDatosFalsa() {
         fechaInicio: guardada.fechaInicio,
         diasIncapacidad: guardada.diasIncapacidad,
         originalPendiente: guardada.originalPendiente ?? false,
+        archivoPreparado: guardada.fechaArchivoPreparado != null,
       };
     },
     async guardarDocumentos(idIncapacidad, nuevos, creadoPor, { originalPendiente = false } = {}) {
@@ -605,6 +606,12 @@ export function crearBaseDeDatosFalsa() {
       return registrarConciliacion(entidadId, datos, por);
     },
     async deshacerConciliacion(id) {
+      // Como deshacer_conciliacion (DA-59): quita la marca de archivo preparado de las incapacidades cuyos pagos libera.
+      for (const p of pagos) {
+        if (p.conciliacionId !== id) continue;
+        const i = incapacidades.find((x) => x.idIncapacidad === p.idIncapacidad);
+        if (i && !i.enviadaAGestionDocumental) Object.assign(i, { fechaArchivoPreparado: null, archivoPreparadoPor: null });
+      }
       for (const p of pagos) if (p.conciliacionId === id) Object.assign(p, { conciliado: false, conciliacionId: null });
       for (const p of pagosConsignados) if (p.conciliacionId === id) p.conciliacionId = null;
       const i = conciliaciones.findIndex((c) => c.id === id);

@@ -20,6 +20,19 @@ export const pagoConciliado = (i) => i.pagos.length > 0 && i.pagos.every((p) => 
 export const situacionArchivo = (i) =>
   i.fechaArchivoPreparado != null ? 'preparado' : pagoConciliado(i) ? 'por_archivar' : 'sin_conciliar';
 
+/**
+ * No se pudo eliminar la epicrisis al archivar (DA-59). `deshecho`: si se quitó la marca de archivo preparado (se puede
+ * reintentar); si es false, la incapacidad pudo quedar marcada sin avisar a Gestión Documental. `cause`: el error original.
+ */
+export class ErrorAlEliminarEpicrisis extends Error {
+  constructor({ idIncapacidad, deshecho, causa }) {
+    super(`No se pudo eliminar la epicrisis (incapacidad n.º ${idIncapacidad})`, { cause: causa });
+    this.name = 'ErrorAlEliminarEpicrisis';
+    this.idIncapacidad = idIncapacidad;
+    this.deshecho = deshecho;
+  }
+}
+
 export const MENSAJE_SIN_CONCILIAR =
   'El pago de esta incapacidad aún no está identificado y conciliado: no se puede archivar. ' +
   'Concílielo primero con los pagos consignados de la entidad (menú «Conciliación»).';
@@ -76,12 +89,14 @@ export function crearControlArchivo({ baseDeDatos, correo }) {
      * @param {{ id: string }} usuario quien archiva (DA-23).
      * @returns {Promise<null | { idIncapacidad: number, epicrisisEliminadas: number }>} null si no existe.
      * @throws {ErrorDeValidacion} no está pagada, ya se preparó o el pago no está conciliado (`estado`).
+     * @throws {ErrorAlEliminarEpicrisis} no se pudo eliminar la epicrisis (no se envió el correo).
      * @throws {import('./error-de-aviso.js').ErrorDeAviso} el correo a Gestión Documental falló.
      */
     async archivarIncapacidad(idIncapacidad, usuario) {
       const actual = await leer(idIncapacidad);
       if (!actual) return null;
-      if (situacionArchivo(actual) !== 'por_archivar' || actual.estado !== 'pagada' || actual.enviadaAGestionDocumental) {
+      // mensajeEstado explica cuál de las condiciones falta (no pagada, ya enviada, ya preparada o sin conciliar).
+      if (actual.estado !== 'pagada' || actual.enviadaAGestionDocumental || situacionArchivo(actual) !== 'por_archivar') {
         throw new ErrorDeValidacion({ estado: mensajeEstado(actual) });
       }
 
@@ -95,13 +110,18 @@ export function crearControlArchivo({ baseDeDatos, correo }) {
       try {
         epicrisisEliminadas = await baseDeDatos.eliminarEpicrisis(actual.idIncapacidad);
       } catch (error) {
-        await baseDeDatos.deshacerArchivoPreparado(actual.idIncapacidad).catch((errorDeshacer) =>
+        let deshecho = true;
+        try {
+          await baseDeDatos.deshacerArchivoPreparado(actual.idIncapacidad);
+        } catch (errorDeshacer) {
+          deshecho = false;
           console.error('[archivarIncapacidad] No se pudo quitar la marca de archivo preparado', {
             idIncapacidad: actual.idIncapacidad,
             errorDeshacer: resumirError(errorDeshacer),
-          }),
-        );
-        throw error;
+          });
+        }
+        console.error('[archivarIncapacidad] No se pudo eliminar la epicrisis', { idIncapacidad: actual.idIncapacidad, error: resumirError(error), deshecho });
+        throw new ErrorAlEliminarEpicrisis({ idIncapacidad: actual.idIncapacidad, deshecho, causa: error });
       }
 
       const documentos = actual.documentos.filter((d) => d.tipo !== 'epicrisis').map((d) => d.tipo);

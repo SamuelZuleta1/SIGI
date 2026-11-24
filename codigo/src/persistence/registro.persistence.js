@@ -53,7 +53,7 @@ export function crearPersistenciaRegistro(cliente, almacen = crearAlmacenDocumen
       const fila = comprobar(
         await cliente
           .from('incapacidad')
-          .select('id, tipo, fecha_inicio, dias_incapacidad, original_pendiente, colaborador(nombre, correo), entidad(nombre)')
+          .select('id, tipo, fecha_inicio, dias_incapacidad, original_pendiente, fecha_archivo_preparado, colaborador(nombre, correo), entidad(nombre)')
           .eq('id', idIncapacidad)
           .maybeSingle(),
       );
@@ -67,6 +67,8 @@ export function crearPersistenciaRegistro(cliente, almacen = crearAlmacenDocumen
         fechaInicio: fila.fecha_inicio,
         diasIncapacidad: fila.dias_incapacidad,
         originalPendiente: fila.original_pendiente,
+        // Con el archivo preparado (HU-29, DA-59) ya no se recibe epicrisis: se eliminó al archivar.
+        archivoPreparado: fila.fecha_archivo_preparado != null,
       };
     },
 

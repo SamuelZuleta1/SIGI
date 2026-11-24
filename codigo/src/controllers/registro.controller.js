@@ -44,6 +44,9 @@ const datosDeIncapacidad = z.object({
 export { TAMANO_MAXIMO_ARCHIVO };
 export const MAXIMO_DOCUMENTOS = 10;
 
+export const MENSAJE_EPICRISIS_ARCHIVADA =
+  'El archivo de esta incapacidad ya está preparado y su epicrisis se eliminó: no se registra una nueva (CAR-11).';
+
 export function crearControlRegistro({ baseDeDatos, correo }) {
   return {
     /** Entidades (EPS y ARL) entre las que se elige al registrar (DA-03). */
@@ -109,6 +112,12 @@ export function crearControlRegistro({ baseDeDatos, correo }) {
         else if (!tipoMime) errores[clave] = 'El archivo debe ser PDF, JPG o PNG.';
         else validos.push({ tipo: documento.tipo, contenido, tipoMime });
       });
+      // CAR-11, DA-59: la epicrisis se elimina al archivar; una vez preparado el archivo no se vuelve a recibir.
+      if (incapacidad.archivoPreparado) {
+        lista.forEach((documento, posicion) => {
+          if (documento?.tipo === 'epicrisis' && !errores[`documento${posicion}`]) errores[`documento${posicion}`] = MENSAJE_EPICRISIS_ARCHIVADA;
+        });
+      }
       if (Object.keys(errores).length > 0) throw new ErrorDeValidacion(errores);
 
       // Por correo, los documentos y la marca de original pendiente se guardan juntos o no se guarda nada.

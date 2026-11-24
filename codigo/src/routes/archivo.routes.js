@@ -2,6 +2,7 @@
 // Operaciones de la Vista: consultarPagadas (HU-29.CA1, GET /archivo) y archivarIncapacidad (HU-29.CA2/CA3, desde una
 // pantalla por incapacidad: GET/POST /incapacidades/:id/archivo). DA-59.
 import { Router } from 'express';
+import { ErrorAlEliminarEpicrisis } from '../controllers/archivo.controller.js';
 import { ErrorDeAviso } from '../controllers/error-de-aviso.js';
 import { ErrorDeValidacion } from '../controllers/error-de-validacion.js';
 import { permitir } from '../middleware/autenticacion.js';
@@ -14,6 +15,7 @@ import { pesos } from '../servicios/moneda.js';
 const AVISO_FALLIDO =
   'No se pudo enviar el correo a Gestión Documental: el archivo no quedó preparado. Intente de nuevo. ' +
   'Si la incapacidad tenía epicrisis, ya se eliminó de SIGI.';
+const EPICRISIS_FALLIDA = 'No se pudo eliminar la epicrisis: el archivo no quedó preparado y no se avisó a Gestión Documental. Intente de nuevo.';
 
 export function crearRutasArchivo({ control }) {
   const rutas = Router();
@@ -27,7 +29,6 @@ export function crearRutasArchivo({ control }) {
       titulo: 'Archivar incapacidad',
       errores: {},
       preparado: false,
-      epicrisisEliminada: false,
       ...ayudas,
       ...datos,
     });
@@ -45,31 +46,32 @@ export function crearRutasArchivo({ control }) {
     await pagina(res, 200, {
       archivo,
       preparado: req.query.preparado === '1' && archivo.situacion === 'preparado',
-      epicrisisEliminada: req.query.epicrisis === '1',
     });
   });
 
   // archivarIncapacidad() — HU-29.CA2/CA3. Sin conciliar, ya preparado o no pagada: 409 con la advertencia.
-  // El correo falló: 502 (se quitó la marca) o 500 (no se pudo quitar).
+  // El correo o el borrado de la epicrisis fallaron: 502 (se quitó la marca) o 500 (no se pudo quitar).
   rutas.post('/incapacidades/:id/archivo', permitir('archivarIncapacidad'), async (req, res) => {
     try {
       const resultado = await control.archivarIncapacidad(req.params.id, req.usuario);
       if (!resultado) return noExiste(res);
-      res.redirect(303, `/incapacidades/${resultado.idIncapacidad}/archivo?preparado=1&epicrisis=${resultado.epicrisisEliminadas > 0 ? 1 : 0}`);
+      res.redirect(303, `/incapacidades/${resultado.idIncapacidad}/archivo?preparado=1`);
     } catch (error) {
-      if (error instanceof ErrorDeAviso && !error.deshecho) {
+      const fallo = error instanceof ErrorDeAviso || error instanceof ErrorAlEliminarEpicrisis;
+      if (fallo && !error.deshecho) {
         return res.status(500).pagina('error', {
           titulo: 'No se pudo completar el archivo',
           mensaje:
-            'El correo a Gestión Documental falló y no se pudo quitar la marca de archivo preparado. ' +
+            `${error instanceof ErrorDeAviso ? 'El correo a Gestión Documental falló' : 'No se pudo eliminar la epicrisis'} ` +
+            'y no se pudo quitar la marca de archivo preparado. ' +
             `Abra la incapacidad n.º ${error.idIncapacidad} para comprobarlo y avise a Gestión Documental por otro medio.`,
         });
       }
-      const estado = error instanceof ErrorDeAviso ? 502 : error instanceof ErrorDeValidacion ? 409 : null;
-      if (estado == null) throw error;
+      if (!fallo && !(error instanceof ErrorDeValidacion)) throw error;
       const archivo = await control.prepararArchivo(req.params.id);
       if (!archivo) return noExiste(res);
-      await pagina(res, estado, { archivo, errores: estado === 502 ? { aviso: AVISO_FALLIDO } : error.errores });
+      if (error instanceof ErrorDeValidacion) return pagina(res, 409, { archivo, errores: error.errores });
+      await pagina(res, 502, { archivo, errores: { aviso: error instanceof ErrorDeAviso ? AVISO_FALLIDO : EPICRISIS_FALLIDA } });
     }
   });
 

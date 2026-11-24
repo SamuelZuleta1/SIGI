@@ -76,9 +76,9 @@ describe('HU-29.CA2 — archivar (POST /incapacidades/:id/archivo)', () => {
 
     const res = await archivar(agente, id);
     expect(res.status).toBe(303);
-    expect(res.headers.location).toBe(`/incapacidades/${id}/archivo?preparado=1&epicrisis=1`);
+    expect(res.headers.location).toBe(`/incapacidades/${id}/archivo?preparado=1`);
     const despues = await agente.get(res.headers.location);
-    expect(despues.text).toContain('Archivo preparado: se eliminó la epicrisis y se envió el correo a Gestión Documental');
+    expect(despues.text).toContain('Archivo preparado: se eliminó la epicrisis (si la tenía) y se envió el correo a Gestión Documental');
     expect(despues.text).not.toContain(`action="/incapacidades/${id}/archivo"`);
     expect(baseDeDatos.documentos).toHaveLength(0);
     expect(enviados).toHaveLength(1);
@@ -87,7 +87,7 @@ describe('HU-29.CA2 — archivar (POST /incapacidades/:id/archivo)', () => {
   it('la confirmación no aparece por la URL si no quedó preparado', async () => {
     const id = await pagada();
     const agente = await agenteCon(request, app, 'auxiliar');
-    expect((await agente.get(`/incapacidades/${id}/archivo?preparado=1&epicrisis=1`)).text).not.toContain('Archivo preparado:');
+    expect((await agente.get(`/incapacidades/${id}/archivo?preparado=1`)).text).not.toContain('Archivo preparado:');
   });
 
   it('archivar otra vez: 409 sin otro correo', async () => {
@@ -110,6 +110,25 @@ describe('HU-29.CA2 — archivar (POST /incapacidades/:id/archivo)', () => {
     expect(res.text).toContain('No se pudo enviar el correo a Gestión Documental');
     expect(res.text).toContain(`action="/incapacidades/${id}/archivo"`);
     expect((await archivar(agente, id)).status).toBe(303);
+  });
+
+  it('si no se puede eliminar la epicrisis: 502 con su propio mensaje y sin correo; si tampoco se quita la marca: 500', async () => {
+    const id = await pagada({ epicrisis: true });
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    baseDeDatos.eliminarEpicrisis = async () => {
+      throw new Error('Storage caído');
+    };
+    const agente = await agenteCon(request, app, 'auxiliar');
+    const res = await archivar(agente, id);
+    expect(res.status).toBe(502);
+    expect(res.text).toContain('No se pudo eliminar la epicrisis: el archivo no quedó preparado');
+    expect(enviados).toHaveLength(0);
+    baseDeDatos.deshacerArchivoPreparado = async () => {
+      throw new Error('BD caída');
+    };
+    const sinDeshacer = await archivar(agente, id);
+    expect(sinDeshacer.status).toBe(500);
+    expect(sinDeshacer.text).toContain('No se pudo eliminar la epicrisis y no se pudo quitar la marca');
   });
 
   it('si el correo falla y no se puede quitar la marca: 500 que lo dice', async () => {
