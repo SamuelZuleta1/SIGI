@@ -111,6 +111,30 @@ describe('DA-50 — prórrogas (persistencia real)', () => {
     expect(await prorroga(anterior, 5, fechaInicio)).toEqual({ id: null, codigo });
   });
 
+  it('SG014: un certificado con prórroga no cambia su fecha ni sus días, y una prórroga no cambia de anterior', async () => {
+    const uno = await primera(10);
+    const { id: dos } = await prorroga(uno, 5, '2026-04-11');
+    const otro = await primera(10, '2026-06-01');
+    for (const cambio of [{ dias_incapacidad: 12 }, { fecha_inicio: '2026-03-31' }]) {
+      const { error } = await servidor.from('incapacidad').update(cambio).eq('id', uno);
+      expect(error?.code).toBe('SG014');
+    }
+    expect((await servidor.from('incapacidad').update({ prorroga_de: otro }).eq('id', dos)).error?.code).toBe('SG014');
+    // La vigente (sin prórroga) sí se puede corregir, y sus derivados se recalculan.
+    comprobar(await servidor.from('incapacidad').update({ dias_incapacidad: 8 }).eq('id', dos));
+    expect(await fila(dos)).toMatchObject({ dias_previos: 10, dias_acumulados: 18 });
+  });
+
+  it('el deshacer de un aviso fallido también revierte la prórroga que copió el estado', async () => {
+    const id = await primera(130);
+    expect(await baseDeDatos.guardarFaltaConcepto(id, { n: 120, hoy: HOY }, auxiliar.id)).toBe(true);
+    const { id: siguiente } = await prorroga(id, 30, '2026-08-09');
+    expect((await fila(siguiente)).falta_concepto).toBe(true);
+    await baseDeDatos.deshacerFaltaConcepto(id);
+    expect((await fila(id)).falta_concepto).toBe(false);
+    expect(await fila(siguiente)).toMatchObject({ falta_concepto: false, fecha_falta_concepto: null, falta_concepto_por: null });
+  });
+
   it('admite exactamente 30 días de interrupción, y el control la registra con la persistencia real', async () => {
     const anterior = await primera(10); // fin 10 abr
     const { idIncapacidad } = await control.registrarProrroga(String(anterior), { fechaInicio: '2026-05-11', diasIncapacidad: '5', fechaRecepcion: '2026-05-11' }, auxiliar);

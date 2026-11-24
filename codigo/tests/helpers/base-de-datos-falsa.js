@@ -560,9 +560,11 @@ export function crearBaseDeDatosFalsa() {
       Object.assign(i, { concepto, faltaConcepto: false, fechaConcepto: new Date().toISOString(), conceptoPor: por });
       return true;
     },
+    // DA-50: los «deshacer» también revierten la prórroga que copió el estado (como monitoreo.persistence.js).
     async deshacerConcepto(idIncapacidad, concepto, faltaConcepto) {
-      const i = incapacidades.find((x) => x.idIncapacidad === idIncapacidad);
-      if (i?.concepto === concepto) Object.assign(i, { concepto: null, faltaConcepto, fechaConcepto: null, conceptoPor: null });
+      for (const i of incapacidades.filter((x) => x.idIncapacidad === idIncapacidad || x.prorrogaDe === idIncapacidad)) {
+        if (i.concepto === concepto) Object.assign(i, { concepto: null, faltaConcepto, fechaConcepto: null, conceptoPor: null });
+      }
     },
     async guardarFaltaConcepto(idIncapacidad, dia, por) {
       const i = incapacidades.find((x) => x.idIncapacidad === idIncapacidad);
@@ -571,8 +573,9 @@ export function crearBaseDeDatosFalsa() {
       return true;
     },
     async deshacerFaltaConcepto(idIncapacidad) {
-      const i = incapacidades.find((x) => x.idIncapacidad === idIncapacidad);
-      if (i && i.concepto == null) Object.assign(i, { faltaConcepto: false, fechaFaltaConcepto: null, faltaConceptoPor: null });
+      for (const i of incapacidades.filter((x) => x.idIncapacidad === idIncapacidad || x.prorrogaDe === idIncapacidad)) {
+        if (i.concepto == null) Object.assign(i, { faltaConcepto: false, fechaFaltaConcepto: null, faltaConceptoPor: null });
+      }
     },
     async guardarSuspensionPago(idIncapacidad, dia, por) {
       const i = incapacidades.find((x) => x.idIncapacidad === idIncapacidad);
@@ -581,8 +584,9 @@ export function crearBaseDeDatosFalsa() {
       return true;
     },
     async deshacerSuspensionPago(idIncapacidad) {
-      const i = incapacidades.find((x) => x.idIncapacidad === idIncapacidad);
-      if (i?.pagoSuspendido) Object.assign(i, { pagoSuspendido: false, fechaSuspension: null, suspensionPor: null });
+      for (const i of incapacidades.filter((x) => x.idIncapacidad === idIncapacidad || x.prorrogaDe === idIncapacidad)) {
+        if (i.pagoSuspendido) Object.assign(i, { pagoSuspendido: false, fechaSuspension: null, suspensionPor: null });
+      }
     },
     // HU-12 (DS-14): como alertas.persistence.js (sin radicar, aviso pendiente o 90 días o más).
     async consultarPlazos() {

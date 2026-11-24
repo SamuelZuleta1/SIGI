@@ -46,7 +46,7 @@
       </div>
     <% } else { %>
       <% if (primerError) { %><p class="mensaje mensaje-error" role="alert">No se registró. Revise los campos marcados.</p><% } %>
-      <form method="post" action="/incapacidades/prorroga" novalidate>
+      <form class="prorroga" method="post" action="/incapacidades/prorroga" novalidate>
         <input type="hidden" name="anterior" value="<%= anterior.idIncapacidad %>">
         <div class="campos">
           <div class="campo <%= errores.fechaInicio ? 'invalido' : '' %>">

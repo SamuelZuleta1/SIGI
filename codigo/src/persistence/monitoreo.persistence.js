@@ -33,6 +33,9 @@ const aDatos = (f) => ({
   ...aCaso(f),
 });
 
+// DA-50: el certificado y la prórroga que copió su estado del monitoreo (filtro de PostgREST; el id es un entero).
+const delCertificadoOSuProrroga = (id) => `id.eq.${Number(id)},prorroga_de.eq.${Number(id)}`;
+
 // Quién y cuándo (DA-23). `por` es el id del usuario que registra.
 const ahora = () => new Date().toISOString();
 
@@ -93,13 +96,16 @@ export function crearPersistenciaMonitoreo(cliente) {
       return filas.length === 1;
     },
 
-    /** Deshace el concepto recién guardado (si el aviso falló), devolviendo la marca de falta que tenía. */
+    /**
+     * Deshace el concepto recién guardado (si el aviso falló), devolviendo la marca de falta que tenía. También en la
+     * prórroga que se registró entre medias y lo copió (DA-50): el aviso no salió para ninguna.
+     */
     async deshacerConcepto(idIncapacidad, concepto, faltaConcepto) {
       comprobar(
         await cliente
           .from('incapacidad')
           .update({ concepto: null, falta_concepto: faltaConcepto, fecha_concepto: null, concepto_por: null })
-          .eq('id', idIncapacidad)
+          .or(delCertificadoOSuProrroga(idIncapacidad))
           .eq('concepto', concepto),
       );
     },
@@ -123,13 +129,13 @@ export function crearPersistenciaMonitoreo(cliente) {
       return filas.length === 1;
     },
 
-    /** Deshace la falta recién guardada (si el aviso falló). */
+    /** Deshace la falta recién guardada (si el aviso falló), también en la prórroga que la copió (DA-50). */
     async deshacerFaltaConcepto(idIncapacidad) {
       comprobar(
         await cliente
           .from('incapacidad')
           .update({ falta_concepto: false, fecha_falta_concepto: null, falta_concepto_por: null })
-          .eq('id', idIncapacidad)
+          .or(delCertificadoOSuProrroga(idIncapacidad))
           .is('concepto', null),
       );
     },
@@ -152,13 +158,13 @@ export function crearPersistenciaMonitoreo(cliente) {
       return filas.length === 1;
     },
 
-    /** Deshace la suspensión recién guardada (si el aviso falló). */
+    /** Deshace la suspensión recién guardada (si el aviso falló), también en la prórroga que la copió (DA-50). */
     async deshacerSuspensionPago(idIncapacidad) {
       comprobar(
         await cliente
           .from('incapacidad')
           .update({ pago_suspendido: false, fecha_suspension: null, suspension_por: null })
-          .eq('id', idIncapacidad)
+          .or(delCertificadoOSuProrroga(idIncapacidad))
           .eq('pago_suspendido', true),
       );
     },

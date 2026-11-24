@@ -3,6 +3,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { calcularVencimientos } from '../../src/controllers/alertas.controller.js';
 import { crearControlIncapacidades } from '../../src/controllers/control-incapacidades.js';
+import { ErrorDeAviso } from '../../src/controllers/error-de-aviso.js';
 import { ErrorDeValidacion } from '../../src/controllers/error-de-validacion.js';
 import { diaActual, fechaDelDia, fechasDelCaso, llegoAlDia } from '../../src/controllers/hitos.js';
 import { calcularTramos } from '../../src/controllers/reconocimiento.controller.js';
@@ -182,6 +183,23 @@ describe('DA-50 — monitoreo en el certificado vigente (HU-22 a HU-24)', () => 
   it('la escritura condicionada de la base tampoco deja registrar en una anterior', async () => {
     const { segunda } = await casoDeEjemplo();
     expect(await baseDeDatos.guardarFaltaConcepto(segunda, { n: 120, hoy: HOY }, 'id-auxiliar')).toBe(false);
+  });
+
+  it('si el aviso falla después de que una prórroga copió la falta, el deshacer la quita de las dos', async () => {
+    const { idIncapacidad } = await registrar(130);
+    const { correo: base } = crearCorreoFalso();
+    // Mientras se envía el aviso, otro usuario registra la prórroga (copia la falta); luego el correo falla.
+    const correo = {
+      ...base,
+      avisarFaltaConcepto: async () => {
+        await control.registrarProrroga(String(idIncapacidad), { fechaInicio: '2026-08-09', diasIncapacidad: '30', fechaRecepcion: '2026-08-09' }, USUARIOS.receptor);
+        throw new Error('SMTP caído');
+      },
+    };
+    const conFallo = crearControlIncapacidades({ baseDeDatos, correo, hoy: () => HOY });
+    const error = await conFallo.registrarFaltaConcepto(String(idIncapacidad), USUARIOS.auxiliar).catch((e) => e);
+    expect(error).toBeInstanceOf(ErrorDeAviso);
+    expect(baseDeDatos.incapacidades.map((i) => [i.idIncapacidad, i.faltaConcepto])).toEqual([[1, false], [2, false]]);
   });
 
   it('la falta del concepto registrada pasa a la prórroga', async () => {
