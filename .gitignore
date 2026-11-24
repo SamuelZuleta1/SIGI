@@ -24,9 +24,3 @@ dist/
 codigo/.impeccable/
 .env.local-backup
 *.env.local-backup
-
-# Documentos de trabajo internos (contexto, auditoría, plan y trazabilidad)
-docs/contexto/
-docs/auditoria/
-docs/plan_desarrollo.md
-docs/trazabilidad_y_decisiones/
