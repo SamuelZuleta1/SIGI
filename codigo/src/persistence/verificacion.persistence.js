@@ -23,7 +23,7 @@ export function crearPersistenciaVerificacion(cliente, almacen = crearAlmacenDoc
         await cliente
           .from('incapacidad')
           .select(
-            'id, tipo, fecha_inicio, dias_incapacidad, original_pendiente, documentacion_completa, archivado_digital, ' +
+            'id, tipo, fecha_inicio, dias_incapacidad, original_pendiente, documentacion_completa, archivado_digital, fecha_archivo_preparado, ' +
               'faltantes, fecha_aviso_faltantes, segundo_llamado, colaborador(nombre, correo), entidad(nombre), documento(id, tipo)',
           )
           .eq('id', idIncapacidad)
@@ -42,6 +42,8 @@ export function crearPersistenciaVerificacion(cliente, almacen = crearAlmacenDoc
         originalPendiente: fila.original_pendiente,
         documentacionCompleta: fila.documentacion_completa,
         archivadoDigital: fila.archivado_digital,
+        // HU-29 (DA-59): con el archivo preparado la epicrisis ya se eliminó.
+        archivoPreparado: fila.fecha_archivo_preparado != null,
         faltantes: fila.faltantes,
         fechaAvisoFaltantes: fila.fecha_aviso_faltantes,
         segundoLlamado: fila.segundo_llamado,

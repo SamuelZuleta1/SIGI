@@ -79,6 +79,21 @@ describe('HU-06.CA1 — documentos obligatorios por tipo de caso (F1 §2.8)', ()
     expect(resultado.otros).toEqual([{ tipo: 'historia_clinica', documentos: [2] }]);
     expect(resultado).toMatchObject({ completa: false, faltantes: ['epicrisis', 'furips'], exigidos: 3, recibidos: 1 });
   });
+
+  it.each([
+    ['enfermedad_general', 5],
+    ['accidente_transito', 3],
+    ['licencia_maternidad', 126],
+  ])('HU-29 / DA-59 — %s con el archivo preparado: la epicrisis aparece eliminada, no como faltante ni exenta', (tipo, diasIncapacidad) => {
+    const resultado = compararConRequisitos(
+      { tipo, diasIncapacidad, archivoPreparado: true },
+      con('soporte_incapacidad', 'furips', 'certificado_nacido_vivo', 'registro_civil', 'documento_identidad'),
+      { epsTranscribio: true },
+    );
+    expect(resultado.requisitos.find((r) => r.tipo === 'epicrisis')).toEqual({ tipo: 'epicrisis', estado: 'eliminada', documentos: [] });
+    expect(resultado).toMatchObject({ completa: true, faltantes: [], epsTranscribio: false, epicrisisEliminada: true });
+    expect(resultado.recibidos).toBe(resultado.exigidos);
+  });
 });
 
 describe('HU-06 — verificar la documentación (Control)', () => {

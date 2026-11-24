@@ -66,6 +66,13 @@ describe('HU-04 — registrar la documentación recibida (Control)', () => {
     expect(enviados).toHaveLength(0);
   });
 
+  it('HU-04 — cuando el original llega en físico a recepción deja de estar pendiente', async () => {
+    await control.registrarDocumentos(id, [documentoDePrueba()], USUARIOS.auxiliar);
+    expect(baseDeDatos.incapacidades[0].originalPendiente).toBe(true);
+    await control.registrarDocumentos(id, [documentoDePrueba()], USUARIOS.receptor);
+    expect(baseDeDatos.incapacidades[0].originalPendiente).toBe(false);
+  });
+
   it('HU-04.CA1 — si el correo falla, los documentos quedan guardados y se informa que no hubo aviso', async () => {
     const silencio = vi.spyOn(console, 'error').mockImplementation(() => {});
     control = crearControlIncapacidades({

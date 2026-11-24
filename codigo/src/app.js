@@ -72,10 +72,3 @@ export function crearApp(dependencias) {
 
   return app;
 }
-
-// Solo escucha cuando se ejecuta directamente (`npm start`), no al importarla en las pruebas ni en Vercel.
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  const { crearAppDeProduccion } = await import('./arranque.js');
-  const puerto = Number(process.env.PORT) || 3000;
-  (await crearAppDeProduccion()).listen(puerto, () => console.log(`SIGI en http://localhost:${puerto}`));
-}

@@ -182,7 +182,8 @@ export function crearBaseDeDatosFalsa() {
       }));
       documentos.push(...guardados);
       const incapacidad = incapacidades.find((i) => i.idIncapacidad === idIncapacidad);
-      if (originalPendiente) incapacidad.originalPendiente = true;
+      // Como registrar_documentos: por correo queda pendiente; en recepción el original llegó en físico (HU-04).
+      incapacidad.originalPendiente = Boolean(originalPendiente);
       // Como registrar_documentos: vuelve a quedar lista para verificarse (HU-07.CA2, DA-29).
       Object.assign(incapacidad, { documentacionCompleta: null, archivadoDigital: false });
       return guardados.map(({ tipo, archivo }) => ({ tipo, archivo }));

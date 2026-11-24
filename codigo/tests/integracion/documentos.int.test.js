@@ -104,6 +104,14 @@ describe('HU-04 — registrar la documentación recibida (base de datos y Storag
     expect((await control.obtenerIncapacidad(id)).originalPendiente).toBe(true);
   });
 
+  it('HU-04 — cuando el original llega en físico a recepción deja de estar pendiente', async () => {
+    const id = await nueva();
+    await control.registrarDocumentos(id, [documentoDePrueba()], auxiliar);
+    await control.registrarDocumentos(id, [documentoDePrueba()], receptor);
+    const { data } = await servidor.from('incapacidad').select('original_pendiente').eq('id', id).single();
+    expect(data.original_pendiente).toBe(false);
+  });
+
   it('consultarIncapacidad trae los datos que la identifican y null si no existe', async () => {
     expect(await baseDeDatos.consultarIncapacidad(ids[0])).toEqual({
       idIncapacidad: ids[0],

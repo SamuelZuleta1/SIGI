@@ -1,7 +1,8 @@
 // HU-17 — avisar el retraso y registrar el acuerdo de pago (DS-07: evaluarDemora → notificarRetraso a la
 // Coordinación; registrarAcuerdo → guardarAcuerdo), con persistencia y correo falsos. Decisión: DA-42.
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { crearControlIncapacidades } from '../../src/controllers/control-incapacidades.js';
+import { ErrorDeAviso } from '../../src/controllers/error-de-aviso.js';
 import { ErrorDeValidacion } from '../../src/controllers/error-de-validacion.js';
 import { leerFechaAcuerdo } from '../../src/controllers/seguimiento.controller.js';
 import { crearBaseDeDatosFalsa } from '../helpers/base-de-datos-falsa.js';
@@ -70,7 +71,14 @@ describe('HU-17.CA1 — el retraso se avisa por correo a la Coordinación', () =
       correo: { notificarRetraso: async () => { throw new Error('SMTP caído'); } },
       hoy: () => hoy,
     });
-    await expect(fallido.registrarSeguimiento('1', { evidencia: PDF }, USUARIOS.auxiliar)).rejects.toThrow('SMTP caído');
+    const registro = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const error = await fallido.registrarSeguimiento('1', { evidencia: PDF }, USUARIOS.auxiliar).catch((e) => e);
+    // El registro del servidor lleva el error resumido, sin el objeto completo del correo.
+    expect(registro.mock.calls[0][1]).toEqual({ idIncapacidad: 1, errorCorreo: expect.objectContaining({ mensaje: 'SMTP caído' }) });
+    registro.mockRestore();
+    expect(error).toBeInstanceOf(ErrorDeAviso);
+    expect(error).toMatchObject({ operacion: 'retraso', idIncapacidad: 1, deshecho: true });
+    expect(error.cause.message).toBe('SMTP caído');
     expect(baseDeDatos.seguimientos).toHaveLength(0);
   });
 
