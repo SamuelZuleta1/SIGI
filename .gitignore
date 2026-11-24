@@ -18,3 +18,9 @@ dist/
 # Editores
 .vscode/
 .idea/
+
+# Herramientas de diseño (no son parte de la aplicación)
+.impeccable/
+codigo/.impeccable/
+.env.local-backup
+*.env.local-backup

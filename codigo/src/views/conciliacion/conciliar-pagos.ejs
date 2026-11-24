@@ -1,0 +1,153 @@
+<%
+  // HU-26 (DS-11; DA-11, DA-56): el auxiliar compara los pagos consignados de una entidad con los pagos registrados.
+  const dias = (n) => (n === 1 ? '1 día' : `${n} días`);
+  const coincideConsignado = (id) => coincidencias?.consignados.includes(id);
+  const coincidePago = (id) => coincidencias?.pagos.includes(id);
+  const coinciden = coincidencias?.consignados.length ?? 0;
+  const contar = (n, uno, varios) => `${n} ${n === 1 ? uno : varios}`;
+%>
+<h1>Conciliar pagos</h1>
+<p class="sub">Compare los pagos que consignó una entidad con los pagos registrados en SIGI. Un pago queda identificado cuando coinciden el colaborador y el valor.</p>
+
+<% if (errores.aviso) { %>
+  <p class="mensaje mensaje-error" role="alert"><%= errores.aviso %></p>
+<% } else if (errores.cambio || errores.pagos) { %>
+  <p class="mensaje mensaje-error" role="alert"><%= errores.cambio ?? errores.pagos %></p>
+<% } %>
+
+<form class="formulario filtros conciliar-entidad" method="get" action="/conciliacion">
+  <div class="campos">
+    <div class="campo <%= errores.entidad ? 'invalido' : '' %>">
+      <label for="entidad">Entidad</label>
+      <select id="entidad" name="entidad"<%- errores.entidad ? ' aria-invalid="true" aria-describedby="error-entidad"' : '' %>>
+        <option value="">Elija…</option>
+        <% for (const e of entidades) { %>
+          <option value="<%= e.id %>" <%= entidad && entidad.id === e.id ? 'selected' : '' %>><%= e.nombre %><%= e.porIdentificar > 0 ? ` — ${contar(e.porIdentificar, 'por identificar', 'por identificar')}` : '' %></option>
+        <% } %>
+      </select>
+      <% if (errores.entidad) { %><span class="error" id="error-entidad"><%= errores.entidad %></span><% } %>
+    </div>
+    <div class="acciones"><button class="boton secundario">Ver pagos</button></div>
+  </div>
+</form>
+
+<% if (entidad) { %>
+<form class="conciliar" method="post" action="/conciliacion" data-un-envio>
+  <input type="hidden" name="entidad" value="<%= entidad.id %>">
+
+  <section class="bloque-conciliar" aria-labelledby="titulo-consignados">
+    <div class="titulo-bloque">
+      <h2 id="titulo-consignados">Consignados por identificar</h2>
+      <span class="tenue"><%= contar(consignados.length, 'pago', 'pagos') %><% if (consignados.length > 0) { %> · <span class="cifra"><%= pesos(totalConsignado / 100) %></span><% } %></span>
+    </div>
+    <div class="tabla-envuelta">
+      <% if (consignados.length === 0) { %>
+        <div class="vacio">
+          <b><%= entidad.nombre %> no tiene pagos consignados por identificar.</b>
+          <p>Cuando Contabilidad y Tesorería registre los pagos que consignó, aparecerán aquí.</p>
+        </div>
+      <% } else { %>
+        <table class="estados conciliar-tabla">
+          <thead>
+            <tr><th scope="col">Colaborador</th><th scope="col" class="num">Días pagados</th><th scope="col" class="num">Valor</th><th scope="col">Registrado</th><th scope="col">Comparación</th></tr>
+          </thead>
+          <tbody>
+            <% for (const c of consignados) { %>
+            <tr>
+              <td><%= c.colaborador %></td>
+              <td class="num cifra"><%= dias(c.diasPagados) %></td>
+              <td class="num cifra"><%= pesos(c.valor) %></td>
+              <td class="fecha"><%= fechaBreve(fechaEnColombia(c.creadoEn)) %></td>
+              <td><% if (coincideConsignado(c.id)) { %><span class="chip coincide">Coincide</span><% } else { %><span class="chip sin-pareja">Sin pago igual</span><% } %></td>
+            </tr>
+            <% } %>
+          </tbody>
+        </table>
+      <% } %>
+    </div>
+  </section>
+
+  <% if (consignados.length > 0) { %>
+  <section class="bloque-conciliar" aria-labelledby="titulo-registrados">
+    <div class="titulo-bloque">
+      <h2 id="titulo-registrados">Pagos registrados en SIGI</h2>
+      <span class="tenue"><%= contar(pagos.length, 'pago por conciliar', 'pagos por conciliar') %></span>
+    </div>
+    <div class="tabla-envuelta">
+      <% if (pagos.length === 0) { %>
+        <div class="vacio">
+          <b>No hay pagos registrados de <%= entidad.nombre %> por conciliar.</b>
+          <p>Si concilia ahora, todos los consignados quedarán como saldos pendientes. Registre antes los pagos en el cobro de cada incapacidad.</p>
+        </div>
+      <% } else { %>
+        <table class="estados conciliar-tabla">
+          <thead>
+            <tr><th scope="col" class="marca-col"><span class="oculto">Incluir</span></th><th scope="col">Incapacidad</th><th scope="col">Colaborador</th><th scope="col">Fecha de pago</th><th scope="col" class="num">Valor</th><th scope="col">Comparación</th></tr>
+          </thead>
+          <tbody>
+            <% for (const p of pagos) { const id = `pago-${p.idPago}`; %>
+            <tr>
+              <td class="marca-col"><input type="checkbox" id="<%= id %>" name="pagos" value="<%= p.idPago %>" <%= elegidos.includes(p.idPago) ? 'checked' : '' %> aria-label="Incluir el pago de <%= p.colaborador %>, incapacidad n.º <%= p.idIncapacidad %>"></td>
+              <td><a href="/incapacidades/<%= p.idIncapacidad %>/cobro">n.º <%= p.idIncapacidad %></a></td>
+              <td><label for="<%= id %>"><%= p.colaborador %></label></td>
+              <td class="fecha"><%= fechaBreve(p.fechaPago) %></td>
+              <td class="num cifra"><%= pesos(p.valor) %></td>
+              <td><% if (coincidePago(p.idPago)) { %><span class="chip coincide">Coincide</span><% } else { %><span class="chip sin-pareja">Sin consignación igual</span><% } %></td>
+            </tr>
+            <% } %>
+          </tbody>
+        </table>
+      <% } %>
+    </div>
+    <p class="nota-tabla">Desmarque los pagos que no correspondan a esta consignación. La comparación supone todos los pagos marcados.</p>
+  </section>
+
+  <div class="cierre-conciliar">
+    <p class="mensaje <%= coinciden === consignados.length && coinciden === pagos.length ? 'mensaje-ok' : 'mensaje-aviso' %>">
+      <% if (coinciden === consignados.length && coinciden === pagos.length) { %>
+        Los <%= consignados.length %> pagos consignados tienen su pago registrado. Al conciliar se envía el detalle conciliado a Contabilidad y Tesorería.
+      <% } else { %>
+        <%= contar(coinciden, 'pago coincide', 'pagos coinciden') %> de <%= consignados.length %> consignados. Lo que no coincida quedará como saldo pendiente y se avisará a Contabilidad y Tesorería.
+      <% } %>
+    </p>
+    <div class="acciones">
+      <button class="boton" data-enviando="Conciliando…">Identificar y conciliar</button>
+    </div>
+  </div>
+  <% } %>
+</form>
+<% } else { %>
+  <div class="vacio panel-vacio">
+    <b>Elija la entidad que va a conciliar.</b>
+    <p>Las entidades con pagos consignados por identificar muestran cuántos tienen.</p>
+  </div>
+<% } %>
+
+<section class="recientes" aria-labelledby="titulo-conciliaciones">
+  <h2 id="titulo-conciliaciones">Conciliaciones recientes</h2>
+  <div class="tabla-envuelta">
+    <% if (recientes.length === 0) { %>
+      <div class="vacio">
+        <b>Aún no hay conciliaciones.</b>
+        <p>Cuando concilie los pagos de una entidad, aparecerá aquí.</p>
+      </div>
+    <% } else { %>
+      <table class="estados">
+        <thead>
+          <tr><th scope="col">Conciliación</th><th scope="col">Fecha</th><th scope="col">Entidad</th><th scope="col" class="num">Identificados</th><th scope="col">Saldos pendientes</th></tr>
+        </thead>
+        <tbody>
+          <% for (const c of recientes) { %>
+          <tr>
+            <td><a href="/conciliacion/<%= c.id %>">n.º <%= c.id %></a></td>
+            <td class="fecha"><%= fechaBreve(fechaEnColombia(c.creadoEn)) %></td>
+            <td><%= c.entidad %></td>
+            <td class="num cifra"><%= c.detalle.length %></td>
+            <td><% if (c.saldosPendientes.length === 0) { %><span class="chip coincide">Sin saldos</span><% } else { %><span class="chip sin-pareja"><%= c.saldosPendientes.length %> pendiente<%= c.saldosPendientes.length === 1 ? '' : 's' %></span><% } %></td>
+          </tr>
+          <% } %>
+        </tbody>
+      </table>
+    <% } %>
+  </div>
+</section>

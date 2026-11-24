@@ -1,0 +1,141 @@
+<%
+  // HU-29.CA2/CA3 (DS-13; DA-11, DA-12, DA-59): archivar una incapacidad pagada. Solo con el pago conciliado; elimina la
+  // epicrisis y envía los datos (sin adjuntos) a Gestión Documental. HU-30 (DA-60, opción A): último paso de la línea
+  // de tiempo, la entrega de los documentos físicos; con eso la incapacidad queda enviada (fin del ciclo).
+  const ICONOS = {
+    pago: '<rect x="3.5" y="6" width="17" height="12" rx="1.5"/><circle cx="12" cy="12" r="2.5"/>',
+    archivo: '<rect x="3.5" y="4" width="17" height="5" rx="1"/><path d="M5 9v10.5h14V9M10 13h4"/>',
+    alerta: '<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12M12 15.5v.01"/>',
+    hecho: '<path d="M5 12.5l4.5 4.5L19 7.5"/>',
+  };
+  const dias = (n) => (n === 1 ? '1 día' : `${n} días`);
+  const a = archivo;
+  const epicrisis = a.documentos.filter((d) => d.tipo === 'epicrisis').length;
+  const otros = a.documentos.filter((d) => d.tipo !== 'epicrisis');
+%>
+<h1>Archivar incapacidad</h1>
+<p class="sub">Con el pago identificado y conciliado, se elimina la epicrisis de SIGI y se avisa a Gestión Documental por correo, solo con los datos.</p>
+
+<div class="formulario">
+  <% if (errores.aviso) { %>
+    <p class="mensaje mensaje-error" role="alert" tabindex="-1" autofocus><%= errores.aviso %></p>
+  <% } %>
+  <% if (preparado) { %>
+    <p class="mensaje mensaje-ok entra" role="status">
+      Archivo preparado: se eliminó la epicrisis (si la tenía) y se envió el correo a Gestión Documental. Falta entregar los documentos físicos.
+    </p>
+  <% } %>
+  <% if (enviada) { %>
+    <p class="mensaje mensaje-ok entra" role="status">
+      Envío registrado: la incapacidad n.º <%= a.idIncapacidad %> quedó enviada a Gestión Documental. Fin del ciclo.
+    </p>
+  <% } %>
+
+  <dl class="resumen">
+    <dt>Incapacidad</dt><dd>n.º <%= a.idIncapacidad %></dd>
+    <dt>Colaborador</dt><dd><%= a.colaborador %></dd>
+    <dt>Tipo</dt><dd><%= nombresTipo[a.tipo] ?? a.tipo %> · <%= a.entidad %></dd>
+    <dt>Inicio</dt><dd><%= fechaBreve(a.fechaInicio) %> · <%= dias(a.diasIncapacidad) %></dd>
+    <dt>Documentos</dt>
+    <dd>
+      <% if (a.documentos.length === 0) { %><span class="tenue">Sin documentos registrados</span><% } else { %>
+        <%= [...new Set(otros.map((d) => nombresDocumento[d.tipo] ?? d.tipo))].join(' · ') %><% if (epicrisis > 0) { %><%= otros.length > 0 ? ' · ' : '' %>Epicrisis<% } %>
+      <% } %>
+    </dd>
+  </dl>
+
+  <section class="radicaciones" aria-labelledby="titulo-pagos">
+    <h2 id="titulo-pagos">Pago</h2>
+    <div class="tabla-envuelta">
+      <table class="estados">
+        <thead><tr><th scope="col">Fecha de pago</th><th scope="col">Valor</th><th scope="col">Conciliación</th></tr></thead>
+        <tbody>
+          <% for (const p of a.pagos) { %>
+          <tr>
+            <td class="fecha"><%= fechaBreve(p.fechaPago) %></td>
+            <td><%= pesos(p.valor) %></td>
+            <td><span class="chip <%= p.conciliado ? 'al_dia' : 'por_vencer' %>"><%= p.conciliado ? 'Conciliado' : 'Sin conciliar' %></span></td>
+          </tr>
+          <% } %>
+        </tbody>
+      </table>
+    </div>
+    <p class="tenue">Total pagado: <b><%= pesos(a.totalPagado) %></b></p>
+  </section>
+
+  <section class="radicaciones" aria-labelledby="titulo-archivo">
+    <h2 id="titulo-archivo">Archivo</h2>
+    <% if (errores.estado) { %><p class="mensaje mensaje-aviso" role="alert"><%= errores.estado %></p><% } %>
+    <ol class="linea-tiempo">
+      <% if (a.situacion === 'preparado' || a.situacion === 'enviada') { %>
+        <li class="<%= preparado ? 'entra' : '' %>">
+          <span class="punto hecho"><svg viewBox="0 0 24 24" aria-hidden="true"><%- ICONOS.archivo %></svg></span>
+          <div class="paso">
+            <p class="titulo"><b>Archivo preparado</b><span class="tenue">el <%= fechaBreve(fechaEnColombia(a.fechaArchivoPreparado)) %></span></p>
+            <p class="tenue">Se eliminó la epicrisis (si la tenía) y se avisó a Gestión Documental.</p>
+          </div>
+        </li>
+        <% if (a.situacion === 'enviada') { %>
+        <li class="<%= enviada ? 'entra' : '' %>">
+          <span class="punto hecho"><svg viewBox="0 0 24 24" aria-hidden="true"><%- ICONOS.hecho %></svg></span>
+          <div class="paso">
+            <p class="titulo">
+              <b>Enviada a Gestión Documental</b>
+              <span class="tenue">el <%= fechaBreve(fechaEnColombia(a.fechaEnvioArchivo)) %><% if (a.envioArchivoPor) { %> · <%= a.envioArchivoPor %><% } %></span>
+            </p>
+            <p class="tenue">Fin del ciclo de la incapacidad.</p>
+          </div>
+        </li>
+        <% } else { %>
+        <li>
+          <span class="punto actual"><svg viewBox="0 0 24 24" aria-hidden="true"><%- ICONOS.archivo %></svg></span>
+          <div class="paso">
+            <p class="titulo"><b>Entregar los documentos físicos</b></p>
+            <p class="tenue">Lleve la carpeta a Gestión Documental y registre el envío. Con eso la incapacidad queda cerrada; no se puede deshacer.</p>
+            <form class="radicar" method="post" action="/incapacidades/<%= a.idIncapacidad %>/archivo/envio" novalidate data-un-envio>
+              <div>
+                <label class="casilla">
+                  <input type="checkbox" name="entregado" value="si"<%- errores.entregado ? ' aria-invalid="true" aria-describedby="error-entregado" autofocus' : '' %>>
+                  <span>Entregué los documentos físicos a Gestión Documental<small>Se guarda con la fecha de hoy y su usuario.</small></span>
+                </label>
+                <% if (errores.entregado) { %><p class="error-casilla" id="error-entregado"><%= errores.entregado %></p><% } %>
+              </div>
+              <div class="acciones"><button class="boton" data-enviando="Registrando…">Registrar el envío</button></div>
+            </form>
+          </div>
+        </li>
+        <% } %>
+      <% } else if (a.situacion === 'sin_conciliar') { %>
+        <li>
+          <span class="punto rechazo"><svg viewBox="0 0 24 24" aria-hidden="true"><%- ICONOS.alerta %></svg></span>
+          <div class="paso">
+            <p class="titulo"><b>El pago no está identificado y conciliado</b></p>
+            <p class="tenue">
+              <%= a.pagosSinConciliar === 1 ? 'Un pago está' : `${a.pagosSinConciliar} pagos están` %> sin conciliar. Concílielo con los pagos
+              consignados de <%= a.entidad %> en <a href="/conciliacion">Conciliación</a>; después podrá archivarla.
+            </p>
+          </div>
+        </li>
+      <% } else { %>
+        <li>
+          <span class="punto actual"><svg viewBox="0 0 24 24" aria-hidden="true"><%- ICONOS.archivo %></svg></span>
+          <div class="paso">
+            <p class="titulo"><b>Listo para archivar</b></p>
+            <ul class="tenue">
+              <li><%= epicrisis > 0 ? 'Se eliminará la epicrisis de SIGI. No se puede deshacer.' : 'No tiene epicrisis registrada.' %></li>
+              <li>Los demás documentos se conservan.</li>
+              <li>Gestión Documental recibe un correo con los datos de la incapacidad, sin adjuntos.</li>
+            </ul>
+            <form class="radicar" method="post" action="/incapacidades/<%= a.idIncapacidad %>/archivo" novalidate data-un-envio>
+              <div class="acciones"><button class="boton" data-enviando="Archivando…">Archivar la incapacidad</button></div>
+            </form>
+          </div>
+        </li>
+      <% } %>
+    </ol>
+  </section>
+
+  <div class="acciones">
+    <a class="boton secundario" href="/archivo">Otra incapacidad</a>
+  </div>
+</div>

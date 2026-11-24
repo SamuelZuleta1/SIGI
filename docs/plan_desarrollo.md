@@ -80,7 +80,7 @@ Orden: por dependencias (F3 §15) y luego por prioridad. Se respeta el orden de 
 | T-10 | Registrar la radicación y poner `estado = transcrita` | HU-10 | CU-06 / DS-04 | DA-01 | T-09 | Alta |
 | T-11 | Consultar estados con filtros | HU-11 | CU-08 / DS-05 | DA-20 | T-10 | Alta |
 | T-12 | Alertas de los 8 tipos de plazo, con días hábiles y festivos | HU-12 | CU-09 / DS-14 | DA-07, DA-13, DA-22 | T-07, T-10 | Alta |
-| T-13 | Registrar la incapacidad como cobrada | HU-13 | CU-10 / DS-06 | — | T-10 | Alta |
+| T-13 | Registrar la incapacidad como cobrada | HU-13 | CU-10 / DS-06 | DA-38 | T-10 | Alta |
 | T-14 | Registrar el rechazo (y volver a transcrita con una nueva radicación) | HU-14 | CU-10 A2 / DS-06 | DA-01, DA-05 | T-10 | Alta |
 | T-15 | Registrar el pago (operación compartida del grupo `cobro`) | HU-15 | CU-10 A1 / DS-06 | DA-08, DA-16 | T-13 | Alta |
 | T-16 | Seguimiento semanal: pendientes (sin las dadas de baja), seguimiento y evaluar demora | HU-16 | CU-11 / DS-07 | DA-18 | T-15 | Media |
@@ -97,7 +97,7 @@ Orden: por dependencias (F3 §15) y luego por prioridad. Se respeta el orden de 
 | T-27 | Reporte de ausentismo (con contenido) y envío al SG-SST | HU-27 | CU-16 / DS-12 | DA-21 | T-03 | Media |
 | T-28 | Reporte mensual de prolongadas por hito | HU-28 | CU-16 A1 / DS-12 | DA-19 | T-22 | Media |
 | T-29 | Archivar pagada: verificar conciliado, eliminar epicrisis, correo sin adjuntos | HU-29 | CU-17 / DS-13 | DA-11, DA-12 | T-26 | Media |
-| T-30 | Registrar el envío al archivo (fin del ciclo) | HU-30 | CU-17 / DS-13 | — | T-29 | Media |
+| T-30 | Registrar el envío al archivo (fin del ciclo) | HU-30 | CU-17 / DS-13 | DA-60 | T-29 | Media |
 | T-31 | Prueba integral: recorrido completo de una incapacidad con los usuarios de demostración; guía de la demo | Todas | AD-01 | DA-02 | T-30 | — |
 
 Plan de días (referencia, del plan del equipo): día 1 = T-00; día 2 = T-01–02; día 3 = T-03–05; día 4 = T-06–08; día 5 = T-09–10; día 6 = T-11–12; día 7 = T-13–15; días 8–9 = T-16–20; día 10 = T-21; día 11 = T-22–24; día 12 = T-25–26; día 13 = T-27–28; día 14 = T-29–30; día 15 = T-31.
@@ -157,7 +157,7 @@ Convenciones **[NUEVA]**:
 | `usuario` **[NUEVA]** | id uuid (FK auth.users), correo text, rol text | rol ∈ {receptor, lider, auxiliar, contabilidad, cartera} | DA-02 |
 | `colaborador` | id, nombre text, **correo** text | correo único | CL-01; DA-04 |
 | `entidad` | id, nombre text, tipo text, plazo_transcripcion interval, permite_transcripcion_digital boolean | tipo ∈ {EPS, ARL, AFP} | CL-01; §5.2.1 |
-| `incapacidad` | id (=idIncapacidad), colaborador_id, entidad_id, tipo, fecha_inicio date, dias_incapacidad int, fecha_recepcion date, estado text null, original_pendiente bool, documentacion_completa bool null, archivado_digital bool, faltantes text[], **fecha_aviso_faltantes** date, segundo_llamado bool, tiempo_pago text, causal_rechazo text, motivo_traslado text, decision text, concepto text, falta_concepto bool, pago_suspendido bool, ibc numeric, valor_empresa numeric, valor_eps numeric, **tramite_pension** bool, **fecha_nacimiento** date, enviada_a_gestion_documental bool | tipo ∈ 6 tipos; estado ∈ {null, transcrita, cobrada, rechazada, pagada}; decision ∈ {null, recuperar, dar_de_baja}; dias > 0 | CL-01; DA-10, DA-13 |
+| `incapacidad` | id (=idIncapacidad), colaborador_id, entidad_id, tipo, fecha_inicio date, dias_incapacidad int, fecha_recepcion date, estado text null, original_pendiente bool, documentacion_completa bool null, archivado_digital bool, faltantes text[], **fecha_aviso_faltantes** date, segundo_llamado bool, tiempo_pago int (días, DA-38), **fecha_cobrada** date, causal_rechazo text, motivo_traslado text, decision text, concepto text, falta_concepto bool, pago_suspendido bool, ibc numeric, valor_empresa numeric, valor_eps numeric, **tramite_pension** bool, **fecha_nacimiento** date, enviada_a_gestion_documental bool | tipo ∈ 6 tipos; estado ∈ {null, transcrita, cobrada, rechazada, pagada}; decision ∈ {null, recuperar, dar_de_baja}; dias > 0 | CL-01; DA-10, DA-13 |
 | `documento` | id, incapacidad_id, tipo text, archivo text (ruta en Storage) | tipo ∈ 7 tipos (DA-06); 1..* por incapacidad | CL-01; DA-06 |
 | `reemplazo` | id, incapacidad_id **único**, reemplazo text | 0..1 | CL-01; DA-22 |
 | `radicacion` | id, incapacidad_id, radicado text, evidencia text (ruta en Storage) | 0..* | CL-01 |

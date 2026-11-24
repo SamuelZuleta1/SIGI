@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title><%= titulo %> · SIGI</title>
+  <link rel="preload" href="/fonts/inter-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="/css/sigi.css">
+  <script src="/js/sigi.js" defer></script>
+</head>
+<% if (usuario) { %>
+<body class="con-marco">
+  <a class="saltar" href="#contenido">Saltar al contenido</a>
+  <nav class="lateral" aria-label="Módulos">
+    <a class="marca" href="/">SIGI</a>
+    <ul class="menu">
+      <li>
+        <a href="/" <%- ruta === '/' ? 'aria-current="page"' : '' %>>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11l8-7 8 7v9h-5v-6H9v6H4z"/></svg>
+          Inicio
+        </a>
+      </li>
+      <% if (puede('registrarIncapacidad')) { %>
+      <li>
+        <a href="/incapacidades/nueva" <%- ruta === '/incapacidades/nueva' ? 'aria-current="page"' : '' %>>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3H6v18h12V7zM14 3v4h4M12 11v6M9 14h6"/></svg>
+          Registrar incapacidad
+        </a>
+      </li>
+      <% } %>
+      <% if (puede('registrarDocumentos')) { %>
+      <li>
+        <a href="/documentos" <%- ruta === '/documentos' || /^\/incapacidades\/\d+\/documentos$/.test(ruta) ? 'aria-current="page"' : '' %>>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V5M8 9l4-4 4 4M5 15v4h14v-4"/></svg>
+          Registrar documentos
+        </a>
+      </li>
+      <% } %>
+      <% if (puede('verificarDocumentacion')) { %>
+      <li>
+        <a href="/verificacion" <%- ruta === '/verificacion' || /^\/incapacidades\/\d+\/verificacion$/.test(ruta) ? 'aria-current="page"' : '' %>>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5H6v16h12V5h-3M9 3h6v4H9zM9 14l2 2 4-4"/></svg>
+          Verificar documentación
+        </a>
+      </li>
+      <% } %>
+      <% if (puede('prepararRadicacion')) { %>
+      <li>
+        <a href="/radicacion" <%- ruta === '/radicacion' || /^\/incapacidades\/\d+\/radicacion$/.test(ruta) ? 'aria-current="page"' : '' %>>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12l16-8-6 16-2.5-6.5zM11.5 13.5L20 4"/></svg>
+          Radicación
+        </a>
+      </li>
+      <% } %>
+      <% if (puede('registrarCobrada')) { %>
+      <li>
+        <a href="/cobro" <%- ruta === '/cobro' || /^\/incapacidades\/\d+\/cobro$/.test(ruta) ? 'aria-current="page"' : '' %>>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="6" width="17" height="12" rx="1.5"/><path d="M3.5 10h17M7 14.5h3"/></svg>
+          Cobro
+        </a>
+      </li>
+      <% } %>
+      <% if (puede('consultarPendientesDePago')) { %>
+      <li>
+        <a href="/seguimiento" <%- ruta === '/seguimiento' || /^\/incapacidades\/\d+\/(seguimiento|requerimientos)$/.test(ruta) ? 'aria-current="page"' : '' %>>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16M4 12h10M4 19h7"/><circle cx="17.5" cy="16.5" r="3.5"/><path d="M17.5 15v1.7l1.1.8"/></svg>
+          Seguimiento
+        </a>
+      </li>
+      <% } %>
+      <% if (puede('consultarEstados')) { %>
+      <li>
+        <a href="/estados" <%- ruta === '/estados' ? 'aria-current="page"' : '' %>>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h10M18 16l2 2-2 2"/></svg>
+          Consultar estados
+        </a>
+      </li>
+      <% } %>
+      <% if (puede('consultarAlertas')) { %>
+      <li>
+        <a href="/alertas" <%- ruta === '/alertas' ? 'aria-current="page"' : '' %>>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 16V11a6 6 0 0 1 12 0v5l2 2H4zM10 21h4"/></svg>
+          Alertas de plazos
+        </a>
+      </li>
+      <% } %>
+      <% if (puede('registrarDecision')) { %>
+      <li>
+        <a href="/cartera" <%- ruta === '/cartera' || /^\/incapacidades\/\d+\/decision$/.test(ruta) ? 'aria-current="page"' : '' %>>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v16M5 8h14M5 8l-2 6a3 3 0 0 0 4 0zM19 8l-2 6a3 3 0 0 0 4 0zM8 20h8"/></svg>
+          Cobro jurídico
+        </a>
+      </li>
+      <% } %>
+      <% if (puede('calcularReconocimiento')) { %>
+      <li>
+        <a href="/reconocimiento" <%- ruta === '/reconocimiento' || /^\/incapacidades\/\d+\/reconocimiento$/.test(ruta) ? 'aria-current="page"' : '' %>>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="3.5" width="14" height="17" rx="1.5"/><path d="M8.5 7.5h7M8.5 12h.01M12 12h.01M15.5 12h.01M8.5 16h.01M12 16h.01M15.5 16h.01"/></svg>
+          Reconocimiento
+        </a>
+      </li>
+      <% } %>
+      <% if (puede('consultarReporteProlongadas')) { %>
+      <li>
+        <a href="/prolongadas" <%- ruta === '/prolongadas' || /^\/incapacidades\/\d+\/prolongada$/.test(ruta) ? 'aria-current="page"' : '' %>>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15" rx="1.5"/><path d="M3.5 10h17M8 3v4M16 3v4M8 14.5h5"/></svg>
+          Prolongadas
+        </a>
+      </li>
+      <% } %>
+      <% if (puede('identificarPagos')) { %>
+      <li>
+        <a href="/conciliacion" <%- ruta === '/conciliacion' || /^\/conciliacion\/\d+$/.test(ruta) ? 'aria-current="page"' : '' %>>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10M4 12h7M4 17h10M15 15l2.5 2.5L21 13"/></svg>
+          Conciliación
+        </a>
+      </li>
+      <% } %>
+      <% if (puede('generarReporte')) { %>
+      <li>
+        <a href="/reportes" <%- ruta === '/reportes' || /^\/reportes\/(\d+|ausentismo)$/.test(ruta) ? 'aria-current="page"' : '' %>>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3.5h8l4 4V20.5H6z"/><path d="M14 3.5v4h4M9 17v-3M12 17v-6M15 17v-4"/></svg>
+          Reportes
+        </a>
+      </li>
+      <% } %>
+      <% if (puede('consultarPagadas')) { %>
+      <li>
+        <a href="/archivo" <%- ruta === '/archivo' || /^\/incapacidades\/\d+\/archivo(\/envio)?$/.test(ruta) ? 'aria-current="page"' : '' %>>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="4" width="17" height="5" rx="1"/><path d="M5 9v10.5h14V9M10 13h4"/></svg>
+          Archivo
+        </a>
+      </li>
+      <% } %>
+      <% if (puede('registrarPagosConsignados')) { %>
+      <li>
+        <a href="/pagos-consignados" <%- ruta === '/pagos-consignados' ? 'aria-current="page"' : '' %>>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="6" width="17" height="12" rx="1.5"/><circle cx="12" cy="12" r="2.5"/><path d="M6.5 9.5v5M17.5 9.5v5"/></svg>
+          Pagos consignados
+        </a>
+      </li>
+      <% } %>
+      <% if (puede('registrarReemplazo')) { %>
+      <li>
+        <a href="/reemplazo" <%- ruta === '/reemplazo' || /^\/incapacidades\/\d+\/reemplazo$/.test(ruta) ? 'aria-current="page"' : '' %>>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h13M14 5l3 3-3 3M20 16H7M10 13l-3 3 3 3"/></svg>
+          Registrar reemplazo
+        </a>
+      </li>
+      <% } %>
+    </ul>
+    <div class="cuenta">
+      <p class="cuenta-correo"><%= usuario.correo %></p>
+      <p class="cuenta-rol"><%= nombreRol %></p>
+      <form method="post" action="/cerrar-sesion">
+        <button class="enlace-lateral">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 4h4v16h-4M10 8l-4 4 4 4M6 12h9"/></svg>
+          Cerrar sesión
+        </button>
+      </form>
+    </div>
+  </nav>
+  <main id="contenido" class="contenido" tabindex="-1">
+    <%- cuerpo %>
+  </main>
+</body>
+<% } else { %>
+<body class="sin-marco">
+  <main id="contenido" class="acceso">
+    <%- cuerpo %>
+  </main>
+</body>
+<% } %>
+</html>

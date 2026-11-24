@@ -1,0 +1,87 @@
+<%
+  // HU-21 (DS-09; DA-09, DA-10): el auxiliar ingresa el IBC y el sistema aplica los tramos del procedimiento.
+  const dias = (n) => (n === 1 ? '1 día' : `${n} días`);
+  // DA-50 y DA-51 (opción C): cada advertencia va junto a su dato.
+  const { incapacidad, resultado, aCargoDe, reglaPorValidar, advertenciaIbc } = reconocimiento;
+  const cargo = { empresa: 'Empresa', eps: aCargoDe };
+%>
+<h1>Reconocimiento económico</h1>
+<p class="sub">Ingrese el IBC y calcule cuánto paga la empresa y cuánto la <%= aCargoDe %>.</p>
+
+<div class="formulario">
+  <% if (calculado) { %>
+    <p class="mensaje mensaje-ok entra" role="status">Cálculo guardado.<% if (resultado.tramitePension) { %> La incapacidad pasa a trámite de pensión desde el día 181.<% } %></p>
+  <% } %>
+
+  <dl class="resumen">
+    <dt>Incapacidad</dt><dd>n.º <%= incapacidad.idIncapacidad %></dd>
+    <dt>Colaborador</dt><dd><%= incapacidad.colaborador %></dd>
+    <dt>Tipo</dt><dd><%= nombresTipo[incapacidad.tipo] %> · <%= incapacidad.entidad %></dd>
+    <dt>Inicio</dt><dd><%= fechaBreve(incapacidad.fechaInicio) %> · <%= dias(incapacidad.diasIncapacidad) %></dd>
+  </dl>
+
+  <% if (errores.estado) { %><p class="mensaje mensaje-error" role="alert"><%= errores.estado %></p><% } %>
+  <% if (incapacidad.estado === 'pagada') { %>
+    <p class="mensaje mensaje-info" role="status"><%= resultado ? 'Pagada: este es el cálculo guardado y ya no se puede cambiar.' : 'Pagada sin cálculo: su reconocimiento ya no se calcula.' %></p>
+  <% } else { %>
+  <form class="radicar" method="post" action="/incapacidades/<%= incapacidad.idIncapacidad %>/reconocimiento" novalidate data-un-envio>
+    <div class="campo <%= errores.ibc ? 'invalido' : '' %>">
+      <label for="ibc">IBC (pesos)</label>
+      <div class="con-prefijo">
+        <span aria-hidden="true">$</span>
+        <input id="ibc" name="ibc" type="text" inputmode="decimal" maxlength="20" value="<%= valores.ibc ?? (incapacidad.ibc != null ? pesos(incapacidad.ibc).replace(/^\$\s?/, '') : '') %>" autocomplete="off" required data-pesos aria-describedby="<%= errores.ibc ? 'error-ibc' : advertenciaIbc ? 'ayuda-ibc advertencia-ibc' : 'ayuda-ibc' %>"<%- errores.ibc ? ' aria-invalid="true" autofocus' : '' %>>
+      </div>
+      <% if (errores.ibc) { %><span class="error" id="error-ibc"><%= errores.ibc %></span><% } else { %><span class="ayuda" id="ayuda-ibc">Ingreso base de cotización mensual, por ejemplo 2.800.000. El valor por día es el IBC ÷ 30.</span><% } %>
+      <% if (advertenciaIbc && !errores.ibc) { %>
+        <span class="advierte" id="advertencia-ibc"><%= advertenciaIbc.tipo === 'bajo'
+          ? `IBC por debajo de 1 SMMLV de ${advertenciaIbc.anio} (${pesos(advertenciaIbc.limite)}). Revise el valor: se calculó igual.`
+          : `IBC por encima de 25 SMMLV de ${advertenciaIbc.anio} (${pesos(advertenciaIbc.limite)}, tope de cotización). Revise el valor: se calculó igual.` %></span>
+      <% } %>
+    </div>
+    <div class="acciones"><button class="boton" data-enviando="Calculando…"><%= resultado ? 'Calcular de nuevo' : 'Calcular' %></button></div>
+  </form>
+  <% } %>
+
+  <% if (resultado) { %>
+    <section class="radicaciones <%= calculado ? 'entra' : '' %>" aria-labelledby="titulo-resultado">
+      <h2 id="titulo-resultado">Resultado<% if (resultado.fechaCalculo) { %> <span class="tenue">· calculado el <%= fechaBreve(fechaEnColombia(resultado.fechaCalculo)) %></span><% } %></h2>
+      <% if (!resultado.desgloseCoincide) { %>
+        <p class="mensaje mensaje-aviso" role="status">Los totales son los guardados. El detalle por tramo se recalculó con la regla actual y no coincide con ellos: vuelva a calcular para actualizarlo.</p>
+      <% } %>
+      <div class="tabla-envuelta">
+        <table class="estados calculo">
+          <caption class="oculto">Reconocimiento por tramos con un IBC de <%= pesos(resultado.ibc) %></caption>
+          <thead>
+            <tr><th scope="col">Tramo</th><th scope="col" class="num">Días</th><th scope="col" class="num">%</th><th scope="col">A cargo de</th><th scope="col" class="num">Valor</th></tr>
+          </thead>
+          <tbody>
+            <% for (const t of resultado.tramos) { %>
+            <tr class="<%= t.dias === 0 ? 'sin-dias' : '' %>">
+              <td><%= t.nombre %></td>
+              <td class="num cifra"><%= t.dias %></td>
+              <td class="num cifra"><%= t.porcentaje %> %</td>
+              <td><%= cargo[t.aCargo] %><% if (t.aCargo === 'eps' && reglaPorValidar) { %> <span class="chip por_vencer">Regla por validar</span><% } %></td>
+              <td class="num cifra"><%= pesos(t.valor / 100) %></td>
+            </tr>
+            <% } %>
+          </tbody>
+          <tfoot>
+            <tr><th scope="row" colspan="4">A cargo de la empresa</th><td class="num cifra"><b><%= pesos(resultado.valorEmpresa / 100) %></b></td></tr>
+            <tr><th scope="row" colspan="4">A cargo de la <%= aCargoDe %></th><td class="num cifra"><b><%= pesos(resultado.valorEPS / 100) %></b></td></tr>
+          </tfoot>
+        </table>
+      </div>
+      <% if (reglaPorValidar) { %>
+        <p class="nota-tabla">Regla por validar: a <%= (nombresTipo[incapacidad.tipo] ?? incapacidad.tipo).toLowerCase() %> se le aplican los tramos de la EPS para la enfermedad general.</p>
+      <% } %>
+      <p class="nota-tabla">No se suman prórrogas anteriores (por validar): los días cuentan desde 1 en este certificado.</p>
+      <% if (resultado.tramitePension) { %>
+        <p class="mensaje mensaje-aviso separado" role="status">Trámite de pensión: la incapacidad supera los 180 días (<%= dias(resultado.diasPension) %> desde el día 181). Esos días no se incluyen en el cálculo.</p>
+      <% } %>
+    </section>
+  <% } %>
+
+  <div class="acciones">
+    <a class="boton secundario" href="/reconocimiento">Otra incapacidad</a>
+  </div>
+</div>

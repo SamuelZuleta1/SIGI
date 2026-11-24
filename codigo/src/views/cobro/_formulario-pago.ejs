@@ -1,0 +1,23 @@
+<%# HU-15 (DA-16, DA-40): formulario de registrarPago(idIncapacidad, valor, fechaPago). Lo usan el cobro y el
+    seguimiento (HU-15.CA2); `origen` decide a qué pantalla se vuelve. Recibe: idIncapacidad, hoy, fechaInicio,
+    origen, errores, valores, sufijo (para que los id no se repitan si hay varios formularios en la página). %>
+<% const s = locals.sufijo ?? ''; %>
+<form class="radicar pago" method="post" action="/incapacidades/<%= idIncapacidad %>/pago" novalidate data-un-envio>
+  <input type="hidden" name="origen" value="<%= origen %>">
+  <div class="campos dos">
+    <div class="campo <%= errores.valor ? 'invalido' : '' %>">
+      <label for="valor<%= s %>">Valor pagado (pesos)</label>
+      <div class="con-prefijo">
+        <span aria-hidden="true">$</span>
+        <input id="valor<%= s %>" name="valor" type="text" inputmode="decimal" maxlength="20" value="<%= valores.valor ?? '' %>" autocomplete="off" required data-pesos aria-describedby="<%= errores.valor ? `error-valor${s}` : `ayuda-valor${s}` %>"<%- errores.valor ? ' aria-invalid="true" autofocus' : '' %>>
+      </div>
+      <% if (errores.valor) { %><span class="error" id="error-valor<%= s %>"><%= errores.valor %></span><% } else { %><span class="ayuda" id="ayuda-valor<%= s %>">Como lo informó la entidad, por ejemplo 1.250.000.</span><% } %>
+    </div>
+    <div class="campo <%= errores.fechaPago ? 'invalido' : '' %>">
+      <label for="fechaPago<%= s %>">Fecha del pago</label>
+      <input id="fechaPago<%= s %>" name="fechaPago" type="date" value="<%= valores.fechaPago ?? hoy %>" min="<%= fechaInicio %>" max="<%= hoy %>" required aria-describedby="<%= errores.fechaPago ? `error-fecha${s}` : `ayuda-fecha${s}` %>"<%- errores.fechaPago && !errores.valor ? ' aria-invalid="true" autofocus' : (errores.fechaPago ? ' aria-invalid="true"' : '') %>>
+      <% if (errores.fechaPago) { %><span class="error" id="error-fecha<%= s %>"><%= errores.fechaPago %></span><% } else { %><span class="ayuda" id="ayuda-fecha<%= s %>">El día en que la entidad consignó; no puede ser futura.</span><% } %>
+    </div>
+  </div>
+  <div class="acciones"><button class="boton" data-enviando="Registrando…">Registrar el pago</button></div>
+</form>

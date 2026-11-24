@@ -1,0 +1,62 @@
+<%
+  // HU-20 (DS-08; DA-45): incapacidades trasladadas a Cartera y Jurídica. Pestañas como en «Seguimiento».
+  const pestanas = [['pendientes', 'Esperan decisión'], ['decididas', 'Decididas']];
+  const dias = (n) => (n === 1 ? '1 día' : `${n} días`);
+  const vacios = {
+    pendientes: ['No hay incapacidades esperando decisión.', 'Aparecerán aquí cuando el auxiliar las traslade a Cartera y Jurídica.'],
+    decididas: ['Aún no hay decisiones registradas.', 'Las que decida aparecerán aquí.'],
+  };
+%>
+<h1>Cobro jurídico</h1>
+<p class="sub">Incapacidades trasladadas a Cartera y Jurídica. Abra cada una para registrar si recupera el cobro o lo da de baja.</p>
+<nav aria-label="Trasladadas">
+  <ul class="pestanas">
+    <% for (const [valor, nombre] of pestanas) { %>
+    <li>
+      <a href="/cartera<%= valor === 'pendientes' ? '' : `?ver=${valor}` %>"<%- valor === ver ? ' aria-current="page"' : '' %>>
+        <%= nombre %><span class="n"><span class="oculto">: </span><%= conteos[valor] %></span>
+      </a>
+    </li>
+    <% } %>
+  </ul>
+</nav>
+
+<section class="resultado" aria-label="Incapacidades trasladadas">
+  <% if (trasladadas.length === 0) { %>
+    <div class="tabla-envuelta">
+      <div class="vacio">
+        <b><%= vacios[ver][0] %></b>
+        <p><%= vacios[ver][1] %></p>
+      </div>
+    </div>
+  <% } else { %>
+    <p class="cuenta-resultado">
+      <span><b><%= trasladadas.length %></b> <%= trasladadas.length === 1 ? 'incapacidad' : 'incapacidades' %></span>
+      <span>Las trasladadas primero</span>
+    </p>
+    <div class="tabla-envuelta">
+      <table class="estados pendientes">
+        <thead>
+          <tr><th scope="col">N.º</th><th scope="col">Colaborador</th><th scope="col">Entidad</th><th scope="col">Trasladada</th><th scope="col">Requerimientos</th><th scope="col">Decisión</th></tr>
+        </thead>
+        <tbody>
+          <% for (const t of trasladadas) { %>
+          <tr>
+            <td><a href="/incapacidades/<%= t.idIncapacidad %>/decision" aria-label="Abrir la incapacidad <%= t.idIncapacidad %>"><%= t.idIncapacidad %></a></td>
+            <td><%= t.colaborador %><small><%= nombresTipo[t.tipo] ?? t.tipo %></small></td>
+            <td><%= t.entidad %><% if (t.conDemora) { %><small><%= dias(t.diasDemora) %> de demora</small><% } %></td>
+            <td class="fecha"><%= fechaBreve(t.fechaTraslado) %></td>
+            <td><%= t.requerimientos %></td>
+            <td>
+              <% if (t.decision) { %>
+                <span class="chip <%= t.decision === 'recuperar' ? 'al_dia' : 'vencido' %>"><%= nombresDecision[t.decision] %></span>
+                <small><%= fechaBreve(t.fechaDecision) %></small>
+              <% } else { %><span class="tenue">Sin decisión</span><% } %>
+            </td>
+          </tr>
+          <% } %>
+        </tbody>
+      </table>
+    </div>
+  <% } %>
+</section>

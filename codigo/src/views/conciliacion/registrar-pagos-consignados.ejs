@@ -1,0 +1,116 @@
+<%
+  // HU-25 (DS-11; DA-55): Contabilidad y Tesorería registra la lista de pagos que consignó una entidad.
+  const dias = (n) => (n === 1 ? '1 día' : `${n} días`);
+  const hayErroresDeFila = Object.keys(errores).some((c) => c.startsWith('fila-'));
+  const primerError = errores.entidad ? 'entidad' : Object.keys(errores).find((c) => c.startsWith('fila-'));
+  const campoDeFila = (i, campo) => `fila-${i}-${campo}`;
+  const atributos = (id) =>
+    (errores[id] ? ` aria-invalid="true" aria-describedby="error-${id}"` : '') + (id === primerError ? ' autofocus' : '');
+%>
+<h1>Pagos consignados</h1>
+<p class="sub">Registre los pagos que consignó una entidad en el mes. Al guardarlos, se avisa al auxiliar que hay pagos por identificar.</p>
+
+<% if (confirmacion) { %>
+  <p class="mensaje mensaje-ok entra" role="status">
+    Se registraron <strong><%= confirmacion.cantidad %></strong> <%= confirmacion.cantidad === 1 ? 'pago' : 'pagos' %> de <%= confirmacion.entidad %>
+    por <strong><%= pesos(confirmacion.total / 100) %></strong>. Se avisó al auxiliar que hay pagos por identificar.
+  </p>
+<% } %>
+<% if (errores.aviso) { %>
+  <p class="mensaje mensaje-error" role="alert"><%= errores.aviso %></p>
+<% } else if (errores.lista || errores.entidad) { %>
+  <p class="mensaje mensaje-error" role="alert"><%= errores.lista ?? 'No se registró. Revise los campos marcados.' %></p>
+<% } %>
+
+<form class="formulario pagos-consignados" method="post" action="/pagos-consignados" novalidate data-un-envio>
+  <%# Enter en cualquier campo registra la lista (el primer botón del formulario es el que usa el navegador). %>
+  <button class="oculto" tabindex="-1" aria-hidden="true" data-enviando="Registrando…">Registrar la lista</button>
+
+  <div class="campo <%= errores.entidad ? 'invalido' : '' %> entidad-lista">
+    <label for="entidad">Entidad que consignó</label>
+    <select id="entidad" name="entidad" required<%- errores.entidad ? '' : ' aria-describedby="ayuda-entidad"' %><%- atributos('entidad') %>>
+      <option value="">Elija…</option>
+      <% for (const entidad of entidades) { %>
+        <option value="<%= entidad.id %>" <%= entidadElegida === String(entidad.id) ? 'selected' : '' %>><%= entidad.nombre %> (<%= entidad.tipo %>)</option>
+      <% } %>
+    </select>
+    <% if (errores.entidad) { %><span class="error" id="error-entidad"><%= errores.entidad %></span><% } else { %><span class="ayuda" id="ayuda-entidad">Una lista por entidad. Si consignaron varias, registre una lista por cada una.</span><% } %>
+  </div>
+
+  <fieldset>
+    <legend>Pagos de la lista</legend>
+    <div class="tabla-envuelta">
+      <table class="estados filas-pagos">
+        <thead>
+          <tr><th scope="col" class="num">#</th><th scope="col">Colaborador</th><th scope="col">Días pagados</th><th scope="col">Valor (pesos)</th></tr>
+        </thead>
+        <tbody>
+          <% filas.forEach((f, i) => { const hay = (c) => errores[campoDeFila(i, c)]; %>
+          <tr class="<%= hay('colaborador') || hay('dias') || hay('valor') ? 'invalida' : '' %>">
+            <td class="num tenue"><%= i + 1 %></td>
+            <td>
+              <div class="campo <%= hay('colaborador') ? 'invalido' : '' %>">
+                <input name="colaborador" type="text" value="<%= f.colaborador %>" maxlength="200" autocomplete="off" aria-label="Colaborador, fila <%= i + 1 %>"<%- atributos(campoDeFila(i, 'colaborador')) %>>
+                <% if (hay('colaborador')) { %><span class="error" id="error-<%= campoDeFila(i, 'colaborador') %>"><%= hay('colaborador') %></span><% } %>
+              </div>
+            </td>
+            <td>
+              <div class="campo <%= hay('dias') ? 'invalido' : '' %>">
+                <input name="dias" type="text" inputmode="numeric" value="<%= f.dias %>" maxlength="4" autocomplete="off" aria-label="Días pagados, fila <%= i + 1 %>"<%- atributos(campoDeFila(i, 'dias')) %>>
+                <% if (hay('dias')) { %><span class="error" id="error-<%= campoDeFila(i, 'dias') %>"><%= hay('dias') %></span><% } %>
+              </div>
+            </td>
+            <td>
+              <div class="campo <%= hay('valor') ? 'invalido' : '' %>">
+                <div class="con-prefijo">
+                  <span aria-hidden="true">$</span>
+                  <input name="valor" type="text" inputmode="decimal" value="<%= f.valor %>" maxlength="20" autocomplete="off" data-pesos aria-label="Valor, fila <%= i + 1 %>"<%- atributos(campoDeFila(i, 'valor')) %>>
+                </div>
+                <% if (hay('valor')) { %><span class="error" id="error-<%= campoDeFila(i, 'valor') %>"><%= hay('valor') %></span><% } %>
+              </div>
+            </td>
+          </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+    <p class="ayuda">Escriba el colaborador como aparece en el detalle de la entidad. Las filas vacías no se guardan.<% if (!hayErroresDeFila) { %> Valor con puntos de miles, por ejemplo 1.250.000.<% } %></p>
+  </fieldset>
+
+  <div class="acciones">
+    <button class="boton" data-enviando="Registrando…">Registrar la lista</button>
+    <% if (filas.length < filasMaximas) { %>
+      <button class="boton secundario" name="accion" value="agregar-filas">Agregar filas</button>
+    <% } %>
+  </div>
+</form>
+
+<section class="recientes" aria-labelledby="titulo-recientes">
+  <h2 id="titulo-recientes">Registrados recientemente</h2>
+  <div class="tabla-envuelta">
+    <% if (recientes.length === 0) { %>
+      <div class="vacio">
+        <b>Aún no hay pagos consignados registrados.</b>
+        <p>Cuando registre una lista, aparecerá aquí.</p>
+      </div>
+    <% } else { %>
+      <table class="estados">
+        <thead>
+          <tr><th scope="col">Registrado</th><th scope="col">Entidad</th><th scope="col">Colaborador</th><th scope="col" class="num">Días pagados</th><th scope="col" class="num">Valor</th></tr>
+        </thead>
+        <tbody>
+          <% for (const p of recientes) { %>
+          <tr>
+            <td><%= fechaBreve(fechaEnColombia(p.creadoEn)) %></td>
+            <td><%= p.entidad %></td>
+            <td><%= p.colaborador %></td>
+            <td class="num cifra"><%= dias(p.diasPagados) %></td>
+            <td class="num cifra"><%= pesos(p.valor) %></td>
+          </tr>
+          <% } %>
+        </tbody>
+      </table>
+    <% } %>
+  </div>
+  <% if (recientes.length > 0) { %><p class="nota-tabla">Los más recientes primero<% if (recientes.length >= 50) { %>; se muestran los últimos 50<% } %>.</p><% } %>
+</section>

@@ -1,0 +1,205 @@
+<%
+  const ICONOS = {
+    hecho: '<path d="M5 12.5l4.5 4.5L19 7.5"/>',
+    rechazo: '<path d="M7 7l10 10M17 7L7 17"/>',
+    nueva: '<path d="M12 6v12M6 12h12"/>',
+    espera: '<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>',
+    pago: '<path d="M14.5 8.5c-.6-.9-1.6-1.4-2.7-1.4-1.6 0-2.8.9-2.8 2.2 0 3 5.8 1.6 5.8 4.6 0 1.3-1.3 2.3-3 2.3-1.2 0-2.3-.6-2.9-1.5M12 5v2M12 17v2"/>',
+  };
+  const dias = (n) => (n === 1 ? '1 día' : `${n} días`);
+%>
+<h1>Cobro</h1>
+<% if (!cobro) { %>
+  <p class="sub">Escriba el número de la incapacidad a la que la entidad respondió.</p>
+  <form class="formulario" method="get" action="/cobro" novalidate>
+    <div class="buscar">
+      <div class="campo <%= errorNumero ? 'invalido' : '' %>">
+        <label for="incapacidad">Incapacidad n.º</label>
+        <input id="incapacidad" name="incapacidad" type="text" inputmode="numeric" pattern="[0-9]*" value="<%= numero %>" maxlength="18" autocomplete="off" required autofocus<%- errorNumero ? ' aria-invalid="true" aria-describedby="error-incapacidad"' : '' %>>
+      </div>
+      <button class="boton">Abrir</button>
+    </div>
+    <% if (errorNumero) { %>
+      <p class="mensaje mensaje-error" id="error-incapacidad" role="alert"><%= errorNumero %> Revise el número que recibió al registrarla.</p>
+    <% } else { %>
+      <p class="ayuda">Es el número que SIGI mostró al registrar la incapacidad.</p>
+    <% } %>
+  </form>
+<% } else {
+  const { incapacidad } = cobro;
+  const radicaciones = incapacidad.radicaciones;
+  const estado = incapacidad.estado ?? 'registrada';
+  // Igual que en la radicación (DA-36): entre dos radicaciones hubo un rechazo; la causal guardada es la del último.
+  const huboRechazoTras = (i) => i < radicaciones.length - 1 || estado === 'rechazada';
+  const ultimoRechazo = estado === 'rechazada' ? radicaciones.length - 1 : radicaciones.length - 2;
+  const cobrada = incapacidad.tiempoPago != null && incapacidad.fechaCobrada;
+%>
+  <p class="sub">Respuesta de la entidad y pago de la incapacidad.</p>
+
+  <div class="formulario">
+    <% if (rechazoRegistrado) { %>
+      <p class="mensaje mensaje-aviso entra" role="status">Rechazo registrado. Causal: <%= incapacidad.causalRechazo %></p>
+    <% } %>
+    <% if (pagoRegistrado) { const ultimo = incapacidad.pagos[incapacidad.pagos.length - 1]; %>
+      <p class="mensaje mensaje-ok entra" role="status">Pago registrado: <%= pesos(ultimo.valor) %> del <%= fechaLarga(ultimo.fechaPago) %>. La incapacidad quedó pagada.</p>
+    <% } %>
+    <% if (registrada) { %>
+      <p class="mensaje mensaje-ok entra" role="status">Incapacidad registrada como cobrada. Tiempo de pago: <%= dias(incapacidad.tiempoPago) %>, a más tardar el <%= fechaLarga(cobro.fechaPrometida) %>.</p>
+    <% } %>
+    <dl class="resumen">
+      <dt>Incapacidad</dt><dd>n.º <%= incapacidad.idIncapacidad %></dd>
+      <dt>Colaborador</dt><dd><%= incapacidad.colaborador %></dd>
+      <dt>Tipo</dt><dd><%= nombresTipo[incapacidad.tipo] %> · <%= incapacidad.entidad %></dd>
+      <dt>Inicio</dt><dd><%= fechaBreve(incapacidad.fechaInicio) %> · <%= dias(incapacidad.diasIncapacidad) %></dd>
+    </dl>
+
+    <%# HU-13 (opción B): la línea de tiempo sigue a la de la radicación; la respuesta de la entidad es el paso siguiente. %>
+    <section class="radicaciones" aria-labelledby="titulo-cobro">
+      <h2 id="titulo-cobro">Cobro <span class="chip <%= estado %>"><%= nombresEstado[estado] %></span></h2>
+      <ol class="linea-tiempo">
+        <% radicaciones.forEach((r, i) => { %>
+          <li>
+            <span class="punto hecho"><svg viewBox="0 0 24 24" aria-hidden="true"><%- ICONOS.hecho %></svg></span>
+            <div class="paso">
+              <p class="titulo"><b>Radicada · <%= r.radicado %></b> <span class="tenue"><%= fechaBreve(fechaEnColombia(r.fecha)) %></span></p>
+              <p class="tenue">Pasó a «transcrita»<% if (r.conEvidencia) { %> · <a href="/radicaciones/<%= r.idRadicacion %>/evidencia" target="_blank" rel="noopener">ver evidencia</a><% } %></p>
+            </div>
+          </li>
+          <% if (huboRechazoTras(i)) { %>
+            <li class="<%= rechazoRegistrado && i === radicaciones.length - 1 ? 'entra' : '' %>">
+              <span class="punto rechazo"><svg viewBox="0 0 24 24" aria-hidden="true"><%- ICONOS.rechazo %></svg></span>
+              <div class="paso">
+                <p class="titulo"><b>Rechazada por la entidad</b><% if (i === ultimoRechazo && incapacidad.fechaRechazo) { %> <span class="tenue"><%= fechaBreve(incapacidad.fechaRechazo) %></span><% } %></p>
+                <% if (i === ultimoRechazo && incapacidad.causalRechazo) { %><p class="tenue">Causal: <%= incapacidad.causalRechazo %></p><% } %>
+              </div>
+            </li>
+          <% } %>
+        <% }) %>
+
+        <% if (cobro.puedeRegistrarCobrada) {
+          const enlaceCobro = `/incapacidades/${incapacidad.idIncapacidad}/cobro`;
+        %>
+          <%# HU-13 / HU-14 (DA-39, opción A): la respuesta de la entidad es un segmento «Aprobó / Rechazó». Sin
+              JavaScript son dos enlaces (?respuesta=rechazo); con él cambian el formulario sin recargar (sigi.js). %>
+          <li>
+            <span class="punto actual"><svg viewBox="0 0 24 24" aria-hidden="true"><%- ICONOS.nueva %></svg></span>
+            <div class="paso">
+              <p class="titulo"><b>Respuesta de <%= incapacidad.entidad %></b></p>
+              <% if (errores.estado) { %><p class="mensaje mensaje-error separado" role="alert"><%= errores.estado %></p><% } %>
+              <nav class="segmento" aria-label="Respuesta de la entidad">
+                <a href="<%= enlaceCobro %>" data-respuesta="aprobo"<%- respuesta === 'aprobo' ? ' aria-current="true"' : '' %>><svg viewBox="0 0 24 24" aria-hidden="true"><%- ICONOS.hecho %></svg>Aprobó</a>
+                <a href="<%= enlaceCobro %>?respuesta=rechazo" data-respuesta="rechazo"<%- respuesta === 'rechazo' ? ' aria-current="true"' : '' %>><svg viewBox="0 0 24 24" aria-hidden="true"><%- ICONOS.rechazo %></svg>Rechazó</a>
+              </nav>
+
+              <form class="radicar" method="post" action="<%= enlaceCobro %>" data-panel-respuesta="aprobo" novalidate<%- respuesta === 'aprobo' ? '' : ' hidden' %>>
+                <div class="atajos" role="group" aria-label="Tiempos de pago frecuentes">
+                  <% tiemposFrecuentes.forEach((n) => { %>
+                    <button type="button" data-tiempo-pago="<%= n %>" aria-pressed="<%= String(valores.tiempoPago) === String(n) %>"><%= n %> días</button>
+                  <% }) %>
+                </div>
+                <div class="fila-dias">
+                  <div class="campo <%= errores.tiempoPago ? 'invalido' : '' %>">
+                    <label for="tiempoPago">Tiempo de pago (días)</label>
+                    <input id="tiempoPago" name="tiempoPago" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="3" value="<%= valores.tiempoPago ?? '' %>" autocomplete="off" required data-hoy="<%= cobro.hoy %>" aria-describedby="<%= errores.tiempoPago ? 'error-tiempo' : 'ayuda-tiempo' %>"<%- errores.tiempoPago ? ' aria-invalid="true" autofocus' : '' %>>
+                    <% if (errores.tiempoPago) { %><span class="error" id="error-tiempo"><%= errores.tiempoPago %></span><% } else { %><span class="ayuda" id="ayuda-tiempo">Días calendario que informó la entidad, de <%= tiempoMinimo %> a <%= tiempoMaximo %>.</span><% } %>
+                  </div>
+                  <%# Fecha prometida en vivo (public/js/sigi.js); sin JavaScript no se muestra. %>
+                  <p class="prometida vacia" data-fecha-prometida aria-live="polite" hidden><span>Pagaría a más tardar</span><b>Escriba los días</b></p>
+                </div>
+                <div class="acciones"><button class="boton">Registrar como cobrada</button></div>
+              </form>
+
+              <form class="radicar" method="post" action="/incapacidades/<%= incapacidad.idIncapacidad %>/rechazo" data-panel-respuesta="rechazo" novalidate<%- respuesta === 'rechazo' ? '' : ' hidden' %>>
+                <div class="campo <%= errores.causal ? 'invalido' : '' %>">
+                  <label for="causal">Causal del rechazo</label>
+                  <textarea id="causal" name="causal" maxlength="<%= causalMaximo %>" required placeholder="Como la escribió la entidad en su respuesta" aria-describedby="<%= errores.causal ? 'error-causal' : 'ayuda-causal' %>"<%- errores.causal ? ' aria-invalid="true" autofocus' : '' %>><%= valores.causal ?? '' %></textarea>
+                  <% if (errores.causal) { %><span class="error" id="error-causal"><%= errores.causal %></span><% } else { %><span class="ayuda" id="ayuda-causal">Queda en la línea de tiempo; luego se pide una nueva transcripción y se radica de nuevo.</span><% } %>
+                  <%# Contador en vivo (public/js/sigi.js); sin JavaScript no se muestra. %>
+                  <span class="contador" data-contador hidden></span>
+                </div>
+                <div class="acciones"><button class="boton peligro">Registrar el rechazo</button></div>
+              </form>
+            </div>
+          </li>
+        <% } else if (cobrada) { %>
+          <li class="<%= registrada ? 'entra' : '' %>">
+            <span class="punto hecho"><svg viewBox="0 0 24 24" aria-hidden="true"><%- ICONOS.hecho %></svg></span>
+            <div class="paso">
+              <p class="titulo"><b>Cobrada · <%= incapacidad.entidad %> aprobó</b> <span class="tenue"><%= fechaBreve(incapacidad.fechaCobrada) %></span></p>
+              <p class="tenue">Tiempo de pago: <%= dias(incapacidad.tiempoPago) %> · a más tardar el <%= fechaBreve(cobro.fechaPrometida) %></p>
+            </div>
+          </li>
+          <%# HU-15 (DA-08, DA-40): cada pago es un paso; con estado «cobrada» el último paso es el formulario del pago
+              y, ya pagada, se pueden registrar más pagos desde un desplegable. %>
+          <% incapacidad.pagos.forEach((p, i) => { %>
+            <li class="<%= pagoRegistrado && i === incapacidad.pagos.length - 1 ? 'entra' : '' %>">
+              <span class="punto hecho"><svg viewBox="0 0 24 24" aria-hidden="true"><%- ICONOS.pago %></svg></span>
+              <div class="paso">
+                <p class="titulo"><b><%= i === 0 ? 'Pagada' : 'Otro pago' %> · <span class="cifra"><%= pesos(p.valor) %></span></b> <span class="tenue"><%= fechaBreve(p.fechaPago) %></span></p>
+                <% if (i === 0) { %><p class="tenue">Pasó a «pagada»</p><% } %>
+              </div>
+            </li>
+          <% }) %>
+          <% if (cobro.puedeRegistrarPago) {
+            const datosFormulario = { idIncapacidad: incapacidad.idIncapacidad, hoy: cobro.hoy, fechaInicio: incapacidad.fechaInicio, origen, errores, valores };
+            const conErrorPago = Boolean(errores.valor || errores.fechaPago);
+          %>
+            <% if (estado === 'cobrada') { %>
+              <li class="<%= registrada ? 'entra' : '' %>">
+                <span class="punto actual"><svg viewBox="0 0 24 24" aria-hidden="true"><%- ICONOS.espera %></svg></span>
+                <div class="paso">
+                  <p class="titulo"><b>Esperando el pago</b></p>
+                  <p class="tenue">Cuando <%= incapacidad.entidad %> pague, registre el valor y la fecha. El seguimiento semanal revisa si pasa de la fecha prometida.</p>
+                  <% if (errores.estado) { %><p class="mensaje mensaje-error separado" role="alert"><%= errores.estado %></p><% } %>
+                  <%- include('_formulario-pago', datosFormulario) %>
+                </div>
+              </li>
+            <% } else { %>
+              <li>
+                <span class="punto"><svg viewBox="0 0 24 24" aria-hidden="true"><%- ICONOS.nueva %></svg></span>
+                <div class="paso">
+                  <% if (incapacidad.pagos.length > 1) { %>
+                    <p class="titulo"><b>Total pagado · <span class="cifra"><%= pesos(cobro.totalPagado) %></span></b> <span class="tenue"><%= incapacidad.pagos.length %> pagos</span></p>
+                  <% } %>
+                  <% if (errores.estado) { %><p class="mensaje mensaje-error separado" role="alert"><%= errores.estado %></p><% } %>
+                  <details class="otro-pago"<%- conErrorPago ? ' open' : '' %>>
+                    <summary>Registrar otro pago</summary>
+                    <p class="tenue">Si la entidad pagó por partes, registre aquí cada consignación.</p>
+                    <%- include('_formulario-pago', datosFormulario) %>
+                  </details>
+                </div>
+              </li>
+            <% } %>
+          <% } else if (incapacidad.archivoPreparado) { %>
+            <li>
+              <span class="punto"><svg viewBox="0 0 24 24" aria-hidden="true"><%- ICONOS.nueva %></svg></span>
+              <div class="paso">
+                <p class="titulo"><b>Archivo preparado</b></p>
+                <p class="tenue">La incapacidad ya se envió para archivo: no admite más pagos.</p>
+                <% if (errores.estado) { %><p class="mensaje mensaje-error separado" role="alert"><%= errores.estado %></p><% } %>
+              </div>
+            </li>
+          <% } %>
+        <% } else { %>
+          <li class="<%= rechazoRegistrado ? 'entra' : '' %>">
+            <span class="punto"><svg viewBox="0 0 24 24" aria-hidden="true"><%- ICONOS.espera %></svg></span>
+            <div class="paso">
+              <% if (estado === 'rechazada') { %>
+                <p class="titulo"><b>Debe radicarse de nuevo</b></p>
+                <p class="tenue">Pida a <%= incapacidad.entidad %> una nueva transcripción y registre la nueva radicación en <a href="/incapacidades/<%= incapacidad.idIncapacidad %>/radicacion">Radicación</a>.</p>
+              <% } else { %>
+                <p class="titulo"><b>Aún no se ha radicado</b></p>
+                <p class="tenue">Radíquela primero en <a href="/incapacidades/<%= incapacidad.idIncapacidad %>/radicacion">Radicación</a>.</p>
+              <% } %>
+              <% if (errores.estado) { %><p class="mensaje mensaje-error" role="alert"><%= errores.estado %></p><% } %>
+            </div>
+          </li>
+        <% } %>
+      </ol>
+    </section>
+
+    <div class="acciones">
+      <a class="boton secundario" href="/cobro">Otra incapacidad</a>
+    </div>
+  </div>
+<% } %>

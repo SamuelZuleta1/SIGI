@@ -1,0 +1,73 @@
+<%
+  // HU-21 (DS-09): lista de incapacidades para calcular el reconocimiento económico.
+  const dias = (n) => (n === 1 ? '1 día' : `${n} días`);
+%>
+<h1>Reconocimiento económico</h1>
+<p class="sub">Calcule cuánto paga la empresa y cuánto la entidad (EPS o ARL). Abra una incapacidad e ingrese su IBC.</p>
+
+<form class="filtros buscar-lista" method="get" action="/reconocimiento" role="search" novalidate>
+  <div class="buscar">
+    <div class="campo">
+      <label for="q">N.º de incapacidad o colaborador</label>
+      <input id="q" name="q" type="search" value="<%= busqueda %>" maxlength="60" placeholder="Por ejemplo: 104 o Restrepo" autocomplete="off" aria-describedby="ayuda-q">
+    </div>
+    <button class="boton">Buscar</button>
+    <% if (busqueda) { %><a class="boton secundario" href="/reconocimiento">Quitar</a><% } %>
+  </div>
+  <span class="ayuda" id="ayuda-q">Solo cifras: el n.º exacto. Si no, parte del nombre del colaborador (con o sin tildes).</span>
+</form>
+
+<section class="resultado" aria-label="Incapacidades">
+  <% if (locals.demasiados) { %>
+    <div class="tabla-envuelta">
+      <div class="vacio">
+        <b>Hay demasiados colaboradores con «<%= busqueda %>».</b>
+        <p>Escriba más del nombre o busque por el n.º de la incapacidad.</p>
+      </div>
+    </div>
+  <% } else if (filas.length === 0 && busqueda) { %>
+    <div class="tabla-envuelta">
+      <div class="vacio">
+        <b>Ninguna incapacidad coincide con «<%= busqueda %>».</b>
+        <p>Revise el número o escriba otra parte del nombre del colaborador.</p>
+      </div>
+    </div>
+  <% } else if (filas.length === 0) { %>
+    <div class="tabla-envuelta">
+      <div class="vacio">
+        <b>Aún no hay incapacidades registradas.</b>
+        <p>Cuando se registren, podrá calcular aquí su reconocimiento económico.</p>
+      </div>
+    </div>
+  <% } else { %>
+    <p class="cuenta-resultado">
+      <span><b><%= filas.length %></b><% if (total > filas.length) { %> de <b><%= total %></b><% } %> <%= total === 1 ? 'incapacidad' : 'incapacidades' %><% if (busqueda) { %> que <%= total === 1 ? 'coincide' : 'coinciden' %> con «<%= busqueda %>»<% } %></span>
+      <span><%= total > filas.length ? 'Las más recientes primero; afine la búsqueda para ver las demás' : 'Las más recientes primero' %></span>
+    </p>
+    <div class="tabla-envuelta">
+      <table class="estados lista-reconocimiento">
+        <thead>
+          <tr><th scope="col">N.º</th><th scope="col">Colaborador</th><th scope="col">Entidad</th><th scope="col">Días</th><th scope="col" class="num">Empresa</th><th scope="col" class="num">Entidad</th><th scope="col">Cálculo</th></tr>
+        </thead>
+        <tbody>
+          <% for (const f of filas) { %>
+          <tr>
+            <td><a href="/incapacidades/<%= f.idIncapacidad %>/reconocimiento" aria-label="Abrir la incapacidad <%= f.idIncapacidad %>"><%= f.idIncapacidad %></a></td>
+            <td><%= f.colaborador %><small><%= nombresTipo[f.tipo] ?? f.tipo %></small></td>
+            <td><%= f.entidad %></td>
+            <td><%= f.diasIncapacidad %></td>
+            <% if (f.ibc != null) { %>
+              <td class="num cifra"><%= pesos(f.valorEmpresa) %></td>
+              <td class="num cifra"><%= pesos(f.valorEPS) %></td>
+              <td><% if (f.tramitePension) { %><span class="chip por_vencer">Trámite de pensión</span><% } else { %><span class="chip al_dia">Calculado</span><% } %></td>
+            <% } else { %>
+              <td class="num tenue">—</td><td class="num tenue">—</td>
+              <td><span class="tenue">Sin calcular</span></td>
+            <% } %>
+          </tr>
+          <% } %>
+        </tbody>
+      </table>
+    </div>
+  <% } %>
+</section>

@@ -1,0 +1,65 @@
+<%
+  // HU-28 (DS-12; DA-19, DA-58): un reporte mensual de prolongadas guardado, clasificado por el hito al que llegó cada
+  // incapacidad al corte (fin del mes, o el día en que se generó si el mes estaba en curso).
+  const tipo = (t) => NOMBRES_TIPO_INCAPACIDAD[t] ?? t;
+  const estado = (e) => NOMBRES_ESTADO_INCAPACIDAD[e] ?? e;
+  const concepto = { registrado: ['al_dia', 'Registrado'], falta: ['por_vencer', 'Falta registrada'], pendiente: ['registrada', 'Pendiente'] };
+  const conDatos = grupos.filter((g) => g.filas.length > 0);
+%>
+<p class="miga"><a href="/reportes">← Reportes</a></p>
+<h1>Reporte de prolongadas <%= reporte.periodo %></h1>
+<p class="sub">Reporte n.º <%= reporte.id %> · generado el <%= fechaBreve(fechaEnColombia(reporte.creadoEn)) %> · hitos al <%= fechaBreve(corte) %></p>
+
+<% if (recienGenerado) { %>
+  <p class="mensaje mensaje-ok entra" role="status">
+    Reporte guardado: <strong><%= totales.incapacidades %></strong> <%= totales.incapacidades === 1 ? 'incapacidad prolongada' : 'incapacidades prolongadas' %> en <%= reporte.periodo %>, clasificadas por hito.
+  </p>
+<% } %>
+
+<dl class="resumen resumen-reporte">
+  <dt>Prolongadas</dt><dd class="cifra"><%= totales.incapacidades %></dd>
+  <dt>Colaboradores</dt><dd class="cifra"><%= totales.colaboradores %></dd>
+  <dt>Con un hito en el mes <span class="tenue">(cumplido o próximo)</span></dt><dd class="cifra"><%= totales.conHitoEnMes %></dd>
+</dl>
+
+<section class="recientes" aria-labelledby="titulo-por-hito">
+  <h2 id="titulo-por-hito">Por hito</h2>
+  <div class="tabla-envuelta">
+    <table class="estados">
+      <thead><tr><th scope="col">Hito alcanzado al <%= fechaBreve(corte) %></th><th scope="col" class="num">Incapacidades</th></tr></thead>
+      <tbody>
+        <% for (const g of grupos) { %>
+        <tr><td><% if (g.filas.length > 0) { %><a href="#hito-<%= g.clave %>"><%= g.nombre %></a><% } else { %><%= g.nombre %><% } %></td><td class="num cifra"><%= g.filas.length %></td></tr>
+        <% } %>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<% for (const g of conDatos) { %>
+<section class="recientes" aria-labelledby="hito-<%= g.clave %>">
+  <h2 id="hito-<%= g.clave %>"><%= g.nombre %> <span class="tenue">· <%= g.filas.length %></span></h2>
+  <div class="tabla-envuelta">
+    <table class="estados">
+      <thead>
+        <tr><th scope="col">Incapacidad</th><th scope="col">Colaborador</th><th scope="col">Entidad</th><th scope="col">Inicio</th><th scope="col">Día al corte</th><th scope="col">Hitos en el mes</th><th scope="col">Concepto</th><th scope="col">Estado</th></tr>
+      </thead>
+      <tbody>
+        <% for (const f of g.filas) { const [clase, textoConcepto] = concepto[f.estadoConcepto] ?? concepto.pendiente; %>
+        <tr>
+          <td><a href="/incapacidades/<%= f.idIncapacidad %>/prolongada">n.º <%= f.idIncapacidad %></a></td>
+          <td><%= f.colaborador %><small><%= tipo(f.tipo) %></small></td>
+          <td><%= f.entidad %></td>
+          <td class="fecha"><%= fechaBreve(f.fechaInicio) %><small>hasta el <%= fechaBreve(f.fechaFin) %></small></td>
+          <td class="fecha"><% if (f.diaAlCorte === 0) { %>Aún no inicia<% } else { %>Día <%= f.diaAlCorte %><% } %><small>de <%= f.diasIncapacidad %></small></td>
+          <td><% if (f.hitosEnPeriodo.length === 0) { %><span class="tenue">—</span><% } else { %><span class="hitos-mes"><% for (const h of f.hitosEnPeriodo) { %><% if (h.fecha > corte) { %><span class="chip por_vencer">Día <%= h.dia %> · <%= fechaBreve(h.fecha) %> · próximo</span><% } else { %><span class="chip registrada">Día <%= h.dia %> · <%= fechaBreve(h.fecha) %></span><% } %><% } %></span><% } %></td>
+          <td><span class="chip <%= clase %>"><%= textoConcepto %></span><% if (f.pagoSuspendido) { %> <span class="chip por_vencer">Pago suspendido</span><% } %></td>
+          <td><%= estado(f.estado) %></td>
+        </tr>
+        <% } %>
+      </tbody>
+    </table>
+  </div>
+</section>
+<% } %>
+<p class="tenue">El concepto y la suspensión del pago son los que había al generar el reporte.</p>

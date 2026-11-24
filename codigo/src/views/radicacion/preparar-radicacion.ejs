@@ -1,0 +1,181 @@
+<%
+  const ICONOS = {
+    al_dia: '<path d="M5 12.5l4.5 4.5L19 7.5"/>',
+    por_vencer: '<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>',
+    vencido: '<circle cx="12" cy="12" r="8.5"/><path d="M12 7v6M12 16.5v.5"/>',
+    digital: '<rect x="3.5" y="4.5" width="17" height="12" rx="1.5"/><path d="M9 20h6M12 16.5V20"/>',
+    correo: '<rect x="3.5" y="5.5" width="17" height="13" rx="1.5"/><path d="M4 7l8 6 8-6"/>',
+    hecho: '<path d="M5 12.5l4.5 4.5L19 7.5"/>',
+    rechazo: '<path d="M7 7l10 10M17 7L7 17"/>',
+    nueva: '<path d="M12 6v12M6 12h12"/>',
+    espera: '<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>',
+  };
+  const ESTADOS = { al_dia: 'Al día', por_vencer: 'Por vencer', vencido: 'Vencido' };
+  const dias = (n) => (n === 1 ? '1 día' : `${n} días`);
+  const cuanto = (n) => (n === 0 ? 'vence hoy' : n > 0 ? (n === 1 ? 'queda 1 día' : `quedan ${n} días`) : `hace ${dias(-n)}`);
+%>
+<h1>Preparar radicación</h1>
+<% if (!radicacion) { %>
+  <p class="sub">Escriba el número de la incapacidad que va a radicar ante la entidad.</p>
+  <form class="formulario" method="get" action="/radicacion" novalidate>
+    <div class="buscar">
+      <div class="campo <%= errorNumero ? 'invalido' : '' %>">
+        <label for="incapacidad">Incapacidad n.º</label>
+        <input id="incapacidad" name="incapacidad" type="text" inputmode="numeric" pattern="[0-9]*" value="<%= numero %>" maxlength="18" autocomplete="off" required autofocus<%- errorNumero ? ' aria-invalid="true" aria-describedby="error-incapacidad"' : '' %>>
+      </div>
+      <button class="boton">Preparar</button>
+    </div>
+    <% if (errorNumero) { %>
+      <p class="mensaje mensaje-error" id="error-incapacidad" role="alert"><%= errorNumero %> Revise el número que recibió al registrarla.</p>
+    <% } else { %>
+      <p class="ayuda">Es el número que SIGI mostró al registrar la incapacidad.</p>
+    <% } %>
+  </form>
+<% } else {
+  const { incapacidad, entidad, plazo, sinVerificar } = radicacion;
+  const canal = entidad.permiteTranscripcionDigital ? 'digital' : 'correo';
+  // Regla con la que se calculó el plazo (DA-13; tránsito: P-C; paternidad sin nacimiento: DA-35).
+  const regla = !plazo ? ''
+    : plazo.regla === 'paternidad'
+      ? (plazo.base === 'nacimiento' ? `${plazo.duracion} desde el nacimiento (licencia de paternidad)` : `${plazo.duracion} desde el inicio de la licencia: no hay fecha de nacimiento registrada`)
+      : plazo.regla === 'transito'
+        ? `${plazo.duracion} desde el inicio (${entidad.nombre}, accidentes de tránsito)`
+        : `${plazo.duracion} desde el inicio (plazo de ${entidad.nombre})`;
+  // Parte del plazo que ya pasó, para la barra (de 0 a 100; vencido = llena).
+  const usado = plazo ? Math.round(Math.min(100, Math.max(0, ((plazo.diasTotales - plazo.diasRestantes) / plazo.diasTotales) * 100))) : 0;
+%>
+  <p class="sub">Entidad, canal y plazo para presentar la incapacidad, y registro del radicado.</p>
+
+  <div class="formulario">
+    <% if (registrada) { %>
+      <p class="mensaje mensaje-ok entra" role="status">Radicación registrada. La incapacidad quedó en «transcrita».</p>
+    <% } %>
+    <dl class="resumen">
+      <dt>Incapacidad</dt><dd>n.º <%= incapacidad.idIncapacidad %></dd>
+      <dt>Colaborador</dt><dd><%= incapacidad.colaborador %></dd>
+      <dt>Tipo</dt><dd><%= nombresTipo[incapacidad.tipo] %> · <%= entidad.nombre %></dd>
+      <dt>Inicio</dt><dd><%= fechaBreve(incapacidad.fechaInicio) %> · <%= dias(incapacidad.diasIncapacidad) %></dd>
+    </dl>
+
+    <% if (plazo) { %>
+      <%# HU-09.CA1 (opción B): la fecha límite manda; la barra muestra cuánto del plazo ya pasó. %>
+      <section class="plazo" aria-labelledby="titulo-plazo">
+        <div class="linea">
+          <h2 id="titulo-plazo"><%= plazo.estado === 'vencido' ? 'Venció' : 'Vence' %> el <%= fechaLarga(plazo.fechaLimite) %></h2>
+          <span class="chip <%= plazo.estado %>"><svg viewBox="0 0 24 24" aria-hidden="true"><%- ICONOS[plazo.estado] %></svg><%= ESTADOS[plazo.estado] %></span>
+          <span class="tenue"><%= cuanto(plazo.diasRestantes) %></span>
+        </div>
+        <svg class="barra <%= plazo.estado %>" viewBox="0 0 100 6" preserveAspectRatio="none" role="img" aria-label="Ha pasado el <%= usado %> % del plazo">
+          <rect class="fondo" width="100" height="6" rx="3"/>
+          <rect class="usado" width="<%= usado %>" height="6" rx="3"/>
+        </svg>
+        <div class="extremos">
+          <span><%= plazo.base === 'nacimiento' ? 'Nacimiento' : 'Inicio' %> · <%= fechaBreve(plazo.desde) %></span>
+          <span>Límite · <%= fechaBreve(plazo.fechaLimite) %></span>
+        </div>
+        <p class="regla"><%= regla %>.</p>
+      </section>
+    <% } else { %>
+      <p class="mensaje mensaje-info">La entidad no tiene un plazo de transcripción registrado: SIGI no puede calcular la fecha límite.</p>
+    <% } %>
+
+    <dl class="datos-envio">
+      <dt>Entidad</dt><dd><%= entidad.nombre %> <span class="tenue">(<%= entidad.tipo %>)</span></dd>
+      <dt>Canal</dt>
+      <dd class="canal"><svg viewBox="0 0 24 24" aria-hidden="true"><%- ICONOS[canal] %></svg><%= canal === 'digital' ? 'Transcripción digital en el portal de la entidad' : 'Por correo: la transcribe personal de la entidad' %></dd>
+    </dl>
+
+    <%# HU-09.CA2 y DA-14: las advertencias no impiden radicar. %>
+    <% if (plazo?.estado === 'por_vencer' || plazo?.estado === 'vencido' || sinVerificar) { %>
+      <div class="veredicto">
+        <% if (plazo?.estado === 'por_vencer') { %>
+          <p class="mensaje mensaje-aviso" role="status">El plazo vence el <%= fechaLarga(plazo.fechaLimite) %>: <%= cuanto(plazo.diasRestantes) %>. Radíquela cuanto antes.</p>
+        <% } else if (plazo?.estado === 'vencido') { %>
+          <p class="mensaje mensaje-error" role="status">El plazo venció el <%= fechaLarga(plazo.fechaLimite) %> (<%= cuanto(plazo.diasRestantes) %>). SIGI no impide radicar: puede registrarla igual.</p>
+        <% } %>
+        <% if (sinVerificar) { %>
+          <p class="mensaje mensaje-aviso">La documentación aún no se verificó. Puede radicar igual; conviene <a href="/incapacidades/<%= incapacidad.idIncapacidad %>/verificacion">verificarla</a> antes.</p>
+        <% } %>
+      </div>
+    <% } %>
+
+    <%# HU-10 (opción C): cada radicación es un paso; el formulario es el último. Entre dos radicaciones hubo
+        un rechazo (HU-14); la causal guardada es la del último. %>
+    <%
+      const radicaciones = incapacidad.radicaciones;
+      const estado = incapacidad.estado ?? 'registrada';
+      const huboRechazoTras = (i) => i < radicaciones.length - 1 || estado === 'rechazada';
+      // La causal guardada es la del rechazo más reciente (HU-14).
+      const ultimoRechazo = estado === 'rechazada' ? radicaciones.length - 1 : radicaciones.length - 2;
+    %>
+    <section class="radicaciones" aria-labelledby="titulo-radicaciones">
+      <h2 id="titulo-radicaciones">Radicación <span class="chip <%= estado %>"><%= nombresEstado[estado] %></span></h2>
+      <ol class="linea-tiempo">
+        <li>
+          <span class="punto hecho"><svg viewBox="0 0 24 24" aria-hidden="true"><%- ICONOS.hecho %></svg></span>
+          <div class="paso"><p class="titulo"><b>Recibida</b> <span class="tenue"><%= fechaBreve(incapacidad.fechaRecepcion) %></span></p></div>
+        </li>
+        <% radicaciones.forEach((r, i) => { const ultima = i === radicaciones.length - 1; %>
+          <li class="<%= registrada && ultima ? 'entra' : '' %>">
+            <span class="punto hecho"><svg viewBox="0 0 24 24" aria-hidden="true"><%- ICONOS.hecho %></svg></span>
+            <div class="paso">
+              <p class="titulo"><b>Radicada · <%= r.radicado %></b> <span class="tenue"><%= fechaBreve(fechaEnColombia(r.fecha)) %></span></p>
+              <p class="tenue">Pasó a «transcrita»<% if (r.conEvidencia) { %> · <a href="/radicaciones/<%= r.idRadicacion %>/evidencia" target="_blank" rel="noopener">ver evidencia</a><% } %></p>
+            </div>
+          </li>
+          <% if (huboRechazoTras(i)) { %>
+            <li>
+              <span class="punto rechazo"><svg viewBox="0 0 24 24" aria-hidden="true"><%- ICONOS.rechazo %></svg></span>
+              <div class="paso">
+                <p class="titulo"><b>Rechazada por la entidad</b><% if (i === ultimoRechazo && incapacidad.fechaRechazo) { %> <span class="tenue"><%= fechaBreve(incapacidad.fechaRechazo) %></span><% } %></p>
+                <% if (i === ultimoRechazo && incapacidad.causalRechazo) { %><p class="tenue">Causal: <%= incapacidad.causalRechazo %></p><% } %>
+              </div>
+            </li>
+          <% } %>
+        <% }) %>
+        <% if (radicacion.puedeRadicar) { %>
+          <li>
+            <span class="punto actual"><svg viewBox="0 0 24 24" aria-hidden="true"><%- ICONOS.nueva %></svg></span>
+            <div class="paso">
+              <p class="titulo"><b><%= radicaciones.length > 0 ? 'Nueva radicación' : `Radicar ante ${entidad.nombre}` %></b></p>
+              <form class="radicar" method="post" action="/incapacidades/<%= incapacidad.idIncapacidad %>/radicacion" enctype="multipart/form-data" novalidate>
+                <% if (errores.estado) { %><p class="mensaje mensaje-error" role="alert"><%= errores.estado %></p><% } %>
+                <div class="campos dos">
+                  <div class="campo <%= errores.radicado ? 'invalido' : '' %>">
+                    <label for="radicado">Número de radicado</label>
+                    <input id="radicado" name="radicado" type="text" value="<%= valores.radicado ?? '' %>" maxlength="<%= largoRadicado %>" autocomplete="off" required aria-describedby="<%= errores.radicado ? 'error-radicado' : 'ayuda-radicado' %>"<%- errores.radicado ? ' aria-invalid="true" autofocus' : '' %>>
+                    <% if (errores.radicado) { %><span class="error" id="error-radicado"><%= errores.radicado %></span><% } else { %><span class="ayuda" id="ayuda-radicado">El que dio la entidad.</span><% } %>
+                  </div>
+                  <div class="campo <%= errores.evidencia ? 'invalido' : '' %>">
+                    <label for="evidencia">Evidencia</label>
+                    <input id="evidencia" name="evidencia" type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" required aria-describedby="<%= errores.evidencia ? 'error-evidencia' : 'ayuda-evidencia' %>"<%- errores.evidencia ? ' aria-invalid="true"' : '' %><%- errores.evidencia && !errores.radicado ? ' autofocus' : '' %>>
+                    <% if (errores.evidencia) { %><span class="error" id="error-evidencia"><%= errores.evidencia %></span><% } else { %><span class="ayuda" id="ayuda-evidencia">Pantallazo del portal o PDF del correo. PDF, JPG o PNG, máx. 10 MB.</span><% } %>
+                  </div>
+                </div>
+                <div class="acciones"><button class="boton">Registrar radicación</button></div>
+              </form>
+            </div>
+          </li>
+        <% } else { %>
+          <li>
+            <span class="punto"><svg viewBox="0 0 24 24" aria-hidden="true"><%- ICONOS.espera %></svg></span>
+            <div class="paso">
+              <% if (estado === 'transcrita') { %>
+                <p class="titulo"><b>Esperando respuesta de la entidad</b></p>
+                <p class="tenue">Si la aprueba, regístrela en <a href="/incapacidades/<%= incapacidad.idIncapacidad %>/cobro">Cobro</a>. Si la rechaza, aquí se registra la nueva radicación.</p>
+              <% } else { %>
+                <p class="titulo"><b><%= nombresEstado[estado] %></b></p>
+                <p class="tenue">Ya no admite una nueva radicación.</p>
+              <% } %>
+              <% if (errores.estado) { %><p class="mensaje mensaje-error" role="alert"><%= errores.estado %></p><% } %>
+            </div>
+          </li>
+        <% } %>
+      </ol>
+    </section>
+
+    <div class="acciones">
+      <a class="boton secundario" href="/radicacion">Otra incapacidad</a>
+    </div>
+  </div>
+<% } %>

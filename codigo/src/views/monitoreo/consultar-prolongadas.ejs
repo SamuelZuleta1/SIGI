@@ -1,0 +1,75 @@
+<%
+  // HU-22 (DS-10; DA-19, DA-49): reporte de prolongadas calculado en el momento. Lista por duración (más de 90 días);
+  // las pestañas separan las que ya llegaron al día 120 y requieren acción de las que aún no llegan (opción A).
+  const pestanas = [['accion', 'Requiere acción'], ['espera', 'Aún no llega al día 120'], ['falta', 'Falta registrada'], ['con_concepto', 'Con concepto']];
+  const explicacion = {
+    accion: 'Ya llegaron al día 120: registre el concepto que emitió la entidad o deje constancia de su falta.',
+    espera: 'El concepto y su falta se registran desde el día 120. La situación dice desde cuándo.',
+    falta: 'Se dejó constancia de que la entidad no ha emitido el concepto. Cuando lo emita, regístrelo.',
+    con_concepto: 'Ya tienen el concepto de rehabilitación registrado.',
+  };
+  const vacios = {
+    accion: ['Ninguna prolongada requiere acción hoy.', 'Aparecerán aquí cuando lleguen al día 120 sin concepto.'],
+    espera: ['No hay prolongadas esperando el día 120.', `Aparecerán aquí las de más de ${diasProlongada} días que aún no llegan.`],
+    falta: ['No hay faltas del concepto registradas.', 'Aquí quedan las que la entidad aún no ha respondido.'],
+    con_concepto: ['Aún no hay conceptos registrados.', 'Aparecerán aquí cuando registre el concepto de la entidad.'],
+  };
+  const situacion = (p) => {
+    if (p.estadoConcepto === 'registrado') return ['al_dia', 'Con concepto'];
+    if (p.estadoConcepto === 'falta') return ['por_vencer', 'Falta registrada'];
+    if (p.hitoAlcanzado) return ['vencido', 'Por registrar'];
+    if (p.fechaDia120) return ['registrada', `Desde el ${fechaBreve(p.fechaDia120)}`];
+    return ['registrada', 'No llega al día 120'];
+  };
+%>
+<h1>Incapacidades prolongadas</h1>
+<p class="sub">Las de más de <%= diasProlongada %> días. Abra cada una para registrar el concepto de rehabilitación, su falta o la suspensión del pago.</p>
+<nav aria-label="Prolongadas">
+  <ul class="pestanas">
+    <% for (const [valor, nombre] of pestanas) { %>
+    <li>
+      <a href="/prolongadas<%= valor === 'accion' ? '' : `?ver=${valor}` %>"<%- valor === ver ? ' aria-current="page"' : '' %>>
+        <%= nombre %><span class="n"><span class="oculto">: </span><%= conteos[valor] %></span>
+      </a>
+    </li>
+    <% } %>
+  </ul>
+</nav>
+
+<section class="resultado" aria-label="Incapacidades prolongadas">
+  <% if (prolongadas.length === 0) { %>
+    <div class="tabla-envuelta">
+      <div class="vacio">
+        <b><%= vacios[ver][0] %></b>
+        <p><%= vacios[ver][1] %></p>
+      </div>
+    </div>
+  <% } else { %>
+    <p class="cuenta-resultado">
+      <span><b><%= prolongadas.length %></b> <%= prolongadas.length === 1 ? 'incapacidad' : 'incapacidades' %> · <%= explicacion[ver] %></span>
+      <span>Las más largas primero</span>
+    </p>
+    <div class="tabla-envuelta">
+      <table class="estados pendientes">
+        <thead>
+          <tr><th scope="col">N.º</th><th scope="col">Colaborador</th><th scope="col">Entidad</th><th scope="col">Día</th><th scope="col">Hito</th><th scope="col">Situación</th></tr>
+        </thead>
+        <tbody>
+          <% for (const p of prolongadas) { const [clase, texto] = situacion(p); %>
+          <tr>
+            <td><a href="/incapacidades/<%= p.idIncapacidad %>/prolongada" aria-label="Abrir la incapacidad <%= p.idIncapacidad %>"><%= p.idIncapacidad %></a></td>
+            <td><%= p.colaborador %><small><%= nombresTipo[p.tipo] ?? p.tipo %> · desde el <%= fechaBreve(p.fechaInicio) %></small></td>
+            <td><%= p.entidad %></td>
+            <td class="fecha"><% if (p.dia === 0) { %>Aún no inicia<small>dura <%= p.diasIncapacidad %></small><% } else { %>Día <%= p.dia %><small>de <%= p.diasIncapacidad %></small><% } %></td>
+            <td><%= p.hito.nombre %></td>
+            <td>
+              <span class="chip <%= clase %>"><%= texto %></span>
+              <% if (p.suspensionPendiente) { %><span class="chip por_vencer">Suspender pago</span><% } else if (p.tramitePension) { %><span class="chip registrada">Trámite de pensión</span><% } %>
+            </td>
+          </tr>
+          <% } %>
+        </tbody>
+      </table>
+    </div>
+  <% } %>
+</section>

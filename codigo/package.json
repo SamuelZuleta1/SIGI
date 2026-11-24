@@ -1,0 +1,33 @@
+{
+  "name": "sigi",
+  "version": "0.1.0",
+  "description": "SIGI - Sistema Integral de Gestión de Incapacidades",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node src/app.js",
+    "dev": "node --watch src/app.js",
+    "test": "vitest run --project unit --project http",
+    "test:int": "vitest run --project integracion",
+    "db:migrar": "supabase db push --linked",
+    "db:estado": "supabase migration list --linked",
+    "db:usuarios": "node scripts/crear-usuarios-demo.js"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "2.119.0",
+    "cookie-parser": "1.4.7",
+    "dotenv": "18.0.10",
+    "ejs": "7.0.2",
+    "express": "5.3.0",
+    "multer": "2.5.0",
+    "nodemailer": "10.6.0",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "supertest": "7.3.2",
+    "vitest": "5.1.0"
+  }
+}

@@ -1,0 +1,99 @@
+<%
+  // HU-20 (DS-08; DA-45): Cartera y Jurídica ve el traslado y los requerimientos y registra su decisión.
+  // Solo se registra: el cobro se tramita fuera de SIGI y el estado no cambia (HU-20.CA2).
+  const ICONOS = {
+    hecho: '<path d="M5 12.5l4.5 4.5L19 7.5"/>',
+    requerimiento: '<path d="M4 6h16v12H4zM4 7l8 6 8-6"/>',
+    traslado: '<path d="M4 12h13M13 7l5 5-5 5M20 5v14"/>',
+    decision: '<path d="M12 4v16M5 8h14M5 8l-2 6a3 3 0 0 0 4 0zM19 8l-2 6a3 3 0 0 0 4 0zM8 20h8"/>',
+    espera: '<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>',
+  };
+  const dias = (n) => (n === 1 ? '1 día' : `${n} días`);
+  const { incapacidad, demora } = decision;
+%>
+<h1>Decisión de Cartera y Jurídica</h1>
+<p class="sub">Registre si recupera el cobro o lo da de baja. El trámite se hace fuera de SIGI; aquí solo queda la decisión.</p>
+
+<div class="formulario">
+  <% if (registrada) { %>
+    <p class="mensaje mensaje-ok entra" role="status">Decisión registrada: <%= nombresDecision[incapacidad.decision].toLowerCase() %>.<% if (incapacidad.decision === 'dar_de_baja') { %> La incapacidad sale de los pendientes de pago.<% } %></p>
+  <% } %>
+
+  <dl class="resumen">
+    <dt>Incapacidad</dt><dd>n.º <%= incapacidad.idIncapacidad %></dd>
+    <dt>Colaborador</dt><dd><%= incapacidad.colaborador %></dd>
+    <dt>Tipo</dt><dd><%= nombresTipo[incapacidad.tipo] %> · <%= incapacidad.entidad %></dd>
+    <dt>Inicio</dt><dd><%= fechaBreve(incapacidad.fechaInicio) %> · <%= dias(incapacidad.diasIncapacidad) %></dd>
+  </dl>
+
+  <section class="radicaciones" aria-labelledby="titulo-decision">
+    <h2 id="titulo-decision">Cobro jurídico</h2>
+    <% if (errores.estado) { %><p class="mensaje mensaje-error" role="alert"><%= errores.estado %></p><% } %>
+    <ol class="linea-tiempo">
+      <% if (demora) { %>
+        <li>
+          <span class="punto <%= demora.conDemora ? 'rechazo' : 'hecho' %>"><svg viewBox="0 0 24 24" aria-hidden="true"><%- ICONOS.hecho %></svg></span>
+          <div class="paso">
+            <p class="titulo"><b>Cobrada · <%= incapacidad.entidad %> aprobó</b> <span class="tenue"><%= fechaBreve(incapacidad.fechaCobrada) %></span></p>
+            <p class="tenue">Debía pagar a más tardar el <%= fechaBreve(demora.fechaPrometida) %><% if (demora.conDemora) { %> · <b><%= dias(demora.diasDemora) %> de demora</b><% } %></p>
+          </div>
+        </li>
+      <% } %>
+      <% incapacidad.requerimientos.forEach((r, i) => { %>
+        <li>
+          <span class="punto hecho"><svg viewBox="0 0 24 24" aria-hidden="true"><%- ICONOS.requerimiento %></svg></span>
+          <div class="paso">
+            <p class="titulo"><b>Requerimiento <%= i + 1 %></b> <span class="tenue"><%= fechaBreve(r.dia) %></span></p>
+            <p class="fundamentos"><%= r.fundamentos %></p>
+          </div>
+        </li>
+      <% }) %>
+      <% if (incapacidad.motivoTraslado) { %>
+        <li>
+          <span class="punto hecho"><svg viewBox="0 0 24 24" aria-hidden="true"><%- ICONOS.traslado %></svg></span>
+          <div class="paso">
+            <p class="titulo"><b>Trasladada a Cartera y Jurídica</b> <span class="tenue"><%= fechaBreve(incapacidad.fechaTraslado) %></span></p>
+            <p class="fundamentos"><%= incapacidad.motivoTraslado %></p>
+          </div>
+        </li>
+      <% } %>
+
+      <% if (incapacidad.decision) { %>
+        <li class="<%= registrada ? 'entra' : '' %>">
+          <span class="punto <%= incapacidad.decision === 'recuperar' ? 'hecho' : 'rechazo' %>"><svg viewBox="0 0 24 24" aria-hidden="true"><%- ICONOS.decision %></svg></span>
+          <div class="paso">
+            <p class="titulo"><b>Decisión: <%= nombresDecision[incapacidad.decision] %></b> <span class="tenue"><%= fechaBreve(incapacidad.fechaDecision) %></span></p>
+            <p class="tenue"><%= incapacidad.decision === 'dar_de_baja' ? 'La acreencia sale de los pendientes de pago.' : 'El cobro sigue; si la entidad paga, el auxiliar lo registra.' %></p>
+          </div>
+        </li>
+      <% } else if (decision.puedeDecidir) { %>
+        <li>
+          <span class="punto actual"><svg viewBox="0 0 24 24" aria-hidden="true"><%- ICONOS.decision %></svg></span>
+          <div class="paso">
+            <p class="titulo"><b>Su decisión</b></p>
+            <p class="tenue">Solo se puede registrar una decisión por incapacidad.</p>
+            <% if (errores.decision) { %><p class="mensaje mensaje-error separado" role="alert"><%= errores.decision %></p><% } %>
+            <form class="radicar" method="post" action="/incapacidades/<%= incapacidad.idIncapacidad %>/decision" novalidate data-un-envio>
+              <div class="acciones">
+                <button class="boton" name="decision" value="recuperar" data-enviando="Registrando…">Recuperar el cobro</button>
+                <button class="boton peligro" name="decision" value="dar_de_baja" data-enviando="Registrando…">Dar de baja</button>
+              </div>
+            </form>
+          </div>
+        </li>
+      <% } else { %>
+        <li>
+          <span class="punto"><svg viewBox="0 0 24 24" aria-hidden="true"><%- ICONOS.espera %></svg></span>
+          <div class="paso">
+            <p class="titulo"><b>Sin decisión</b></p>
+            <p class="tenue"><%= decision.mensajeEstado %></p>
+          </div>
+        </li>
+      <% } %>
+    </ol>
+  </section>
+
+  <div class="acciones">
+    <a class="boton secundario" href="/cartera">Volver a las trasladadas</a>
+  </div>
+</div>

@@ -1,0 +1,14 @@
+<% if (usuario) { %>
+  <h1><%= titulo %></h1>
+  <p class="sub"><%= mensaje %></p>
+  <p><a class="boton secundario" href="/">Volver al inicio</a></p>
+<% } else { %>
+  <div class="tarjeta">
+    <span class="marca-tarjeta">SIGI</span>
+    <div>
+      <h1><%= titulo %></h1>
+      <p class="sub"><%= mensaje %></p>
+    </div>
+    <a class="boton" href="/iniciar-sesion">Iniciar sesión</a>
+  </div>
+<% } %>

@@ -1,0 +1,97 @@
+<%
+  // DS-12: el auxiliar genera el reporte de ausentismo de un mes y lo envía al SG-SST (HU-27; DA-21, DA-57) y el
+  // reporte mensual de prolongadas por hito, que solo se guarda (HU-28; DA-19, DA-58).
+  const dias = (n) => (n === 1 ? '1 día' : `${n} días`);
+%>
+<h1>Reportes</h1>
+<p class="sub">El reporte de ausentismo se entrega al SG-SST en los primeros 3 días de cada mes, con las incapacidades del mes anterior. El de prolongadas queda guardado para controlar sus hitos.</p>
+
+<% if (errores.aviso) { %>
+  <p class="mensaje mensaje-error" role="alert"><%= errores.aviso %></p>
+<% } %>
+
+<form class="formulario reporte-periodo" method="post" action="/reportes/ausentismo" data-un-envio>
+  <fieldset>
+    <legend>Reporte de ausentismo</legend>
+    <div class="campos">
+      <div class="campo <%= errores.periodo ? 'invalido' : '' %>">
+        <label for="periodo">Mes</label>
+        <input id="periodo" name="periodo" type="month" value="<%= periodo %>" min="<%= periodoMinimo %>" max="<%= periodoMaximo %>" placeholder="AAAA-MM" required<%- errores.periodo ? ' aria-invalid="true" aria-describedby="error-periodo"' : ' aria-describedby="ayuda-periodo"' %>>
+        <% if (errores.periodo) { %><span class="error" id="error-periodo"><%= errores.periodo %></span><% } else { %><span class="ayuda" id="ayuda-periodo">Incluye las incapacidades con algún día en ese mes.</span><% } %>
+      </div>
+      <div class="acciones"><button class="boton" data-enviando="Generando…">Generar y enviar al SG-SST</button></div>
+    </div>
+  </fieldset>
+</form>
+
+<form class="formulario reporte-periodo" method="post" action="/reportes/prolongadas" data-un-envio>
+  <fieldset>
+    <legend>Reporte de prolongadas por hito</legend>
+    <div class="campos">
+      <div class="campo <%= errores.periodoProlongadas ? 'invalido' : '' %>">
+        <label for="periodo-prolongadas">Mes</label>
+        <input id="periodo-prolongadas" name="periodo" type="month" value="<%= periodoProlongadas %>" min="<%= periodoMinimo %>" max="<%= periodoMaximo %>" placeholder="AAAA-MM" required<%- errores.periodoProlongadas ? ' aria-invalid="true" aria-describedby="error-periodo-prolongadas"' : ' aria-describedby="ayuda-periodo-prolongadas"' %>>
+        <% if (errores.periodoProlongadas) { %><span class="error" id="error-periodo-prolongadas"><%= errores.periodoProlongadas %></span><% } else { %><span class="ayuda" id="ayuda-periodo-prolongadas">Las de más de 90 días con algún día en ese mes, por hito (90, 120, 150 y 180).</span><% } %>
+      </div>
+      <div class="acciones"><button class="boton" data-enviando="Generando…">Generar reporte</button></div>
+    </div>
+  </fieldset>
+</form>
+
+<section class="recientes" aria-labelledby="titulo-reportes">
+  <h2 id="titulo-reportes">Reportes de ausentismo recientes</h2>
+  <div class="tabla-envuelta">
+    <% if (recientes.length === 0) { %>
+      <div class="vacio">
+        <b>Aún no hay reportes de ausentismo.</b>
+        <p>Cuando genere uno, quedará guardado aquí con lo que se envió al SG-SST.</p>
+      </div>
+    <% } else { %>
+      <table class="estados">
+        <thead>
+          <tr><th scope="col">Reporte</th><th scope="col">Mes</th><th scope="col">Generado</th><th scope="col" class="num">Incapacidades</th><th scope="col" class="num">Días de ausencia</th></tr>
+        </thead>
+        <tbody>
+          <% for (const r of recientes) { const t = totalesDelReporte(r.contenido); %>
+          <tr>
+            <td><a href="/reportes/<%= r.id %>">n.º <%= r.id %></a></td>
+            <td class="fecha"><%= r.periodo %></td>
+            <td class="fecha"><%= fechaBreve(fechaEnColombia(r.creadoEn)) %></td>
+            <td class="num cifra"><%= t.incapacidades %></td>
+            <td class="num cifra"><%= dias(t.diasEnPeriodo) %></td>
+          </tr>
+          <% } %>
+        </tbody>
+      </table>
+    <% } %>
+  </div>
+</section>
+
+<section class="recientes" aria-labelledby="titulo-prolongadas">
+  <h2 id="titulo-prolongadas">Reportes de prolongadas recientes</h2>
+  <div class="tabla-envuelta">
+    <% if (recientesProlongadas.length === 0) { %>
+      <div class="vacio">
+        <b>Aún no hay reportes de prolongadas.</b>
+        <p>Cuando genere uno, quedará guardado aquí con la clasificación por hito de ese mes.</p>
+      </div>
+    <% } else { %>
+      <table class="estados">
+        <thead>
+          <tr><th scope="col">Reporte</th><th scope="col">Mes</th><th scope="col">Generado</th><th scope="col" class="num">Prolongadas</th><th scope="col" class="num">Con hito en el mes (cumplido o próximo)</th></tr>
+        </thead>
+        <tbody>
+          <% for (const r of recientesProlongadas) { const t = totalesProlongadas(r.contenido); %>
+          <tr>
+            <td><a href="/reportes/<%= r.id %>">n.º <%= r.id %></a></td>
+            <td class="fecha"><%= r.periodo %></td>
+            <td class="fecha"><%= fechaBreve(fechaEnColombia(r.creadoEn)) %></td>
+            <td class="num cifra"><%= t.incapacidades %></td>
+            <td class="num cifra"><%= t.conHitoEnMes %></td>
+          </tr>
+          <% } %>
+        </tbody>
+      </table>
+    <% } %>
+  </div>
+</section>
