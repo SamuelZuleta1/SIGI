@@ -180,6 +180,69 @@ p { margin: 0 0 12px; max-width: 70ch; }
 .tarjeta .boton { width: 100%; }
 .marca-tarjeta { color: var(--acento); font-size: 1.05rem; font-weight: 650; }
 
+/* ---------- inicio de sesión: pantalla dividida (marca | formulario + usuarios de prueba) ---------- */
+.acceso:has(> .ingreso) { display: block; padding: 0; }
+.ingreso { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); min-height: 100dvh; }
+.ingreso-marca { display: flex; flex-direction: column; padding: 44px 48px; background: var(--nav); color: var(--nav-fuerte); }
+.logo { display: flex; align-items: center; gap: 12px; }
+.sello {
+  display: grid; place-items: center; width: 44px; height: 44px; flex: none;
+  border-radius: 11px; background: #1f58d6; color: #fff; font-size: 1.35rem; font-weight: 750; letter-spacing: -0.02em;
+}
+.logo b { display: block; font-size: 1.3rem; font-weight: 700; letter-spacing: -0.01em; line-height: 1.1; }
+.logo small { display: block; font-size: 0.68rem; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--nav-texto); }
+.lema { margin-top: auto; padding-top: 40px; }
+.lema p { color: var(--nav-texto); max-width: 40ch; margin: 14px 0 0; }
+.lema .lema-titulo {
+  margin: 0; color: var(--nav-fuerte); max-width: 12ch;
+  font-size: clamp(1.8rem, 3vw, 2.5rem); font-weight: 700; line-height: 1.08; letter-spacing: -0.025em; text-wrap: balance;
+}
+
+.ingreso-forma { display: grid; place-items: center; padding: 44px 48px; background: var(--fondo); }
+.ingreso-caja { width: min(420px, 100%); display: grid; gap: 20px; }
+.ingreso-credenciales, .acceso-rapido { display: grid; gap: 16px; }
+.ingreso-credenciales h1 { font-size: 1.6rem; font-weight: 650; letter-spacing: -0.015em; }
+.ingreso-credenciales .sub { margin: 4px 0 0; }
+.ingreso-credenciales .mensaje { margin: 0; }
+.ingreso .campo input { height: 40px; }
+.ingreso .boton { width: 100%; height: 44px; }
+
+.separador { display: flex; align-items: center; gap: 12px; margin: 0; color: var(--tenue); font-size: 0.82rem; max-width: none; }
+.separador::before, .separador::after { content: ''; flex: 1; height: 1px; background: var(--borde); }
+.actores { display: grid; border: 1px solid var(--borde); border-radius: var(--radio); overflow: hidden; background: var(--panel); }
+.actor {
+  position: relative; display: flex; align-items: center; gap: 10px; min-height: 52px; padding: 8px 40px 8px 14px;
+  border: 0; border-top: 1px solid var(--raya); background: transparent; text-align: left;
+  font-size: 0.9rem; font-weight: 550; cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+.actor:first-child { border-top: 0; }
+.actor:focus-visible { outline-offset: -2px; }
+.inicial {
+  display: grid; place-items: center; width: 30px; height: 30px; flex: none;
+  border-radius: 7px; background: var(--info-f); color: var(--acento); font-size: 0.8rem; font-weight: 650;
+}
+.actor-texto { display: grid; min-width: 0; }
+.actor-texto small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--tenue); font-size: 0.74rem; font-weight: 400; }
+@media (hover: hover) { .actor:hover { background: var(--info-f); color: var(--acento); } }
+.actor:active, .actor[aria-busy='true'] { background: var(--info-f); color: var(--acento); }
+.actor[aria-busy='true']::after {
+  content: ''; position: absolute; right: 14px; width: 14px; height: 14px;
+  border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%;
+  animation: girar 0.6s linear infinite;
+}
+@keyframes girar { to { transform: rotate(360deg); } }
+.nota { display: flex; align-items: center; gap: 6px; margin: 0; color: var(--tenue); font-size: 0.78rem; }
+.nota svg { width: 14px; height: 14px; flex: none; fill: none; stroke: currentColor; stroke-width: 2; }
+
+@media (max-width: 860px) {
+  .ingreso { grid-template-columns: 1fr; min-height: 0; }
+  .ingreso-marca { padding: 24px; }
+  .lema { padding-top: 24px; }
+  .lema .lema-titulo { font-size: 1.5rem; max-width: none; }
+  .ingreso-forma { padding: 28px 20px 40px; }
+}
+
 /* ---------- botones ---------- */
 .boton {
   display: inline-flex;

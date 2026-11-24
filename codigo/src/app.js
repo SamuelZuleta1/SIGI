@@ -83,5 +83,6 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const { crearTransporte, destinatariosPorArea, remitente } = await import('./config/correo.js');
   const correo = crearServicioCorreo({ transporte: crearTransporte(), remitente: remitente(), destinatarios: destinatariosPorArea() });
   const control = crearControlIncapacidades({ baseDeDatos: crearBaseDeDatos(), correo });
-  crearApp({ sesion: crearServicioSesion(), control }).listen(puerto, () => console.log(`SIGI en http://localhost:${puerto}`));
+  const { configurarAccesoRapido } = await import('./config/acceso-rapido.js');
+  crearApp({ sesion: crearServicioSesion(), control, accesoRapido: configurarAccesoRapido() }).listen(puerto, () => console.log(`SIGI en http://localhost:${puerto}`));
 }

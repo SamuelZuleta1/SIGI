@@ -125,3 +125,56 @@ describe('HU-01 — iniciar sesión con el correo institucional', () => {
     expect(res.headers.location).toBe('/');
   });
 });
+
+describe('Acceso rápido de pruebas: un botón por actor', () => {
+  const correos = Object.fromEntries(Object.values(USUARIOS).map((u) => [u.rol, u.correo]));
+  const conAcceso = () => crearApp({ sesion, accesoRapido: { contrasena: CONTRASENA, correos } });
+  const rapido = (aplicacion, rol) => request(aplicacion).post('/iniciar-sesion/rapido').type('form').send({ rol });
+
+  it('muestra un botón por actor y conserva el formulario de credenciales', async () => {
+    const res = await request(conAcceso()).get('/iniciar-sesion');
+    expect(res.text).toContain('name="correo"');
+    expect(res.text).toContain('name="contrasena"');
+    for (const rol of Object.keys(correos)) expect(res.text).toContain(`name="rol" value="${rol}"`);
+  });
+
+  it('la contraseña de prueba nunca llega al navegador', async () => {
+    const res = await request(conAcceso()).get('/iniciar-sesion');
+    expect(res.text).not.toContain(CONTRASENA);
+  });
+
+  it.each(Object.keys(USUARIOS))('entra como %s con un clic', async (rol) => {
+    const aplicacion = conAcceso();
+    const res = await rapido(aplicacion, rol);
+    expect(res.status).toBe(302);
+    expect(res.headers.location).toBe('/');
+    const acceso = cookies(res)[COOKIE_ACCESO].split(';')[0];
+    expect((await request(aplicacion).get('/').set('Cookie', acceso)).status).toBe(200);
+  });
+
+  it.each([['rol inexistente', 'admin'], ['propiedad heredada', 'toString'], ['vacío', '']])(
+    '%s: 400 y sin sesión',
+    async (_caso, rol) => {
+      const res = await rapido(conAcceso(), rol);
+      expect(res.status).toBe(400);
+      expect(res.headers['set-cookie']).toBeUndefined();
+    },
+  );
+
+  it('si el usuario de prueba no existe en Auth: 401 y sin sesión', async () => {
+    const aplicacion = crearApp({ sesion, accesoRapido: { contrasena: 'otra', correos } });
+    const res = await rapido(aplicacion, 'auxiliar');
+    expect(res.status).toBe(401);
+    expect(res.headers['set-cookie']).toBeUndefined();
+  });
+
+  it('sin DEMO_PASSWORD: no hay botones y la ruta no existe', async () => {
+    expect((await request(app).get('/iniciar-sesion')).text).not.toContain('/iniciar-sesion/rapido');
+    expect((await rapido(app, 'auxiliar')).status).toBe(401); // sin sesión, cualquier ruta desconocida se rechaza
+  });
+
+  it('un envío desde otro sitio se rechaza (CSRF)', async () => {
+    const res = await request(conAcceso()).post('/iniciar-sesion/rapido').set('Origin', 'https://otro-sitio.example').type('form').send({ rol: 'auxiliar' });
+    expect(res.status).toBe(403);
+  });
+});

@@ -1,19 +1,53 @@
-<form class="tarjeta" method="post" action="/iniciar-sesion" novalidate>
-  <span class="marca-tarjeta">SIGI</span>
-  <div>
-    <h1>Iniciar sesión</h1>
-    <p class="sub">Use su correo institucional.</p>
+<div class="ingreso">
+  <aside class="ingreso-marca">
+    <div class="logo">
+      <span class="sello" aria-hidden="true">S</span>
+      <span><b>SIGI</b><small>Gestión de incapacidades</small></span>
+    </div>
+    <div class="lema">
+      <p class="lema-titulo">Gestión de incapacidades</p>
+      <p>Área de Gestión Humana. Ingrese con el usuario que le asignó el administrador.</p>
+    </div>
+  </aside>
+
+  <div class="ingreso-forma">
+    <div class="ingreso-caja">
+      <form class="ingreso-credenciales" method="post" action="/iniciar-sesion" novalidate>
+        <div>
+          <h1>Ingresar</h1>
+          <p class="sub">Con su correo institucional.</p>
+        </div>
+        <% if (error) { %>
+          <p class="mensaje mensaje-error" role="alert"><%= error %></p>
+        <% } %>
+        <div class="campo">
+          <label for="correo">Correo</label>
+          <input id="correo" name="correo" type="email" value="<%= correo %>" autocomplete="username" required autofocus>
+        </div>
+        <div class="campo">
+          <label for="contrasena">Contraseña</label>
+          <input id="contrasena" name="contrasena" type="password" autocomplete="current-password" required>
+        </div>
+        <button class="boton">Ingresar</button>
+      </form>
+
+      <% if (actores.length) { %>
+        <form class="acceso-rapido" method="post" action="/iniciar-sesion/rapido" data-acceso-rapido>
+          <p class="separador" id="usuarios-prueba">Usuarios de prueba</p>
+          <div class="actores" role="group" aria-labelledby="usuarios-prueba">
+            <% actores.forEach((actor) => { %>
+              <button class="actor" name="rol" value="<%= actor.rol %>">
+                <span class="inicial" aria-hidden="true"><%= actor.nombre.charAt(0) %></span>
+                <span class="actor-texto"><%= actor.nombre %><small><%= actor.correo %></small></span>
+              </button>
+            <% }) %>
+          </div>
+          <p class="nota">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6z"/></svg>
+            Entra con un clic, sin escribir la contraseña.
+          </p>
+        </form>
+      <% } %>
+    </div>
   </div>
-  <% if (error) { %>
-    <p class="mensaje mensaje-error" role="alert"><%= error %></p>
-  <% } %>
-  <div class="campo">
-    <label for="correo">Correo</label>
-    <input id="correo" name="correo" type="email" value="<%= correo %>" autocomplete="username" required autofocus>
-  </div>
-  <div class="campo">
-    <label for="contrasena">Contraseña</label>
-    <input id="contrasena" name="contrasena" type="password" autocomplete="current-password" required>
-  </div>
-  <button class="boton">Entrar</button>
-</form>
+</div>

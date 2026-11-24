@@ -161,3 +161,17 @@ for (const campo of document.querySelectorAll('input[data-pesos]')) {
     campo.value = enteros + (partes[2] ?? '');
   });
 }
+
+// Acceso rápido de pruebas: el actor pulsado muestra que está entrando y no se envía dos veces.
+for (const formulario of document.querySelectorAll('[data-acceso-rapido]')) {
+  formulario.addEventListener('submit', (evento) => {
+    if (formulario.dataset.enviando) return evento.preventDefault();
+    formulario.dataset.enviando = 'si';
+    evento.submitter?.setAttribute('aria-busy', 'true');
+  });
+  // Al volver con «Atrás» (caché del navegador), los botones quedan libres otra vez.
+  window.addEventListener('pageshow', () => {
+    delete formulario.dataset.enviando;
+    formulario.querySelectorAll('[aria-busy]').forEach((boton) => boton.removeAttribute('aria-busy'));
+  });
+}
