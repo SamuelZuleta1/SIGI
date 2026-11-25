@@ -43,6 +43,16 @@
     <% if (pagoRegistrado) { const ultimo = incapacidad.pagos[incapacidad.pagos.length - 1]; %>
       <p class="mensaje mensaje-ok entra" role="status">Pago registrado: <%= pesos(ultimo.valor) %> del <%= fechaLarga(ultimo.fechaPago) %>. La incapacidad quedó pagada.</p>
     <% } %>
+    <% if (pagoAnulado) { %>
+      <p class="mensaje mensaje-aviso entra" role="status">
+        Pago de <%= pesos(pagoAnulado.valor) %> del <%= fechaBreve(pagoAnulado.fechaPago) %> anulado.
+        <%= incapacidad.estado === 'cobrada' ? 'Sin pagos vigentes, la incapacidad volvió a «cobrada».' : 'Los demás pagos siguen vigentes.' %>
+      </p>
+    <% } %>
+    <%# Auditoría: si el pago ya no se puede anular (otro lo concilió o anuló), su desplegable ya no está: el error va aquí. %>
+    <% if (errores.anulacion && !cobro.anulables.includes(anulando)) { %>
+      <p class="mensaje mensaje-error" role="alert"><%= errores.anulacion %></p>
+    <% } %>
     <% if (registrada) { %>
       <p class="mensaje mensaje-ok entra" role="status">Incapacidad registrada como cobrada. Tiempo de pago: <%= dias(incapacidad.tiempoPago) %>, a más tardar el <%= fechaLarga(cobro.fechaPrometida) %>.</p>
     <% } %>
@@ -121,7 +131,9 @@
               </form>
             </div>
           </li>
-        <% } else if (cobrada) { %>
+        <%# Auditoría (4A): una rechazada que Cartera recuperó puede tener pagos sin haber sido cobrada. %>
+        <% } else if (cobrada || incapacidad.pagos.length > 0) { %>
+          <% if (cobrada) { %>
           <li class="<%= registrada ? 'entra' : '' %>">
             <span class="punto hecho"><svg viewBox="0 0 24 24" aria-hidden="true"><%- ICONOS.hecho %></svg></span>
             <div class="paso">
@@ -129,14 +141,36 @@
               <p class="tenue">Tiempo de pago: <%= dias(incapacidad.tiempoPago) %> · a más tardar el <%= fechaBreve(cobro.fechaPrometida) %></p>
             </div>
           </li>
+          <% } %>
           <%# HU-15 (DA-08, DA-40): cada pago es un paso; con estado «cobrada» el último paso es el formulario del pago
               y, ya pagada, se pueden registrar más pagos desde un desplegable. %>
-          <% incapacidad.pagos.forEach((p, i) => { %>
-            <li class="<%= pagoRegistrado && i === incapacidad.pagos.length - 1 ? 'entra' : '' %>">
-              <span class="punto hecho"><svg viewBox="0 0 24 24" aria-hidden="true"><%- ICONOS.pago %></svg></span>
+          <%# Auditoría (HU-15, decisión 3A): un pago anulado queda tachado en su sitio con quién, cuándo y el motivo; uno
+              vigente sin conciliar se anula desde un desplegable debajo, como «Registrar otro pago». %>
+          <% let vigentesAntes = 0; %>
+          <% incapacidad.pagos.forEach((p, i) => { const primero = !p.anulacion && vigentesAntes++ === 0; %>
+            <li class="<%= p.anulacion ? 'anulado' : '' %> <%= (pagoRegistrado && i === incapacidad.pagos.length - 1) || pagoAnulado?.idPago === p.idPago ? 'entra' : '' %>">
+              <span class="punto <%= p.anulacion ? 'rechazo' : 'hecho' %>"><svg viewBox="0 0 24 24" aria-hidden="true"><%- p.anulacion ? ICONOS.rechazo : ICONOS.pago %></svg></span>
               <div class="paso">
-                <p class="titulo"><b><%= i === 0 ? 'Pagada' : 'Otro pago' %> · <span class="cifra"><%= pesos(p.valor) %></span></b> <span class="tenue"><%= fechaBreve(p.fechaPago) %></span></p>
-                <% if (i === 0) { %><p class="tenue">Pasó a «pagada»</p><% } %>
+                <p class="titulo"><b><%= p.anulacion ? 'Pago anulado' : primero ? 'Pagada' : 'Otro pago' %> · <span class="cifra"><%= pesos(p.valor) %></span></b> <span class="tenue"><%= fechaBreve(p.fechaPago) %></span></p>
+                <% if (p.anulacion) { %>
+                  <p class="tenue">Anulado<%= p.anulacion.por ? ` por ${p.anulacion.por}` : '' %> el <%= fechaBreve(fechaEnColombia(p.anulacion.fecha)) %>: «<%= p.anulacion.motivo %>»</p>
+                <% } else if (primero) { %><p class="tenue">Pasó a «pagada»</p><% } %>
+                <% if (cobro.anulables.includes(p.idPago)) { const abierto = anulando === p.idPago; %>
+                  <details class="otro-pago anular-pago"<%- abierto ? ' open' : '' %>>
+                    <summary>Anular este pago</summary>
+                    <p class="tenue">Si se digitó mal, anúlelo y registre el correcto. No se borra: queda con su motivo. <%= cobro.pagosVigentes === 1 ? 'Es el único vigente: la incapacidad vuelve a «cobrada».' : '' %></p>
+                    <% if (abierto && errores.anulacion) { %><p class="mensaje mensaje-error separado" role="alert"><%= errores.anulacion %></p><% } %>
+                    <form class="radicar" method="post" action="/incapacidades/<%= incapacidad.idIncapacidad %>/pagos/<%= p.idPago %>/anulacion" novalidate data-un-envio>
+                      <div class="campo <%= abierto && errores.motivo ? 'invalido' : '' %>">
+                        <label for="motivo-<%= p.idPago %>">Motivo de la anulación</label>
+                        <textarea id="motivo-<%= p.idPago %>" name="motivo" maxlength="<%= motivoMaximo %>" required placeholder="Por ejemplo: se digitó 1.250.000 y eran 125.000" aria-describedby="<%= abierto && errores.motivo ? `error-motivo-${p.idPago}` : `ayuda-motivo-${p.idPago}` %>"<%- abierto && errores.motivo ? ' aria-invalid="true" autofocus' : '' %>><%= abierto ? valores.motivo ?? '' : '' %></textarea>
+                        <% if (abierto && errores.motivo) { %><span class="error" id="error-motivo-<%= p.idPago %>"><%= errores.motivo %></span><% } else { %><span class="ayuda" id="ayuda-motivo-<%= p.idPago %>">De <%= motivoMinimo %> a <%= motivoMaximo %> caracteres. Queda quién lo anuló y cuándo.</span><% } %>
+                        <span class="contador" data-contador hidden></span>
+                      </div>
+                      <div class="acciones"><button class="boton peligro" data-enviando="Anulando…">Anular el pago</button></div>
+                    </form>
+                  </details>
+                <% } %>
               </div>
             </li>
           <% }) %>
@@ -158,8 +192,8 @@
               <li>
                 <span class="punto"><svg viewBox="0 0 24 24" aria-hidden="true"><%- ICONOS.nueva %></svg></span>
                 <div class="paso">
-                  <% if (incapacidad.pagos.length > 1) { %>
-                    <p class="titulo"><b>Total pagado · <span class="cifra"><%= pesos(cobro.totalPagado) %></span></b> <span class="tenue"><%= incapacidad.pagos.length %> pagos</span></p>
+                  <% if (cobro.pagosVigentes > 1) { %>
+                    <p class="titulo"><b>Total pagado · <span class="cifra"><%= pesos(cobro.totalPagado) %></span></b> <span class="tenue"><%= cobro.pagosVigentes %> pagos vigentes</span></p>
                   <% } %>
                   <% if (errores.estado) { %><p class="mensaje mensaje-error separado" role="alert"><%= errores.estado %></p><% } %>
                   <details class="otro-pago"<%- conErrorPago ? ' open' : '' %>>
@@ -187,6 +221,8 @@
               <% if (estado === 'rechazada') { %>
                 <p class="titulo"><b>Debe radicarse de nuevo</b></p>
                 <p class="tenue">Pida a <%= incapacidad.entidad %> una nueva transcripción y registre la nueva radicación en <a href="/incapacidades/<%= incapacidad.idIncapacidad %>/radicacion">Radicación</a>.</p>
+                <%# Auditoría (decisión 4A): o reclamarle a la entidad y, con 2 requerimientos, trasladar por rechazo. %>
+                <p class="tenue">Si no se va a radicar de nuevo, haga el <a href="/incapacidades/<%= incapacidad.idIncapacidad %>/requerimientos">cobro persuasivo</a>: con dos requerimientos se puede trasladar a Cartera y Jurídica por rechazo.</p>
               <% } else { %>
                 <p class="titulo"><b>Aún no se ha radicado</b></p>
                 <p class="tenue">Radíquela primero en <a href="/incapacidades/<%= incapacidad.idIncapacidad %>/radicacion">Radicación</a>.</p>

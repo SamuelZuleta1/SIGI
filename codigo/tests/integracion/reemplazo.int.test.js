@@ -3,7 +3,9 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { crearClienteServidor } from '../../src/config/supabase.js';
 import { crearControlIncapacidades } from '../../src/controllers/control-incapacidades.js';
 import { crearBaseDeDatos } from '../../src/persistence/base-de-datos.js';
-import { formularioDeRegistro } from '../helpers/fabricas.js';
+import { formularioDeRegistro, diasDistintos } from '../helpers/fabricas.js';
+
+const diasDelCaso = diasDistintos(); // HU-03: sin duplicados entre las pruebas del archivo
 
 const servidor = crearClienteServidor();
 const baseDeDatos = crearBaseDeDatos(servidor);
@@ -28,7 +30,7 @@ beforeAll(async () => {
   lider = usuarios.find((u) => u.rol === 'lider');
   const entidad = (await baseDeDatos.consultarEntidades()).find((e) => e.nombre === 'Nueva EPS');
   ({ idIncapacidad } = await control.registrarIncapacidad(
-    formularioDeRegistro({ correoColaborador, entidad: String(entidad.id) }),
+    formularioDeRegistro({ diasIncapacidad: diasDelCaso(), correoColaborador, entidad: String(entidad.id) }),
     usuarios.find((u) => u.rol === 'receptor'),
   ));
 });

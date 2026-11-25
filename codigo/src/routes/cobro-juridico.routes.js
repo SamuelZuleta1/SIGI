@@ -7,7 +7,7 @@ import { Router } from 'express';
 import { ErrorDeAviso } from '../controllers/error-de-aviso.js';
 import { ErrorDeValidacion } from '../controllers/error-de-validacion.js';
 import { responderAvisoFallido } from './aviso-fallido.js';
-import { FUNDAMENTOS_MAXIMO, MOTIVO_MAXIMO } from '../controllers/cobro-juridico.controller.js';
+import { FUNDAMENTOS_MAXIMO, MOTIVO_MAXIMO, NOMBRES_CAUSAL } from '../controllers/cobro-juridico.controller.js';
 import { permitir } from '../middleware/autenticacion.js';
 import { NOMBRES_DECISION, NOMBRES_TIPO_INCAPACIDAD } from '../models/incapacidad.model.js';
 import { fechaBreve, fechaLarga } from '../servicios/dias-habiles.js';
@@ -29,6 +29,7 @@ export function crearRutasCobroJuridico({ control }) {
       fundamentosMaximo: FUNDAMENTOS_MAXIMO,
       motivoMaximo: MOTIVO_MAXIMO,
       nombresDecision: NOMBRES_DECISION,
+      nombresCausal: NOMBRES_CAUSAL,
       ...datos,
     });
 
@@ -67,23 +68,26 @@ export function crearRutasCobroJuridico({ control }) {
     }
   });
 
-  // trasladarACartera(motivo) — HU-19.CA1. Motivo no válido: 400; sin demora, no pendiente o ya trasladada: 409.
+  // trasladarACartera(causal, motivo) — HU-19.CA1 (auditoría, decisión 4A). Causal o motivo no válidos: 400; faltan
+  // requerimientos, la causal no se cumple, no está en cobro persuasivo o ya se trasladó: 409.
   rutas.post('/incapacidades/:id/traslado', permitir('trasladarACartera'), async (req, res) => {
     const motivo = String(req.body?.motivo ?? '');
+    const causal = String(req.body?.causal ?? '');
     try {
-      const resultado = await control.trasladarACartera(req.params.id, { motivo });
+      const resultado = await control.trasladarACartera(req.params.id, { causal, motivo });
       if (!resultado) return noExiste(res);
       res.redirect(303, `/incapacidades/${resultado.idIncapacidad}/requerimientos?trasladado=1`);
     } catch (error) {
       const volverAlFormulario = async (estado, errores) => {
         const cobro = await control.prepararRequerimientos(req.params.id);
         if (!cobro) return noExiste(res);
-        await pagina(res, estado, { cobro, errores, valores: { motivo: motivo.slice(0, MOTIVO_MAXIMO + 1) } });
+        await pagina(res, estado, { cobro, errores, valores: { causal: causal.slice(0, 20), motivo: motivo.slice(0, MOTIVO_MAXIMO + 1) } });
       };
       // El correo a Cartera y Jurídica falló: 502 si se deshizo el traslado, 500 si no (ver aviso-fallido.js).
       if (error instanceof ErrorDeAviso) return responderAvisoFallido(res, error, { destinatario: 'a Cartera y Jurídica', volverAlFormulario });
       if (!(error instanceof ErrorDeValidacion)) throw error;
-      await volverAlFormulario(error.errores.estado ? 409 : 400, error.errores);
+      const conflicto = error.errores.estado || error.errores.requerimientos || (error.errores.causal && causal !== '' && Object.hasOwn(NOMBRES_CAUSAL, causal));
+      await volverAlFormulario(conflicto ? 409 : 400, error.errores);
     }
   });
 
@@ -92,6 +96,7 @@ export function crearRutasCobroJuridico({ control }) {
     const datos = await control.consultarTrasladadas(String(req.query.ver ?? 'pendientes'));
     res.pagina('cobro-juridico/consultar-trasladadas', {
       titulo: 'Cobro jurídico',
+      nombresCausal: NOMBRES_CAUSAL,
       ...datos,
       fechaBreve,
       nombresTipo: NOMBRES_TIPO_INCAPACIDAD,
@@ -108,6 +113,7 @@ export function crearRutasCobroJuridico({ control }) {
       fechaLarga,
       nombresTipo: NOMBRES_TIPO_INCAPACIDAD,
       nombresDecision: NOMBRES_DECISION,
+      nombresCausal: NOMBRES_CAUSAL,
       ...datos,
     });
 

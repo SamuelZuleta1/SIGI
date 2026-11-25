@@ -48,7 +48,7 @@ describe('HU-15.CA1 — cobrada → pagada, con el valor y la fecha', () => {
     await cobrar();
     await pagar('1.250.000,50');
     const datos = await control.prepararCobro('1');
-    expect(datos.incapacidad.pagos).toEqual([{ idPago: 1, valor: '1250000.50', fechaPago: '2026-11-20' }]);
+    expect(datos.incapacidad.pagos).toEqual([{ idPago: 1, valor: '1250000.50', fechaPago: '2026-11-20', conciliado: false, anulacion: null }]);
     expect(datos.totalPagado).toBe('1250000.50');
     expect(datos.puedeRegistrarPago).toBe(true);
   });

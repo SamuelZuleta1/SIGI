@@ -175,3 +175,28 @@ for (const formulario of document.querySelectorAll('[data-acceso-rapido]')) {
     formulario.querySelectorAll('[aria-busy]').forEach((boton) => boton.removeAttribute('aria-busy'));
   });
 }
+
+// Registro (HU-12, decisión 2A): la fecha de nacimiento aparece solo con una licencia y, en la de paternidad, se
+// muestra en vivo el plazo para radicar (30 días desde el nacimiento, DA-13). Sin JavaScript el campo se ve siempre.
+for (const bloque of document.querySelectorAll('[data-nacimiento]')) {
+  const formulario = bloque.closest('form');
+  const tipo = formulario.querySelector('#tipo');
+  const campo = bloque.querySelector('input');
+  const plazo = bloque.querySelector('[data-plazo-paternidad]');
+  const ayuda = bloque.querySelector('[data-ayuda-nacimiento]');
+  const formato = new Intl.DateTimeFormat('es-CO', { timeZone: 'UTC', day: 'numeric', month: 'long', year: 'numeric' });
+  if (ayuda) ayuda.textContent = 'La del certificado de nacido vivo.';
+  const pintar = () => {
+    const licencia = tipo.value.startsWith('licencia_');
+    if (licencia && bloque.hidden) bloque.classList.add('entra'); // aparece por la elección: entrada breve
+    bloque.hidden = !licencia;
+    campo.disabled = !licencia; // oculto no se envía: no queda una fecha de otra elección
+    const [anio, mes, dia] = campo.value.split('-').map(Number);
+    const conPlazo = tipo.value === 'licencia_paternidad' && anio > 0;
+    plazo.hidden = !conPlazo;
+    if (conPlazo) plazo.textContent = `Plazo para radicar: ${formato.format(new Date(Date.UTC(anio, mes - 1, dia + 30)))} (30 días desde el nacimiento).`;
+  };
+  tipo.addEventListener('change', pintar);
+  campo.addEventListener('input', pintar);
+  pintar();
+}

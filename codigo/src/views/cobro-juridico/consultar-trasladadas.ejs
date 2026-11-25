@@ -45,7 +45,7 @@
             <td><a href="/incapacidades/<%= t.idIncapacidad %>/decision" aria-label="Abrir la incapacidad <%= t.idIncapacidad %>"><%= t.idIncapacidad %></a></td>
             <td><%= t.colaborador %><small><%= nombresTipo[t.tipo] ?? t.tipo %></small></td>
             <td><%= t.entidad %><% if (t.conDemora) { %><small><%= dias(t.diasDemora) %> de demora</small><% } %></td>
-            <td class="fecha"><%= fechaBreve(t.fechaTraslado) %></td>
+            <td class="fecha"><%= fechaBreve(t.fechaTraslado) %><% if (t.causalTraslado) { %><small><%= nombresCausal[t.causalTraslado] %></small><% } %></td>
             <td><%= t.requerimientos %></td>
             <td>
               <% if (t.decision) { %>

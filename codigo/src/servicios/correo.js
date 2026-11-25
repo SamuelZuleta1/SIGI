@@ -98,9 +98,10 @@ export function crearServicioCorreo({ transporte, remitente, destinatarios }) {
       ]),
 
     // DS-08 → Cartera y Jurídica
-    notificarTraslado: (incapacidad, motivo) =>
+    notificarTraslado: (incapacidad, motivo, causal) =>
       enviar(destinatarios.cartera, `Traslado a Cartera y Jurídica — incapacidad n.º ${incapacidad.idIncapacidad}`, [
         'Se traslada esta incapacidad para cobro jurídico.',
+        ...(causal ? [`Causal: ${causal}`] : []), // auditoría (decisión 4A): causal de la lista cerrada
         `Motivo: ${motivo}`,
         '',
         ...resumen(incapacidad),

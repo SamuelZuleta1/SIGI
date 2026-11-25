@@ -41,9 +41,13 @@ const alerta = (incapacidad, tipo, estado, fechaLimite, hoy, extra = {}) => ({
   ...extra,
 });
 
-/** Envío (DA-37): solo puede llegar tarde, porque ya se recibió; se muestra mientras siga sin radicar. */
+/**
+ * Envío (DA-37): solo puede llegar tarde, porque ya se recibió; se muestra mientras siga sin radicar.
+ * Auditoría (HU-03): una recepción posterior a hoy no es una llegada tarde (el registro ya no la admite; si quedara
+ * algún dato así de antes, no se alerta).
+ */
 function alertaEnvio(i, hoy) {
-  if (i.estado != null) return null;
+  if (i.estado != null || i.fechaRecepcion > hoy) return null;
   const fechaLimite = sumarIntervalo(i.fechaInicio, { dias: DIAS_PARA_ENVIAR });
   if (i.fechaRecepcion <= fechaLimite) return null;
   return alerta(i, 'envio', 'vencido', fechaLimite, hoy, {

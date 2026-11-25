@@ -22,8 +22,14 @@ const ids = [];
 let receptor;
 let auxiliar;
 
+// HU-03: el mismo colaborador con los mismos días e inicio sería un duplicado; una repetición va con otro colaborador
+// (n.correo), y la limpieza los borra a todos por el final del correo.
+const casos = new Map();
 const registrar = async (dias, fechaInicio = '2026-04-01') => {
-  const formulario = formularioDeRegistro({ correoColaborador, diasIncapacidad: String(dias), fechaInicio, fechaRecepcion: fechaInicio });
+  const vez = casos.get(`${dias}|${fechaInicio}`) ?? 0;
+  casos.set(`${dias}|${fechaInicio}`, vez + 1);
+  const correo = vez === 0 ? correoColaborador : `${vez}.${correoColaborador}`;
+  const formulario = formularioDeRegistro({ correoColaborador: correo, diasIncapacidad: String(dias), fechaInicio, fechaRecepcion: fechaInicio });
   const { idIncapacidad } = await control.registrarIncapacidad(formulario, receptor);
   ids.push(idIncapacidad);
   return idIncapacidad;
@@ -42,7 +48,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   if (ids.length) await servidor.from('incapacidad').delete().in('id', ids);
-  await servidor.from('colaborador').delete().eq('correo', correoColaborador);
+  await servidor.from('colaborador').delete().like('correo', `%${correoColaborador}`);
 });
 
 describe('HU-21 — reconocimiento económico (base de datos)', () => {

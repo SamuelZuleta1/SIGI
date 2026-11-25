@@ -9,7 +9,6 @@ import { DOBLE_ENVIO_MS } from '../../src/controllers/reportes.controller.js';
 import { ErrorDeAviso } from '../../src/controllers/error-de-aviso.js';
 import { crearBaseDeDatos } from '../../src/persistence/base-de-datos.js';
 import { crearCorreoFalso } from '../helpers/correo-falso.js';
-import { formularioDeRegistro } from '../helpers/fabricas.js';
 
 const servidor = crearClienteServidor();
 const baseDeDatos = crearBaseDeDatos(servidor);
@@ -31,12 +30,18 @@ beforeAll(async () => {
   auxiliar = usuarios.data?.find((u) => u.rol === 'auxiliar');
   if (usuarios.error || !receptor || !auxiliar) throw new Error('Faltan los usuarios de demostración: ejecute `npm run db:usuarios`');
   // La tercera empezó más de un año antes del mes y dura 500 días: se lee por la consulta de las largas.
+  // El mes es de 2021 (para no cruzarse con datos reales) y el registro ya no admite inicios de hace más de 3 años
+  // (HU-03, auditoría): se insertan directo, como datos anteriores. Las restricciones de la tabla se cumplen igual.
+  const entidad = (await baseDeDatos.consultarEntidades()).find((e) => e.nombre === 'Nueva EPS');
+  const colaborador = (await servidor.from('colaborador').insert({ nombre, correo: correoColaborador, creado_por: receptor.id }).select('id').single()).data;
   for (const [fechaInicio, diasIncapacidad] of [['2021-02-25', 10], ['2021-03-15', 3], ['2020-01-10', 500]]) {
-    const { idIncapacidad } = await control.registrarIncapacidad(
-      formularioDeRegistro({ colaborador: nombre, correoColaborador, fechaInicio, diasIncapacidad: String(diasIncapacidad), fechaRecepcion: fechaInicio }),
-      receptor,
-    );
-    ids.push(idIncapacidad);
+    const { data, error: e } = await servidor
+      .from('incapacidad')
+      .insert({ colaborador_id: colaborador.id, entidad_id: entidad.id, tipo: 'enfermedad_general', fecha_inicio: fechaInicio, dias_incapacidad: diasIncapacidad, fecha_recepcion: fechaInicio, creado_por: receptor.id })
+      .select('id')
+      .single();
+    if (e) throw e;
+    ids.push(data.id);
   }
 });
 

@@ -7,7 +7,7 @@ import { TAMANO_MAXIMO_ARCHIVO } from '../controllers/registro.controller.js';
 import { permitir } from '../middleware/autenticacion.js';
 import { NOMBRES_TIPO_DOCUMENTO, TIPOS_DOCUMENTO } from '../models/documento.model.js';
 import { NOMBRES_TIPO_INCAPACIDAD } from '../models/incapacidad.model.js';
-import { fechaBreve } from '../servicios/dias-habiles.js';
+import { fechaBreve, hoyEnColombia } from '../servicios/dias-habiles.js';
 
 // Los archivos se reciben en memoria y el Control los pasa al bucket privado: nunca tocan el disco del servidor.
 // Un campo de archivo por tipo de documento (DA-06).
@@ -16,8 +16,9 @@ const recibirArchivos = multer({
   limits: { fileSize: TAMANO_MAXIMO_ARCHIVO, files: TIPOS_DOCUMENTO.length, fields: 0 },
 }).fields(TIPOS_DOCUMENTO.map((tipo) => ({ name: tipo, maxCount: 1 })));
 
-const CAMPOS = ['colaborador', 'correoColaborador', 'tipo', 'entidad', 'fechaInicio', 'diasIncapacidad', 'fechaRecepcion'];
-const hoy = () => new Date().toLocaleDateString('en-CA'); // AAAA-MM-DD en la hora local
+const CAMPOS = ['colaborador', 'correoColaborador', 'tipo', 'entidad', 'fechaInicio', 'diasIncapacidad', 'fechaRecepcion', 'fechaNacimiento'];
+// AAAA-MM-DD en Colombia: con la hora del servidor (UTC en Vercel), de noche propondría mañana y el registro la rechaza.
+const hoy = hoyEnColombia;
 
 export function crearRutasRegistro({ control }) {
   const rutas = Router();
@@ -28,6 +29,7 @@ export function crearRutasRegistro({ control }) {
       tipos: NOMBRES_TIPO_INCAPACIDAD,
       entidades: await control.obtenerEntidades(),
       valores: { fechaRecepcion: hoy(), ...valores },
+      hoy: hoy(),
       errores,
       primerError: CAMPOS.find((campo) => errores[campo]) ?? null,
       registrada,

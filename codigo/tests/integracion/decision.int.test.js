@@ -6,7 +6,9 @@ import { BUCKET_DOCUMENTOS, crearClienteServidor } from '../../src/config/supaba
 import { crearControlIncapacidades } from '../../src/controllers/control-incapacidades.js';
 import { crearBaseDeDatos } from '../../src/persistence/base-de-datos.js';
 import { crearCorreoFalso } from '../helpers/correo-falso.js';
-import { formularioDeRegistro, PDF } from '../helpers/fabricas.js';
+import { formularioDeRegistro, PDF, diasDistintos } from '../helpers/fabricas.js';
+
+const diasDelCaso = diasDistintos(); // HU-03: sin duplicados entre las pruebas del archivo
 
 const servidor = crearClienteServidor();
 const baseDeDatos = crearBaseDeDatos(servidor);
@@ -21,12 +23,14 @@ let auxiliar;
 
 const registrarTrasladada = async () => {
   hoy = '2026-11-21';
-  const { idIncapacidad } = await control.registrarIncapacidad(formularioDeRegistro({ correoColaborador }), receptor);
+  const { idIncapacidad } = await control.registrarIncapacidad(formularioDeRegistro({ diasIncapacidad: diasDelCaso(), correoColaborador }), receptor);
   ids.push(idIncapacidad);
   await control.registrarRadicacion(idIncapacidad, { radicado: 'RAD-DEC', evidencia: PDF }, auxiliar);
   await control.registrarCobrada(idIncapacidad, { tiempoPago: '10' }); // prometida: 2026-12-01
   hoy = '2026-12-04';
-  await control.trasladarACartera(idIncapacidad, { motivo: '180 días sin pago' });
+  // Auditoría (4A): el traslado exige 2 requerimientos y una causal.
+  for (const n of [1, 2]) await control.registrarRequerimiento(idIncapacidad, { fundamentos: `Requerimiento número ${n} de cobro.` }, auxiliar);
+  await control.trasladarACartera(idIncapacidad, { causal: 'deterioro', motivo: '180 días sin pago' });
   return idIncapacidad;
 };
 
@@ -91,6 +95,6 @@ describe('HU-20 — lista de trasladadas (base de datos)', () => {
   it('consultarTrasladadas trae la decisión, el motivo y el número de requerimientos', async () => {
     const id = await registrarTrasladada();
     const fila = (await baseDeDatos.consultarTrasladadas()).find((t) => t.idIncapacidad === id);
-    expect(fila).toMatchObject({ motivoTraslado: '180 días sin pago', fechaTraslado: '2026-12-04', decision: null, fechaDecision: null, requerimientos: 0 });
+    expect(fila).toMatchObject({ motivoTraslado: '180 días sin pago', fechaTraslado: '2026-12-04', decision: null, fechaDecision: null, requerimientos: 2, causalTraslado: 'deterioro' });
   });
 });

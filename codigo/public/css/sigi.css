@@ -610,6 +610,10 @@ input[type='file']::file-selector-button {
 @media (hover: hover) { .boton.peligro:hover { background: color-mix(in srgb, var(--mal) 86%, var(--texto)); border-color: transparent; } }
 .contador { justify-self: end; font-size: 0.74rem; color: var(--tenue); font-variant-numeric: tabular-nums; }
 .contador[hidden] { display: none; }
+/* Registro (HU-12, decisión 2A): la fecha de nacimiento solo con una licencia; la casilla del nombre guardado (HU-03). */
+.campo[hidden], .campo [hidden] { display: none; }
+.campo .casilla { margin-top: 2px; font-weight: 500; }
+.campo .casilla input { height: 16px; padding: 0; border-radius: 4px; accent-color: var(--acento); }
 
 /* ---------- registrar el pago (HU-15): último paso de la línea de tiempo del cobro (DA-40) ---------- */
 .pago .campos.dos { grid-template-columns: repeat(2, minmax(0, 15rem)); }
@@ -632,6 +636,31 @@ input[type='file']::file-selector-button {
 @media (hover: hover) { .otro-pago summary:hover { background: var(--info-f); border-color: transparent; } }
 .otro-pago > p { margin-top: 8px; }
 .otro-pago[open] > .radicar { animation: entra 0.26s var(--ease); }
+/* Auditoría (HU-15/HU-25, decisión 3A): anular un pago desde su paso de la línea de tiempo o su fila. */
+.anular-pago summary { color: var(--mal); }
+.anular-pago summary::before, .anular-pago[open] summary::before { content: none; }
+@media (hover: hover) { .anular-pago summary:hover { background: var(--mal-f); } }
+.linea-tiempo > li.anulado .titulo b { text-decoration: line-through; text-decoration-color: color-mix(in srgb, var(--mal) 70%, transparent); text-decoration-thickness: 1.5px; }
+.linea-tiempo > li.anulado .titulo b, .linea-tiempo > li.anulado .cifra { color: var(--tenue); }
+tr.anulado td { color: var(--tenue); }
+tr.anulado td.valor { text-decoration: line-through; text-decoration-color: color-mix(in srgb, var(--mal) 70%, transparent); }
+/* La fila del formulario va debajo de la suya, a todo el ancho; el desplegable de la fila la muestra (sin JavaScript,
+   con :has). Un navegador sin :has la deja siempre visible. */
+.anular-fila { display: grid; gap: 8px; max-width: 560px; }
+tr.fila-anular > td { padding-top: 4px; padding-bottom: 14px; background: color-mix(in srgb, var(--mal-f) 35%, transparent); }
+@supports selector(:has(*)) {
+  tr.fila-anular { display: none; }
+  tr:has(details.anular-pago[open]) + tr.fila-anular { display: table-row; }
+  tr:has(details.anular-pago[open]) > td { border-bottom-color: transparent; }
+}
+/* Auditoría (HU-19, decisión 4A): causales del traslado; las que no se cumplen hoy se ven con su motivo. */
+.causales { display: grid; gap: 8px; margin: 0; padding: 0; border: 0; min-width: 0; }
+.causales legend { padding: 0; margin-bottom: 6px; font-weight: 500; font-size: 0.84rem; }
+.causales .casilla input { margin-top: 2px; accent-color: var(--acento); }
+.causales .casilla small { margin-top: 2px; }
+.causales .no-disponible { color: var(--tenue); cursor: not-allowed; }
+.causales.invalido legend { color: var(--mal); }
+.nota-anulacion { display: block; margin-top: 4px; max-width: 34ch; }
 
 /* ---------- seguimiento semanal (HU-16): pestañas + tabla de pendientes y línea de tiempo (DA-41) ---------- */
 .pendientes { min-width: 720px; }

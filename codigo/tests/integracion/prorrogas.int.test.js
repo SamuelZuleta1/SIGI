@@ -27,11 +27,22 @@ const comprobar = ({ data, error }) => {
 };
 const fila = async (id) => comprobar(await servidor.from('incapacidad').select('*').eq('id', id).single());
 
+// Cada caso con su propio colaborador: el mismo colaborador, tipo, inicio y días sería un duplicado (HU-03).
+const colaboradores = [];
 async function primera(dias, fechaInicio = '2026-04-01', tipo = 'enfermedad_general') {
+  const nuevo = comprobar(
+    await servidor
+      .from('colaborador')
+      .insert({ nombre: marca, correo: `da50.${colaboradores.length + 1}.${Date.now()}@sigi.test`, creado_por: auxiliar.id })
+      .select('id')
+      .single(),
+  ).id;
+  colaboradores.push(nuevo);
+  const nacimiento = tipo.startsWith('licencia_') ? { fecha_nacimiento: fechaInicio } : {}; // HU-12
   const { id } = comprobar(
     await servidor
       .from('incapacidad')
-      .insert({ colaborador_id: colaborador, entidad_id: entidad.id, tipo, fecha_inicio: fechaInicio, dias_incapacidad: dias, fecha_recepcion: fechaInicio, creado_por: auxiliar.id })
+      .insert({ colaborador_id: nuevo, entidad_id: entidad.id, tipo, fecha_inicio: fechaInicio, dias_incapacidad: dias, fecha_recepcion: fechaInicio, creado_por: auxiliar.id, ...nacimiento })
       .select('id')
       .single(),
   );
@@ -59,7 +70,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   for (const id of [...creadas].reverse()) await servidor.from('incapacidad').delete().eq('id', id);
-  await servidor.from('colaborador').delete().eq('id', colaborador);
+  await servidor.from('colaborador').delete().in('id', [colaborador, ...colaboradores]);
 });
 
 describe('DA-50 — prórrogas (persistencia real)', () => {
@@ -80,7 +91,7 @@ describe('DA-50 — prórrogas (persistencia real)', () => {
     const ultima = await fila(tres);
     expect(ultima).toMatchObject({
       prorroga_de: dos, caso_id: uno, dias_previos: 100, dias_acumulados: 160, tiene_prorroga: false,
-      colaborador_id: colaborador, entidad_id: entidad.id, tipo: 'enfermedad_general', estado: null,
+      colaborador_id: (await fila(uno)).colaborador_id, entidad_id: entidad.id, tipo: 'enfermedad_general', estado: null,
       fecha_dia_90: '2026-06-29', fecha_dia_120: '2026-08-08', fecha_dia_150: '2026-09-07', fecha_dia_180: null,
     });
 

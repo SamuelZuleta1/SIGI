@@ -81,13 +81,23 @@ describe('HU-26 — conciliación (rutas)', () => {
     expect((await agente.get('/conciliacion/1')).text).not.toContain('Se envió el detalle');
   });
 
+  it('B5 — con varios saldos, en plural: «Quedaron 2 saldos … Se guardaron y se notificaron»', async () => {
+    const agente = await agenteCon(request, app, 'auxiliar');
+    const res = await conciliar(agente, { entidad: '2' }); // ningún pago elegido: los 2 consignados quedan sin identificar
+    expect(res.status).toBe(303);
+    const pagina = await agente.get(res.headers.location);
+    expect(pagina.text).toContain('Quedaron <strong>2</strong> saldos sin identificar. Se guardaron y se notificaron a Contabilidad y Tesorería.');
+  });
+
   it('HU-26.CA3 — quedan saldos: los muestra al auxiliar y los notifica', async () => {
     const agente = await agenteCon(request, app, 'auxiliar');
     const res = await conciliar(agente, { entidad: '2', pagos: String(pagoAna) });
     expect(res.status).toBe(303);
     expect(enviados.map((m) => m.subject)).toEqual(['[SIGI] Saldos pendientes por identificar — Nueva EPS']);
     const pagina = await agente.get(res.headers.location);
-    expect(pagina.text).toContain('Quedaron <strong>1</strong> saldo sin identificar.');
+    // B5: en singular, verbo y sustantivo concuerdan.
+    expect(pagina.text).toContain('Quedó <strong>1</strong> saldo sin identificar. Se guardó y se notificó a Contabilidad y Tesorería.');
+    expect(pagina.text).not.toContain('Quedaron <strong>1</strong>');
     expect(pagina.text).toContain('Saldos pendientes');
     expect(pagina.text).toContain('Luis Pérez');
     expect(pagina.text).toContain('$ 420.000,50');

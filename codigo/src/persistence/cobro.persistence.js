@@ -19,9 +19,9 @@ export function crearPersistenciaCobro(cliente) {
         await cliente
           .from('incapacidad')
           .select(
-            'id, tipo, fecha_inicio, dias_incapacidad, estado, causal_rechazo, fecha_rechazo, tiempo_pago, fecha_cobrada, fecha_archivo_preparado, ' +
+            'id, tipo, fecha_inicio, dias_incapacidad, estado, causal_rechazo, fecha_rechazo, tiempo_pago, fecha_cobrada, fecha_archivo_preparado, causal_traslado, ' +
               'colaborador(nombre), entidad(nombre), radicacion(id, radicado, evidencia, creado_en), ' +
-              'pago(id, valor, fecha_pago)',
+              'pago(id, valor, fecha_pago, conciliado, anulado_en, motivo_anulacion, anulador:usuario!pago_anulado_por_fkey(correo))',
           )
           .eq('id', idIncapacidad)
           .order('id', { referencedTable: 'radicacion' })
@@ -41,6 +41,8 @@ export function crearPersistenciaCobro(cliente) {
         fechaRechazo: fila.fecha_rechazo,
         tiempoPago: fila.tiempo_pago,
         fechaCobrada: fila.fecha_cobrada,
+        // Auditoría (4A): una rechazada trasladada por rechazo admite el pago si Cartera la recupera.
+        causalTraslado: fila.causal_traslado,
         // Con el archivo preparado (HU-29, DA-59) ya no se registran pagos.
         archivoPreparado: fila.fecha_archivo_preparado != null,
         radicaciones: fila.radicacion.map((r) => ({
@@ -50,7 +52,14 @@ export function crearPersistenciaCobro(cliente) {
           fecha: r.creado_en,
         })),
         // numeric llega como número en el JSON; se pasa a texto con dos decimales para no perder centavos.
-        pagos: fila.pago.map((p) => ({ idPago: p.id, valor: Number(p.valor).toFixed(2), fechaPago: p.fecha_pago })),
+        // Auditoría (HU-15): un pago anulado se conserva con quién, cuándo y el motivo; no cuenta para el total.
+        pagos: fila.pago.map((p) => ({
+          idPago: p.id,
+          valor: Number(p.valor).toFixed(2),
+          fechaPago: p.fecha_pago,
+          conciliado: p.conciliado,
+          anulacion: p.anulado_en ? { fecha: p.anulado_en, motivo: p.motivo_anulacion, por: p.anulador?.correo ?? null } : null,
+        })),
       };
     },
 
@@ -104,6 +113,15 @@ export function crearPersistenciaCobro(cliente) {
         }),
       );
       return id == null ? null : Number(id);
+    },
+
+    /**
+     * Auditoría (HU-15): anula un pago mal digitado sin borrarlo, con `anular_pago`: guarda quién, cuándo y el motivo y,
+     * si la incapacidad se queda sin pagos vigentes, la devuelve a «cobrada». Solo sin conciliar y sin archivo preparado.
+     * @returns {Promise<boolean>} false si ya no se podía (anulado, conciliado o archivo preparado entre tanto).
+     */
+    async anularPago(idPago, motivo, por) {
+      return comprobar(await cliente.rpc('anular_pago', { p_pago_id: idPago, p_motivo: motivo, p_por: por })) === true;
     },
   };
 }

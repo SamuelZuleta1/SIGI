@@ -5,6 +5,7 @@
 // Operación de la Vista: identificarPagos(entidad, detallePagos) (HU-26), solo el auxiliar: GET/POST /conciliacion
 // (elegir la entidad y los pagos registrados) y GET /conciliacion/:id (el detalle conciliado o los saldos, DA-56).
 import { Router } from 'express';
+import { MOTIVO_ANULACION_MAXIMO, MOTIVO_ANULACION_MINIMO } from '../controllers/anulacion.js';
 import { FILAS_INICIALES, FILAS_MAXIMAS, FILAS_POR_AGREGAR, leerFilas, leerPagosElegidos } from '../controllers/conciliacion.controller.js';
 import { ErrorDeAviso } from '../controllers/error-de-aviso.js';
 import { ErrorDeValidacion } from '../controllers/error-de-validacion.js';
@@ -31,6 +32,11 @@ export function crearRutasConciliacion({ control }) {
       entidadElegida: '',
       filas,
       filasMaximas: FILAS_MAXIMAS,
+      anulado: null,
+      anulando: null,
+      valoresAnulacion: {},
+      motivoMinimo: MOTIVO_ANULACION_MINIMO,
+      motivoMaximo: MOTIVO_ANULACION_MAXIMO,
       fechaBreve,
       fechaEnColombia,
       pesos,
@@ -41,8 +47,30 @@ export function crearRutasConciliacion({ control }) {
   const texto = (valor) => (typeof valor === 'string' ? valor : '');
 
   // Tras registrar se vuelve con ?registrados=N&entidad=ID; la confirmación solo aparece si coincide con lo guardado.
+  // ?anulado=ID: confirmación de la anulación (auditoría HU-25), solo si ese pago de verdad está anulado.
   rutas.get('/pagos-consignados', permitir('registrarPagosConsignados'), async (req, res) => {
-    await pagina(res, 200, { confirmar: { cantidad: texto(req.query.registrados), entidad: texto(req.query.entidad) } });
+    await pagina(res, 200, {
+      confirmar: { cantidad: texto(req.query.registrados), entidad: texto(req.query.entidad) },
+      anulado: /^[1-9]\d{0,17}$/.test(texto(req.query.anulado)) ? Number(req.query.anulado) : null,
+    });
+  });
+
+  // Auditoría (HU-25): anularPagoConsignado(id, motivo). Motivo no válido: 400; ya anulado o conciliado: 409; no existe: 404.
+  // Si falla, el desplegable de esa fila vuelve abierto con lo escrito.
+  rutas.post('/pagos-consignados/:id/anulacion', permitir('anularPagoConsignado'), async (req, res) => {
+    const motivo = texto(req.body?.motivo);
+    try {
+      const resultado = await control.anularPagoConsignado(req.params.id, { motivo }, req.usuario);
+      if (!resultado) return pagina(res, 404, { errores: { aviso: 'No hay un pago consignado con ese número.' } });
+      res.redirect(303, `/pagos-consignados?anulado=${resultado.id}`);
+    } catch (error) {
+      if (!(error instanceof ErrorDeValidacion)) throw error;
+      await pagina(res, error.errores.anulacion ? 409 : 400, {
+        anulando: Number(req.params.id) || null,
+        errores: Object.fromEntries(Object.entries(error.errores).map(([c, m]) => [`anular-${c}`, m])),
+        valoresAnulacion: { motivo: motivo.trim().slice(0, MOTIVO_ANULACION_MAXIMO * 2) },
+      });
+    }
   });
 
   // registrarPagosConsignados(listaPagos) — HU-25. Datos no válidos: 400; el aviso falló y se deshizo: 502.

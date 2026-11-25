@@ -5,7 +5,7 @@ import { crearApp } from '../../src/app.js';
 import { crearControlIncapacidades } from '../../src/controllers/control-incapacidades.js';
 import { crearBaseDeDatosFalsa } from '../helpers/base-de-datos-falsa.js';
 import { crearCorreoFalso } from '../helpers/correo-falso.js';
-import { formularioDeRegistro, PDF } from '../helpers/fabricas.js';
+import { formularioDeRegistro, PDF, trasladarConRequerimientos } from '../helpers/fabricas.js';
 import { agenteCon, crearSesionFalsa, USUARIOS } from '../helpers/sesion-falsa.js';
 
 let app;
@@ -24,7 +24,7 @@ beforeEach(async () => {
   hoy = '2026-12-04';
 });
 
-const trasladar = (motivo = '180 días sin pago') => control.trasladarACartera('1', { motivo });
+const trasladar = (motivo = '180 días sin pago') => trasladarConRequerimientos(control, 1, { motivo });
 const decidir = (agente, decision = 'recuperar') => agente.post('/incapacidades/1/decision').type('form').send({ decision });
 
 describe('HU-20 — decisión de Cartera y Jurídica (rutas)', () => {

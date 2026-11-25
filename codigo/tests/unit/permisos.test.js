@@ -9,12 +9,13 @@ const ESPERADO = {
   registrarDocumentos: ['receptor', 'auxiliar'],
   registrarReemplazo: ['lider'],
   registrarPagosConsignados: ['contabilidad'],
+  anularPagoConsignado: ['contabilidad'], // auditoría (HU-25): quien registra el consignado lo anula
   registrarDecision: ['cartera'],
 };
 const SOLO_AUXILIAR = [
   'verificarDocumentacion', 'confirmarVerificacion', 'notificarFaltantes', 'registrarSegundoLlamado', 'verDocumento',
   'prepararRadicacion', 'registrarRadicacion', 'consultarEstados', 'consultarAlertas',
-  'registrarCobrada', 'registrarRechazo', 'registrarPago',
+  'registrarCobrada', 'registrarRechazo', 'registrarPago', 'anularPago', // auditoría (HU-15): quien registra el pago lo anula
   'consultarPendientesDePago', 'registrarSeguimiento', 'registrarAcuerdo',
   'registrarRequerimiento', 'trasladarACartera', 'calcularReconocimiento',
   'consultarReporteProlongadas', 'registrarConcepto', 'registrarFaltaConcepto', 'registrarSuspensionPago',
@@ -23,9 +24,9 @@ const SOLO_AUXILIAR = [
 for (const operacion of SOLO_AUXILIAR) ESPERADO[operacion] = ['auxiliar'];
 
 describe('HU-02 / DA-02 — permisos por rol', () => {
-  it('la tabla cubre las 31 operaciones de la Vista más «ver documento» (DA-06)', () => {
+  it('la tabla cubre las 31 operaciones de la Vista más «ver documento» (DA-06) y las 2 anulaciones de la auditoría', () => {
     expect([...OPERACIONES].sort()).toEqual(Object.keys(ESPERADO).sort());
-    expect(OPERACIONES).toHaveLength(32);
+    expect(OPERACIONES).toHaveLength(34);
   });
 
   it('los roles de la tabla son los 5 roles con pantalla', () => {

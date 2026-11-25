@@ -128,7 +128,9 @@ describe('HU-22.CA2 — registrar el concepto (rutas)', () => {
 
 describe('DA-47 y DA-49 — antes del día 120 (rutas)', () => {
   it('una incapacidad que aún no inicia muestra «Aún no inicia», no «Día 0»', async () => {
-    await registrar(150, '2026-12-01');
+    // HU-03: ya no se registra un inicio futuro; queda como dato anterior a la auditoría.
+    await registrar(150, '2026-11-20');
+    baseDeDatos.incapacidades.at(-1).fechaInicio = '2026-12-01';
     const agente = await agenteCon(request, app, 'auxiliar');
     expect((await agente.get('/prolongadas?ver=espera')).text).toContain('Aún no inicia');
     const pagina = await agente.get('/incapacidades/2/prolongada');

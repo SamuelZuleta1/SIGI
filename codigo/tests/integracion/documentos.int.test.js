@@ -7,7 +7,9 @@ import { crearAlmacenDocumentos } from '../../src/persistence/almacen-documentos
 import { crearBaseDeDatos } from '../../src/persistence/base-de-datos.js';
 import { crearPersistenciaRegistro } from '../../src/persistence/registro.persistence.js';
 import { crearCorreoFalso } from '../helpers/correo-falso.js';
-import { documentoDePrueba, formularioDeRegistro, PDF, PNG } from '../helpers/fabricas.js';
+import { documentoDePrueba, formularioDeRegistro, PDF, PNG, diasDistintos } from '../helpers/fabricas.js';
+
+const diasDelCaso = diasDistintos(); // HU-03: sin duplicados entre las pruebas del archivo
 
 const servidor = crearClienteServidor();
 const baseDeDatos = crearBaseDeDatos(servidor);
@@ -23,7 +25,7 @@ let entidad;
 
 const nueva = async () => {
   const { idIncapacidad } = await control.registrarIncapacidad(
-    formularioDeRegistro({ correoColaborador, entidad: String(entidad.id) }),
+    formularioDeRegistro({ diasIncapacidad: diasDelCaso(), correoColaborador, entidad: String(entidad.id) }),
     receptor,
   );
   ids.push(idIncapacidad);

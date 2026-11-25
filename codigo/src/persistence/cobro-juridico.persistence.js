@@ -19,7 +19,8 @@ export function crearPersistenciaCobroJuridico(cliente) {
         await cliente
           .from('incapacidad')
           .select(
-            'id, tipo, fecha_inicio, dias_incapacidad, estado, decision, tiempo_pago, fecha_cobrada, motivo_traslado, fecha_traslado, fecha_decision, ' +
+            'id, tipo, fecha_inicio, dias_incapacidad, estado, decision, tiempo_pago, fecha_cobrada, causal_rechazo, fecha_rechazo, ' +
+              'causal_traslado, motivo_traslado, fecha_traslado, fecha_decision, ' +
               'colaborador(nombre), entidad(nombre), requerimiento(id, fundamentos, creado_en)',
           )
           .eq('id', idIncapacidad)
@@ -38,6 +39,10 @@ export function crearPersistenciaCobroJuridico(cliente) {
         decision: fila.decision,
         tiempoPago: fila.tiempo_pago,
         fechaCobrada: fila.fecha_cobrada,
+        // Auditoría (4A): una rechazada también tiene cobro persuasivo; la línea de tiempo muestra su rechazo.
+        causalRechazo: fila.causal_rechazo,
+        fechaRechazo: fila.fecha_rechazo,
+        causalTraslado: fila.causal_traslado,
         motivoTraslado: fila.motivo_traslado,
         fechaTraslado: fila.fecha_traslado,
         fechaDecision: fila.fecha_decision,
@@ -51,7 +56,7 @@ export function crearPersistenciaCobroJuridico(cliente) {
 
     /**
      * DS-08: guardarRequerimiento(fundamentos) — HU-18.CA1. Con `registrar_requerimiento`, solo si la incapacidad
-     * sigue cobrada y sin dar de baja (DA-43).
+     * sigue cobrada o rechazada, sin trasladar ni dar de baja (auditoría, decisión 4A).
      * @returns {Promise<number | null>} id del requerimiento; null si ya no estaba pendiente de pago.
      */
     async guardarRequerimiento(idIncapacidad, fundamentos, creadoPor) {
@@ -66,18 +71,19 @@ export function crearPersistenciaCobroJuridico(cliente) {
     },
 
     /**
-     * DS-08: guardarTraslado(motivo) — HU-19.CA1. Con `trasladar_a_cartera`, solo si la incapacidad sigue cobrada,
-     * sin dar de baja y sin trasladar antes (DA-44). `fecha` es AAAA-MM-DD (hoy en Colombia).
-     * @returns {Promise<boolean>} false si el estado ya no lo permitía.
+     * DS-08: guardarTraslado(causal, motivo) — HU-19.CA1. Con `trasladar_a_cartera`, que vuelve a comprobar con la fila
+     * bloqueada lo que exige la auditoría (decisión 4A): sin dar de baja ni trasladar antes, mínimo 2 requerimientos y la
+     * condición de la causal. `fecha` es AAAA-MM-DD (hoy en Colombia).
+     * @returns {Promise<boolean>} false si ya no se cumplía.
      */
-    async guardarTraslado(idIncapacidad, motivo, fecha) {
+    async guardarTraslado(idIncapacidad, { causal, motivo }, fecha) {
       return comprobar(
-        await cliente.rpc('trasladar_a_cartera', { p_incapacidad_id: idIncapacidad, p_motivo: motivo, p_fecha: fecha }),
+        await cliente.rpc('trasladar_a_cartera', { p_incapacidad_id: idIncapacidad, p_causal: causal, p_motivo: motivo, p_fecha: fecha }),
       ) === true;
     },
 
     /**
-     * Las incapacidades trasladadas a Cartera y Jurídica que siguen cobradas (con o sin decisión), con el número de
+     * Las incapacidades trasladadas a Cartera y Jurídica que siguen cobradas o rechazadas (con o sin decisión), con el número de
      * requerimientos. Se leen en bloques por el máximo de filas de la API (como consultarCobradas).
      */
     async consultarTrasladadas() {
@@ -89,9 +95,9 @@ export function crearPersistenciaCobroJuridico(cliente) {
             .from('incapacidad')
             .select(
               'id, tipo, fecha_inicio, dias_incapacidad, estado, decision, fecha_decision, tiempo_pago, fecha_cobrada, ' +
-                'motivo_traslado, fecha_traslado, colaborador(nombre), entidad(nombre), requerimiento(count)',
+                'causal_traslado, motivo_traslado, fecha_traslado, colaborador(nombre), entidad(nombre), requerimiento(count)',
             )
-            .eq('estado', 'cobrada')
+            .in('estado', ['cobrada', 'rechazada'])
             .not('motivo_traslado', 'is', null)
             .order('id')
             .range(desde, desde + BLOQUE - 1),
@@ -111,6 +117,7 @@ export function crearPersistenciaCobroJuridico(cliente) {
         fechaDecision: f.fecha_decision,
         tiempoPago: f.tiempo_pago,
         fechaCobrada: f.fecha_cobrada,
+        causalTraslado: f.causal_traslado,
         motivoTraslado: f.motivo_traslado,
         fechaTraslado: f.fecha_traslado,
         requerimientos: f.requerimiento[0]?.count ?? 0,
@@ -118,7 +125,7 @@ export function crearPersistenciaCobroJuridico(cliente) {
     },
 
     /**
-     * DS-08: guardarDecision(decision) — HU-20.CA1. Con `registrar_decision`, solo si la incapacidad sigue cobrada,
+     * DS-08: guardarDecision(decision) — HU-20.CA1. Con `registrar_decision`, solo si la incapacidad sigue cobrada o rechazada,
      * fue trasladada y no tiene decisión (DA-45). No cambia el estado (HU-20.CA2).
      * @returns {Promise<boolean>} false si el estado ya no lo permitía.
      */
@@ -133,7 +140,7 @@ export function crearPersistenciaCobroJuridico(cliente) {
       comprobar(
         await cliente
           .from('incapacidad')
-          .update({ motivo_traslado: null, fecha_traslado: null })
+          .update({ causal_traslado: null, motivo_traslado: null, fecha_traslado: null })
           .eq('id', idIncapacidad)
           .eq('motivo_traslado', motivo),
       );

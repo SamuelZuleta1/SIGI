@@ -6,7 +6,9 @@ import { BUCKET_DOCUMENTOS, crearClienteServidor } from '../../src/config/supaba
 import { crearControlIncapacidades } from '../../src/controllers/control-incapacidades.js';
 import { crearBaseDeDatos } from '../../src/persistence/base-de-datos.js';
 import { crearCorreoFalso } from '../helpers/correo-falso.js';
-import { formularioDeRegistro, PDF } from '../helpers/fabricas.js';
+import { formularioDeRegistro, PDF, diasDistintos } from '../helpers/fabricas.js';
+
+const diasDelCaso = diasDistintos(); // HU-03: sin duplicados entre las pruebas del archivo
 
 const servidor = crearClienteServidor();
 const baseDeDatos = crearBaseDeDatos(servidor);
@@ -21,7 +23,7 @@ let auxiliar;
 
 const registrarCobrada = async () => {
   hoy = '2026-11-21';
-  const { idIncapacidad } = await control.registrarIncapacidad(formularioDeRegistro({ correoColaborador }), receptor);
+  const { idIncapacidad } = await control.registrarIncapacidad(formularioDeRegistro({ diasIncapacidad: diasDelCaso(), correoColaborador }), receptor);
   ids.push(idIncapacidad);
   await control.registrarRadicacion(idIncapacidad, { radicado: 'RAD-REQ', evidencia: PDF }, auxiliar);
   await control.registrarCobrada(idIncapacidad, { tiempoPago: '10' }); // prometida: 2026-12-01

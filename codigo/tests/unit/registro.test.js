@@ -73,7 +73,7 @@ describe('HU-03 — registrar incapacidad o licencia (Control)', () => {
   it('DA-03 — crea el colaborador si no existe y lo reutiliza por su correo', async () => {
     await control.registrarIncapacidad(formularioDeRegistro(), USUARIOS.receptor);
     await control.registrarIncapacidad(
-      formularioDeRegistro({ correoColaborador: '  ANA.Gomez@sigi.test ', fechaInicio: '2026-12-01' }),
+      formularioDeRegistro({ correoColaborador: '  ANA.Gomez@sigi.test ', fechaInicio: '2026-11-10' }),
       USUARIOS.auxiliar,
     );
     expect(baseDeDatos.colaboradores).toHaveLength(1);

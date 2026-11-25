@@ -5,7 +5,7 @@ import { crearControlIncapacidades } from '../../src/controllers/control-incapac
 import { ErrorDeValidacion } from '../../src/controllers/error-de-validacion.js';
 import { crearBaseDeDatosFalsa } from '../helpers/base-de-datos-falsa.js';
 import { crearCorreoFalso } from '../helpers/correo-falso.js';
-import { formularioDeRegistro, PDF } from '../helpers/fabricas.js';
+import { formularioDeRegistro, PDF, trasladarConRequerimientos } from '../helpers/fabricas.js';
 import { USUARIOS } from '../helpers/sesion-falsa.js';
 
 let baseDeDatos;
@@ -22,7 +22,7 @@ beforeEach(async () => {
   hoy = '2026-12-04';
 });
 
-const trasladar = () => control.trasladarACartera('1', { motivo: '180 días sin pago' });
+const trasladar = () => trasladarConRequerimientos(control, 1);
 const decidir = (decision = 'recuperar') => control.registrarDecision('1', { decision });
 const errores = async (promesa) => {
   const error = await promesa.catch((e) => e);
@@ -137,9 +137,26 @@ describe('HU-20 — lista de trasladadas de Cartera y Jurídica', () => {
     await control.registrarRadicacion('2', { radicado: 'RAD-2', evidencia: PDF }, USUARIOS.auxiliar);
     await control.registrarCobrada('2', { tiempoPago: '10' });
     hoy = '2026-12-05';
-    await control.trasladarACartera('2', { motivo: 'Primera trasladada' });
+    await trasladarConRequerimientos(control, 2, { motivo: 'Primera trasladada' });
     hoy = '2026-12-06';
     await trasladar();
     expect((await control.consultarTrasladadas()).trasladadas.map((t) => t.idIncapacidad)).toEqual([2, 1]);
+  });
+});
+
+describe('HU-20 (auditoría, decisión 4A) — Cartera decide también sobre una rechazada trasladada por rechazo', () => {
+  it('aparece en su lista, ve el rechazo y registra la decisión; el estado sigue «rechazada»', async () => {
+    await control.registrarIncapacidad(formularioDeRegistro({ correoColaborador: 'otro@correo.co' }), USUARIOS.receptor);
+    await control.registrarRadicacion('2', { radicado: 'RAD-2', evidencia: PDF }, USUARIOS.auxiliar);
+    await control.registrarRechazo('2', { causal: 'Falta la epicrisis del paciente' });
+    await trasladarConRequerimientos(control, 2, { causal: 'rechazo', motivo: 'La entidad no reconoce la epicrisis' });
+
+    const { trasladadas } = await control.consultarTrasladadas();
+    expect(trasladadas).toEqual([expect.objectContaining({ idIncapacidad: 2, estado: 'rechazada', causalTraslado: 'rechazo', conDemora: false })]);
+    const pantalla = await control.prepararDecision('2');
+    expect(pantalla).toMatchObject({ puedeDecidir: true, demora: null, incapacidad: { causalRechazo: 'Falta la epicrisis del paciente' } });
+
+    expect(await control.registrarDecision('2', { decision: 'recuperar' })).toEqual({ idIncapacidad: 2, decision: 'recuperar' });
+    expect(baseDeDatos.incapacidades[1]).toMatchObject({ estado: 'rechazada', decision: 'recuperar' });
   });
 });

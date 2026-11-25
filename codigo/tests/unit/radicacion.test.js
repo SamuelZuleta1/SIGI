@@ -71,13 +71,15 @@ describe('HU-09.CA1 — muestra la entidad, el canal y el plazo', () => {
 
   it('HU-09.CA1 — paternidad sin fecha de nacimiento: 30 días desde el inicio de la licencia (DA-35)', async () => {
     await registrar({ entidad: '2', tipo: 'licencia_paternidad', fechaInicio: '2026-11-01', diasIncapacidad: '14' });
+    // Licencia registrada antes de la auditoría (HU-12), cuando el registro aún no pedía la fecha de nacimiento.
+    baseDeDatos.incapacidades[0].fechaNacimiento = null;
     const { plazo } = await control.prepararRadicacion(1);
     expect(plazo).toMatchObject({ regla: 'paternidad', duracion: '30 días', base: 'inicio', fechaLimite: '2026-12-01' });
   });
 
   it('HU-09.CA1 — paternidad con fecha de nacimiento: 30 días desde el nacimiento (DA-13)', async () => {
-    await registrar({ entidad: '2', tipo: 'licencia_paternidad', fechaInicio: '2026-11-01', diasIncapacidad: '14' });
-    baseDeDatos.incapacidades[0].fechaNacimiento = '2026-10-30';
+    await registrar({ entidad: '2', tipo: 'licencia_paternidad', fechaInicio: '2026-11-01', diasIncapacidad: '14', fechaNacimiento: '2026-10-30' });
+    expect(baseDeDatos.incapacidades[0].fechaNacimiento).toBe('2026-10-30'); // HU-12: la escribe el registro
     const { plazo } = await control.prepararRadicacion(1);
     expect(plazo).toMatchObject({ base: 'nacimiento', desde: '2026-10-30', fechaLimite: '2026-11-29' });
   });

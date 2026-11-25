@@ -68,19 +68,19 @@ export function crearBaseDeDatosFalsa() {
     // Como el embed usuario!incapacidad_envio_archivo_por_fkey(correo): las pruebas usan ids `id-<rol>`.
     envioArchivoPor: i.envioArchivoPor ? `${i.envioArchivoPor.replace(/^id-/, '')}@sigi.test` : null,
     pagos: pagos
-      .filter((p) => p.idIncapacidad === i.idIncapacidad)
+      .filter((p) => p.idIncapacidad === i.idIncapacidad && !p.anulacion) // auditoría HU-15: los anulados no cuentan
       .sort((a, b) => a.fechaPago.localeCompare(b.fechaPago) || a.idPago - b.idPago)
       .map(({ idPago, valor, fechaPago, conciliado }) => ({ idPago, valor, fechaPago, conciliado })),
     documentos: documentos.filter((d) => d.idIncapacidad === i.idIncapacidad).map(({ idDocumento, tipo }) => ({ idDocumento, tipo })),
   });
   // Como registrar_conciliacion (DA-56): comprueba que lo comparado sigue igual y lo guarda todo junto.
   const registrarConciliacion = (entidadId, { consignadosVistos, pares, detalle, saldos }, por) => {
-    const pendientes = pagosConsignados.filter((p) => p.entidadId === entidadId && p.conciliacionId == null).map((p) => p.id).sort((a, b) => a - b);
+    const pendientes = pagosConsignados.filter((p) => p.entidadId === entidadId && p.conciliacionId == null && !p.anulacion).map((p) => p.id).sort((a, b) => a - b);
     if (JSON.stringify(pendientes) !== JSON.stringify([...consignadosVistos].sort((a, b) => a - b))) return null;
     const libres = pares.every(({ consignado, pago }) => {
       const p = pagos.find((x) => x.idPago === pago);
       const i = p && incapacidades.find((x) => x.idIncapacidad === p.idIncapacidad);
-      return consignadosVistos.includes(consignado) && p && !p.conciliado && i.entidad === entidadId;
+      return consignadosVistos.includes(consignado) && p && !p.conciliado && !p.anulacion && i.entidad === entidadId;
     });
     if (!libres) return null;
     const id = conciliaciones.length + 1;
@@ -107,7 +107,19 @@ export function crearBaseDeDatosFalsa() {
     async consultarEntidades() {
       return [...ENTIDADES];
     },
-    async guardarIncapacidad({ colaborador, ...datos }, creadoPor) {
+    // HU-03 (auditoría): como registro.persistence.js.
+    async consultarColaboradorPorCorreo(correo) {
+      const c = colaboradores.find((x) => x.correo === correo);
+      return c ? { id: c.id, nombre: c.nombre } : null;
+    },
+    async buscarIncapacidadDuplicada({ correo, tipo, fechaInicio, diasIncapacidad }) {
+      const c = colaboradores.find((x) => x.correo === correo);
+      const i = c && incapacidades.find(
+        (x) => x.colaboradorId === c.id && x.tipo === tipo && x.fechaInicio === fechaInicio && x.diasIncapacidad === diasIncapacidad,
+      );
+      return i ? i.idIncapacidad : null;
+    },
+    async guardarIncapacidad({ colaborador, nombreConfirmado, ...datos }, creadoPor) {
       let guardado = colaboradores.find((c) => c.correo === colaborador.correo);
       if (!guardado) {
         guardado = { id: colaboradores.length + 1, ...colaborador, creadoPor };
@@ -275,19 +287,30 @@ export function crearBaseDeDatosFalsa() {
         fechaRechazo: guardada.fechaRechazo ?? null,
         tiempoPago: guardada.tiempoPago ?? null,
         fechaCobrada: guardada.fechaCobrada ?? null,
+        causalTraslado: guardada.causalTraslado ?? null,
         archivoPreparado: guardada.fechaArchivoPreparado != null,
         radicaciones: radicaciones
           .filter((r) => r.idIncapacidad === idIncapacidad)
           .map(({ idRadicacion, radicado, evidencia, fecha }) => ({ idRadicacion, radicado, conEvidencia: Boolean(evidencia), fecha })),
         pagos: pagos
           .filter((p) => p.idIncapacidad === idIncapacidad)
-          .map(({ idPago, valor, fechaPago }) => ({ idPago, valor, fechaPago })),
+          .map(({ idPago, valor, fechaPago, conciliado, anulacion }) => ({ idPago, valor, fechaPago, conciliado, anulacion: anulacion ?? null })),
       };
+    },
+    // Auditoría (HU-15): como anular_pago. Correo de quien anula como el embed usuario!pago_anulado_por_fkey(correo).
+    async anularPago(idPago, motivo, por) {
+      const p = pagos.find((x) => x.idPago === idPago);
+      const i = p && incapacidades.find((x) => x.idIncapacidad === p.idIncapacidad);
+      if (!p || p.anulacion || p.conciliado || i.fechaArchivoPreparado != null || i.enviadaAGestionDocumental) return false;
+      p.anulacion = { fecha: new Date().toISOString(), motivo, por: `${por.replace(/^id-/, '')}@sigi.test` };
+      if (i.estado === 'pagada' && !pagos.some((x) => x.idIncapacidad === i.idIncapacidad && !x.anulacion)) i.estado = i.tiempoPago == null ? 'rechazada' : 'cobrada';
+      return true;
     },
     // Como registrar_pago: solo desde cobrada o pagada y sin el archivo preparado (DA-59); guarda el pago y pone pagada (DA-08).
     async guardarPago(idIncapacidad, { valor, fechaPago }, creadoPor) {
       const incapacidad = incapacidades.find((i) => i.idIncapacidad === idIncapacidad);
-      if (!incapacidad || !['cobrada', 'pagada'].includes(incapacidad.estado) || incapacidad.fechaArchivoPreparado != null) return null;
+      const admite = ['cobrada', 'pagada'].includes(incapacidad?.estado) || (incapacidad?.estado === 'rechazada' && incapacidad.causalTraslado === 'rechazo');
+      if (!incapacidad || !admite || incapacidad.fechaArchivoPreparado != null) return null;
       const idPago = pagos.length + 1;
       pagos.push({ idPago, idIncapacidad, valor, fechaPago, conciliado: false, creadoPor });
       incapacidad.estado = 'pagada';
@@ -389,6 +412,9 @@ export function crearBaseDeDatosFalsa() {
         decision: guardada.decision ?? null,
         tiempoPago: guardada.tiempoPago ?? null,
         fechaCobrada: guardada.fechaCobrada ?? null,
+        causalRechazo: guardada.causalRechazo ?? null,
+        fechaRechazo: guardada.fechaRechazo ?? null,
+        causalTraslado: guardada.causalTraslado ?? null,
         motivoTraslado: guardada.motivoTraslado ?? null,
         fechaTraslado: guardada.fechaTraslado ?? null,
         fechaDecision: guardada.fechaDecision ?? null,
@@ -397,25 +423,32 @@ export function crearBaseDeDatosFalsa() {
           .map(({ idRequerimiento, fundamentos, registrado }) => ({ idRequerimiento, fundamentos, registrado })),
       };
     },
-    // Como registrar_requerimiento: solo cobrada y sin dar de baja.
+    // Como registrar_requerimiento (auditoría 4A): cobrada o rechazada, sin trasladar y sin dar de baja.
     async guardarRequerimiento(idIncapacidad, fundamentos, creadoPor) {
       const incapacidad = incapacidades.find((i) => i.idIncapacidad === idIncapacidad);
-      if (incapacidad?.estado !== 'cobrada' || incapacidad.decision === 'dar_de_baja') return null;
+      if (!['cobrada', 'rechazada'].includes(incapacidad?.estado) || incapacidad.decision === 'dar_de_baja' || incapacidad.motivoTraslado != null) return null;
       const idRequerimiento = requerimientos.length + 1;
       requerimientos.push({ idRequerimiento, idIncapacidad, fundamentos, creadoPor, registrado: this.fechaSeguimiento ?? '2026-11-21T17:00:00.000Z' });
       return idRequerimiento;
     },
-    // Como trasladar_a_cartera: solo cobrada, sin dar de baja y sin trasladar antes.
-    async guardarTraslado(idIncapacidad, motivo, fecha) {
+    // Como trasladar_a_cartera (auditoría 4A): sin baja ni traslado previo, 2 requerimientos y la condición de la causal.
+    async guardarTraslado(idIncapacidad, { causal, motivo }, fecha) {
       const incapacidad = incapacidades.find((i) => i.idIncapacidad === idIncapacidad);
-      if (incapacidad?.estado !== 'cobrada' || incapacidad.decision === 'dar_de_baja' || incapacidad.motivoTraslado != null) return false;
-      Object.assign(incapacidad, { motivoTraslado: motivo, fechaTraslado: fecha });
+      if (!incapacidad || incapacidad.decision === 'dar_de_baja' || incapacidad.motivoTraslado != null) return false;
+      if (requerimientos.filter((r) => r.idIncapacidad === idIncapacidad).length < 2) return false;
+      const dias180 = incapacidad.fechaCobrada && Date.parse(fecha) - Date.parse(incapacidad.fechaCobrada) >= 180 * 86_400_000;
+      const cumple =
+        (causal === '180_dias' && incapacidad.estado === 'cobrada' && dias180) ||
+        (causal === 'deterioro' && incapacidad.estado === 'cobrada') ||
+        (causal === 'rechazo' && incapacidad.estado === 'rechazada');
+      if (!cumple) return false;
+      Object.assign(incapacidad, { causalTraslado: causal, motivoTraslado: motivo, fechaTraslado: fecha });
       return true;
     },
     // HU-20 (DS-08): como cobro-juridico.persistence.js.
     async consultarTrasladadas() {
       return incapacidades
-        .filter((i) => i.estado === 'cobrada' && i.motivoTraslado != null)
+        .filter((i) => ['cobrada', 'rechazada'].includes(i.estado) && i.motivoTraslado != null)
         .map((i) => ({
           idIncapacidad: i.idIncapacidad,
           colaborador: colaboradores.find((c) => c.id === i.colaboradorId).nombre,
@@ -428,21 +461,22 @@ export function crearBaseDeDatosFalsa() {
           fechaDecision: i.fechaDecision ?? null,
           tiempoPago: i.tiempoPago,
           fechaCobrada: i.fechaCobrada,
+          causalTraslado: i.causalTraslado ?? null,
           motivoTraslado: i.motivoTraslado,
           fechaTraslado: i.fechaTraslado,
           requerimientos: requerimientos.filter((r) => r.idIncapacidad === i.idIncapacidad).length,
         }));
     },
-    // Como registrar_decision: solo cobrada, trasladada y sin decisión.
+    // Como registrar_decision (auditoría 4A): cobrada o rechazada, trasladada y sin decisión.
     async guardarDecision(idIncapacidad, decision, fecha) {
       const incapacidad = incapacidades.find((i) => i.idIncapacidad === idIncapacidad);
-      if (incapacidad?.estado !== 'cobrada' || incapacidad.motivoTraslado == null || incapacidad.decision != null) return false;
+      if (!['cobrada', 'rechazada'].includes(incapacidad?.estado) || incapacidad.motivoTraslado == null || incapacidad.decision != null) return false;
       Object.assign(incapacidad, { decision, fechaDecision: fecha });
       return true;
     },
     async deshacerTraslado(idIncapacidad, motivo) {
       const incapacidad = incapacidades.find((i) => i.idIncapacidad === idIncapacidad);
-      if (incapacidad?.motivoTraslado === motivo) Object.assign(incapacidad, { motivoTraslado: null, fechaTraslado: null });
+      if (incapacidad?.motivoTraslado === motivo) Object.assign(incapacidad, { causalTraslado: null, motivoTraslado: null, fechaTraslado: null });
     },
     async consultarSeguimiento(idSeguimiento) {
       const s = seguimientos.find((x) => x.idSeguimiento === idSeguimiento);
@@ -633,18 +667,29 @@ export function crearBaseDeDatosFalsa() {
       return [...pagosConsignados]
         .sort((a, b) => b.creadoEn.localeCompare(a.creadoEn) || b.id - a.id)
         .slice(0, limite)
-        .map((p) => ({ ...p, entidad: ENTIDADES.find((e) => e.id === p.entidadId).nombre }));
+        .map((p) => ({ ...p, entidad: ENTIDADES.find((e) => e.id === p.entidadId).nombre, conciliado: p.conciliacionId != null, anulacion: p.anulacion ?? null }));
+    },
+    // Auditoría (HU-25): como obtenerPagoConsignado y anular_pago_consignado.
+    async obtenerPagoConsignado(id) {
+      const p = pagosConsignados.find((x) => x.id === id);
+      return p ? { ...p, entidad: nombreEntidad(p.entidadId), conciliado: p.conciliacionId != null, anulacion: p.anulacion ?? null } : null;
+    },
+    async anularPagoConsignado(id, motivo, por) {
+      const p = pagosConsignados.find((x) => x.id === id);
+      if (!p || p.anulacion || p.conciliacionId != null) return false;
+      p.anulacion = { fecha: new Date().toISOString(), motivo, por: `${por.replace(/^id-/, '')}@sigi.test` };
+      return true;
     },
     // HU-26 (DS-11): como conciliacion.persistence.js.
     async obtenerPagosConsignados(entidadId) {
       return pagosConsignados
-        .filter((p) => p.entidadId === entidadId && p.conciliacionId == null)
+        .filter((p) => p.entidadId === entidadId && p.conciliacionId == null && !p.anulacion)
         .sort((a, b) => a.id - b.id)
         .map((p) => ({ ...p, entidad: nombreEntidad(p.entidadId) }));
     },
     async consultarPagosPorConciliar(entidadId) {
       return pagos
-        .filter((p) => !p.conciliado && incapacidades.find((i) => i.idIncapacidad === p.idIncapacidad)?.entidad === entidadId)
+        .filter((p) => !p.conciliado && !p.anulacion && incapacidades.find((i) => i.idIncapacidad === p.idIncapacidad)?.entidad === entidadId)
         .sort((a, b) => a.fechaPago.localeCompare(b.fechaPago) || a.idPago - b.idPago)
         .map((p) => {
           const i = incapacidades.find((x) => x.idIncapacidad === p.idIncapacidad);
@@ -659,7 +704,7 @@ export function crearBaseDeDatosFalsa() {
     },
     async contarPorIdentificar() {
       return pagosConsignados
-        .filter((p) => p.conciliacionId == null)
+        .filter((p) => p.conciliacionId == null && !p.anulacion)
         .reduce((cuenta, p) => ({ ...cuenta, [p.entidadId]: (cuenta[p.entidadId] ?? 0) + 1 }), {});
     },
     async guardarConciliacion(entidadId, datos, por) {
@@ -770,7 +815,7 @@ export function crearBaseDeDatosFalsa() {
     async guardarArchivoPreparado(idIncapacidad, por) {
       const i = incapacidades.find((x) => x.idIncapacidad === idIncapacidad);
       if (!i || i.estado !== 'pagada' || i.fechaArchivoPreparado != null || i.enviadaAGestionDocumental) return false;
-      const suyos = pagos.filter((p) => p.idIncapacidad === idIncapacidad);
+      const suyos = pagos.filter((p) => p.idIncapacidad === idIncapacidad && !p.anulacion);
       if (suyos.length === 0 || suyos.some((p) => !p.conciliado)) return false;
       Object.assign(i, { fechaArchivoPreparado: new Date().toISOString(), archivoPreparadoPor: por });
       return true;

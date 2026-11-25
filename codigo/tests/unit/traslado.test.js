@@ -1,9 +1,10 @@
-// HU-19 — trasladar a Cartera y Jurídica (DS-08: trasladarACartera → notificarTraslado → guardarTraslado), con
-// persistencia y correo falsos. Decisiones: DA-05 (solo cobradas con demora), DA-14 (advertir y permitir) y DA-44.
+// HU-19 — trasladar a Cartera y Jurídica (DS-08: trasladarACartera → guardarTraslado → notificarTraslado), con
+// persistencia y correo falsos. DA-44 y la auditoría de las HU (decisión 4A, cambia DA-05 y DA-14): causal de una lista
+// cerrada, mínimo 2 requerimientos exigidos, 180 días contados desde fecha_cobrada, deterioro sin demora y rechazo.
 import { beforeEach, describe, expect, it } from 'vitest';
 import { crearControlIncapacidades } from '../../src/controllers/control-incapacidades.js';
 import { ErrorDeValidacion } from '../../src/controllers/error-de-validacion.js';
-import { leerMotivo } from '../../src/controllers/cobro-juridico.controller.js';
+import { impedimentoDeCausal, leerMotivo } from '../../src/controllers/cobro-juridico.controller.js';
 import { crearBaseDeDatosFalsa } from '../helpers/base-de-datos-falsa.js';
 import { crearCorreoFalso, DESTINATARIOS } from '../helpers/correo-falso.js';
 import { formularioDeRegistro, PDF } from '../helpers/fabricas.js';
@@ -14,6 +15,7 @@ let control;
 let enviados;
 let hoy;
 
+// La 1 queda cobrada el 21 nov 2026 con 10 días (prometida: 1 dic); hoy es el 4 dic (con demora).
 beforeEach(async () => {
   hoy = '2026-11-21';
   baseDeDatos = crearBaseDeDatosFalsa();
@@ -22,66 +24,136 @@ beforeEach(async () => {
   control = crearControlIncapacidades({ baseDeDatos, correo: correoFalso.correo, hoy: () => hoy });
   await control.registrarIncapacidad(formularioDeRegistro(), USUARIOS.receptor);
   await control.registrarRadicacion('1', { radicado: 'RAD-1', evidencia: PDF }, USUARIOS.auxiliar);
-  await control.registrarCobrada('1', { tiempoPago: '10' }); // prometida: 2026-12-01
+  await control.registrarCobrada('1', { tiempoPago: '10' });
   hoy = '2026-12-04';
 });
 
-const requerir = (n = 1) => control.registrarRequerimiento('1', { fundamentos: `Requerimiento número ${n} de cobro.` }, USUARIOS.auxiliar);
-const trasladar = (motivo = '180 días sin pago') => control.trasladarACartera('1', { motivo });
+const requerir = (n = 1, id = '1') => control.registrarRequerimiento(id, { fundamentos: `Requerimiento número ${n} de cobro.` }, USUARIOS.auxiliar);
+const trasladar = ({ causal = 'deterioro', motivo = 'La entidad está en liquidación', id = '1' } = {}) => control.trasladarACartera(id, { causal, motivo });
 const errores = async (promesa) => {
   const error = await promesa.catch((e) => e);
   expect(error).toBeInstanceOf(ErrorDeValidacion);
   return error.errores;
 };
+/** Una segunda incapacidad, rechazada por la entidad. */
+const rechazada = async () => {
+  await control.registrarIncapacidad(formularioDeRegistro({ correoColaborador: 'otro@correo.co' }), USUARIOS.receptor);
+  await control.registrarRadicacion('2', { radicado: 'RAD-2', evidencia: PDF }, USUARIOS.auxiliar);
+  await control.registrarRechazo('2', { causal: 'Falta la epicrisis del paciente' });
+};
 
-describe('HU-19.CA1 — traslado con motivo y correo a Cartera y Jurídica', () => {
-  it('HU-19.CA1 — guarda el motivo y la fecha de hoy y envía el correo a Cartera con el motivo', async () => {
+describe('HU-19.CA1 — traslado con causal, motivo y correo a Cartera y Jurídica', () => {
+  it('HU-19.CA1 — con 2 requerimientos guarda la causal, el motivo y la fecha y avisa a Cartera con ambos', async () => {
     await requerir(1);
     await requerir(2);
-    expect(await trasladar()).toEqual({ idIncapacidad: 1, requerimientos: 2, advertencia: false });
-    expect(baseDeDatos.incapacidades[0]).toMatchObject({ estado: 'cobrada', motivoTraslado: '180 días sin pago', fechaTraslado: '2026-12-04' });
+    expect(await trasladar()).toEqual({ idIncapacidad: 1, requerimientos: 2, causal: 'deterioro' });
+    expect(baseDeDatos.incapacidades[0]).toMatchObject({
+      estado: 'cobrada', causalTraslado: 'deterioro', motivoTraslado: 'La entidad está en liquidación', fechaTraslado: '2026-12-04',
+    });
     expect(enviados).toHaveLength(1);
     expect(enviados[0].to).toBe(DESTINATARIOS.cartera);
     expect(enviados[0].subject).toBe('[SIGI] Traslado a Cartera y Jurídica — incapacidad n.º 1');
-    expect(enviados[0].text).toContain('Motivo: 180 días sin pago');
+    expect(enviados[0].text).toContain('Causal: Deterioro crediticio de la entidad');
+    expect(enviados[0].text).toContain('Motivo: La entidad está en liquidación');
     expect(enviados[0].text).toContain('Colaborador: Ana María Gómez');
   });
 
-  it('DA-14 — con menos de dos requerimientos advierte, pero traslada', async () => {
-    expect(await trasladar()).toMatchObject({ requerimientos: 0, advertencia: true });
-    await requerir(1).catch(() => {}); // ya trasladada: no admite más requerimientos
-    expect(baseDeDatos.incapacidades[0].motivoTraslado).toBe('180 días sin pago');
-    const datos = await control.prepararRequerimientos('1');
-    expect(datos).toMatchObject({ trasladada: true, puedeTrasladar: false, puedeRegistrar: false });
-  });
-
-  it('DA-14 — la pantalla advierte el mínimo antes de trasladar y deja de advertir con dos', async () => {
+  it('4A — exige mínimo 2 requerimientos (ya no solo advierte): con 0 o 1 no traslada ni avisa', async () => {
+    expect((await errores(trasladar())).requerimientos).toBe('Para trasladar se necesitan mínimo 2 requerimientos: faltan 2.');
     await requerir(1);
-    expect(await control.prepararRequerimientos('1')).toMatchObject({ puedeTrasladar: true, advertirMinimo: true });
+    expect((await errores(trasladar())).requerimientos).toBe('Para trasladar se necesitan mínimo 2 requerimientos: falta 1.');
+    expect(baseDeDatos.incapacidades[0].motivoTraslado ?? null).toBeNull();
+    expect(enviados).toHaveLength(0);
+    expect(await control.prepararRequerimientos('1')).toMatchObject({ puedeTrasladar: true, cumpleMinimo: false, faltan: 1 });
+  });
+
+  it('4A — la base vuelve a exigir los 2 requerimientos: si entre tanto ya no estaban, no traslada y lo explica', async () => {
+    await requerir(1);
     await requerir(2);
-    expect(await control.prepararRequerimientos('1')).toMatchObject({ puedeTrasladar: true, advertirMinimo: false });
-  });
-
-  it('DA-44 — un solo traslado por incapacidad', async () => {
-    await trasladar();
-    expect((await errores(trasladar('Otro motivo distinto'))).estado).toMatch(/ya se trasladó a Cartera y Jurídica el 4 dic 2026/);
-    expect(enviados).toHaveLength(1);
-    expect((await errores(requerir(3))).estado).toMatch(/ya se trasladó/);
-  });
-
-  it('DA-05 — sin demora no se traslada (y no se envía el correo)', async () => {
-    hoy = '2026-12-01';
-    expect((await errores(trasladar())).estado).toMatch(/dentro del plazo/);
-    expect((await control.prepararRequerimientos('1')).puedeTrasladar).toBe(false);
+    const guardar = baseDeDatos.guardarTraslado.bind(baseDeDatos);
+    baseDeDatos.guardarTraslado = async (...args) => {
+      baseDeDatos.requerimientos.splice(0, 1); // la base ya no tiene dos al guardar
+      return guardar(...args);
+    };
+    expect((await errores(trasladar())).requerimientos).toBe('Para trasladar se necesitan mínimo 2 requerimientos.');
+    expect(baseDeDatos.incapacidades[0].motivoTraslado ?? null).toBeNull();
     expect(enviados).toHaveLength(0);
   });
 
-  it('DA-05 — una rechazada, una transcrita, una pagada o una dada de baja no se trasladan', async () => {
+  it('4A — deterioro crediticio: se traslada aunque no haya demora', async () => {
+    hoy = '2026-11-25'; // antes de la fecha prometida (1 dic)
+    await requerir(1);
+    await requerir(2);
+    expect(await trasladar({ causal: 'deterioro' })).toMatchObject({ causal: 'deterioro' });
+  });
+
+  it('4A — requerimientos también sin demora (cambia DA-43)', async () => {
+    hoy = '2026-11-25';
+    expect(await requerir(1)).toMatchObject({ total: 1, cumpleMinimo: false });
+    expect((await control.prepararRequerimientos('1')).puedeRegistrar).toBe(true);
+  });
+
+  it('4A — 180 días: se cuentan desde fecha_cobrada; el día 180 sí, el 179 no', async () => {
+    await requerir(1);
+    await requerir(2);
+    hoy = '2027-05-19'; // 21 nov 2026 + 179
+    const e = await errores(trasladar({ causal: '180_dias' }));
+    expect(e.causal).toBe('Van 179 días desde que quedó cobrada (21 nov 2026): la causal «180 días sin pago» se puede desde el 20 may 2027.');
+    expect(enviados).toHaveLength(0);
+    hoy = '2027-05-20'; // + 180
+    expect(await trasladar({ causal: '180_dias' })).toMatchObject({ causal: '180_dias' });
+    expect(baseDeDatos.incapacidades[0].fechaTraslado).toBe('2027-05-20');
+  });
+
+  it('4A — los 180 días no se cuentan desde el inicio de la incapacidad (empezó el 3 nov)', () => {
+    const cobrada = { estado: 'cobrada', fechaCobrada: '2026-11-21' };
+    expect(impedimentoDeCausal(cobrada, '180_dias', '2027-05-02')).toMatch(/Van 162 días/); // 3 nov + 180 = 2 may: aún no
+  });
+
+  it('4A — rechazo: una rechazada tiene cobro persuasivo y, con 2 requerimientos, se traslada', async () => {
+    await rechazada();
+    expect(await control.prepararRequerimientos('2')).toMatchObject({ pendiente: true, puedeRegistrar: true, puedeTrasladar: true });
+    await requerir(1, '2');
+    await requerir(2, '2');
+    const datos = await control.prepararRequerimientos('2');
+    expect(datos.causalesDisponibles.map((c) => c.causal)).toEqual(['rechazo']);
+    expect(await trasladar({ id: '2', causal: 'rechazo', motivo: 'La entidad no reconoce la epicrisis' })).toMatchObject({ causal: 'rechazo' });
+    expect(baseDeDatos.incapacidades[1]).toMatchObject({ estado: 'rechazada', causalTraslado: 'rechazo' });
+  });
+
+  it('4A — cada causal solo en su estado: rechazo para rechazadas, 180 días y deterioro para cobradas', async () => {
+    await requerir(1);
+    await requerir(2);
+    expect((await errores(trasladar({ causal: 'rechazo' }))).causal).toMatch(/que la entidad rechazó/);
+    await rechazada();
+    await requerir(1, '2');
+    await requerir(2, '2');
+    expect((await errores(trasladar({ id: '2', causal: 'deterioro' }))).causal).toMatch(/es para una incapacidad cobrada/);
+    expect((await errores(trasladar({ id: '2', causal: '180_dias' }))).causal).toMatch(/es para una incapacidad cobrada/);
+  });
+
+  it('una causal que no es de la lista no se acepta', async () => {
+    await requerir(1);
+    await requerir(2);
+    expect((await errores(trasladar({ causal: 'otra' }))).causal).toBe('Elija la causal del traslado.');
+    expect((await errores(trasladar({ causal: '' }))).causal).toBe('Elija la causal del traslado.');
+  });
+
+  it('DA-44 — un solo traslado por incapacidad, y después no más requerimientos', async () => {
+    await requerir(1);
+    await requerir(2);
+    await trasladar();
+    expect((await errores(trasladar())).estado).toMatch(/ya se trasladó a Cartera y Jurídica el 4 dic 2026/);
+    expect(enviados).toHaveLength(1);
+    expect((await errores(requerir(3))).estado).toMatch(/ya se trasladó/);
+    expect(await control.prepararRequerimientos('1')).toMatchObject({ trasladada: true, puedeTrasladar: false, puedeRegistrar: false });
+  });
+
+  it('una transcrita, una pagada o una dada de baja no tienen cobro persuasivo', async () => {
     await control.registrarIncapacidad(formularioDeRegistro({ correoColaborador: 'otro@correo.co' }), USUARIOS.receptor);
     await control.registrarRadicacion('2', { radicado: 'RAD-2', evidencia: PDF }, USUARIOS.auxiliar);
-    expect((await errores(control.trasladarACartera('2', { motivo: '180 días sin pago' }))).estado).toMatch(/no ha aprobado/);
-    await control.registrarRechazo('2', { causal: 'Falta la epicrisis del paciente' });
-    expect((await errores(control.trasladarACartera('2', { motivo: '180 días sin pago' }))).estado).toMatch(/rechazó/);
+    expect((await errores(trasladar({ id: '2' }))).estado).toMatch(/aún no ha respondido/);
+    expect((await errores(requerir(1, '2'))).estado).toMatch(/aún no ha respondido/);
     baseDeDatos.incapacidades[0].decision = 'dar_de_baja';
     expect((await errores(trasladar())).estado).toMatch(/dio de baja/);
     baseDeDatos.incapacidades[0].decision = null;
@@ -90,25 +162,30 @@ describe('HU-19.CA1 — traslado con motivo y correo a Cartera y Jurídica', () 
     expect(enviados).toHaveLength(0);
   });
 
-  it('DA-44 — si el correo falla se deshace el traslado y se puede reintentar', async () => {
+  it('DA-44 — si el correo falla se deshace el traslado (también la causal) y se puede reintentar', async () => {
+    await requerir(1);
+    await requerir(2);
     const fallido = crearControlIncapacidades({
       baseDeDatos,
       correo: { notificarTraslado: async () => { throw new Error('SMTP caído'); } },
       hoy: () => hoy,
     });
-    await expect(fallido.trasladarACartera('1', { motivo: '180 días sin pago' })).rejects.toMatchObject({ name: 'ErrorDeAviso', deshecho: true, cause: expect.objectContaining({ message: 'SMTP caído' }) });
-    expect(baseDeDatos.incapacidades[0].motivoTraslado ?? null).toBeNull();
-    expect(baseDeDatos.incapacidades[0].fechaTraslado ?? null).toBeNull();
+    await expect(fallido.trasladarACartera('1', { causal: 'deterioro', motivo: 'La entidad está en liquidación' })).rejects.toMatchObject({
+      name: 'ErrorDeAviso', deshecho: true, cause: expect.objectContaining({ message: 'SMTP caído' }),
+    });
+    expect(baseDeDatos.incapacidades[0]).toMatchObject({ causalTraslado: null, motivoTraslado: null, fechaTraslado: null });
     expect(await trasladar()).toMatchObject({ idIncapacidad: 1 });
   });
 
-  it('un motivo no válido no envía el correo ni guarda', async () => {
-    expect((await errores(trasladar('  '))).motivo).toBe('Escriba el motivo del traslado.');
+  it('un motivo no válido no envía el correo ni guarda; los errores se dicen todos juntos', async () => {
+    const e = await errores(trasladar({ causal: 'otra', motivo: '  ' }));
+    expect(e).toMatchObject({ motivo: 'Escriba el motivo del traslado.', causal: 'Elija la causal del traslado.', requerimientos: expect.any(String) });
     expect(enviados).toHaveLength(0);
-    expect(baseDeDatos.incapacidades[0].motivoTraslado ?? null).toBeNull();
   });
 
   it('si a la vez se registró el pago, la transacción no guarda el traslado', async () => {
+    await requerir(1);
+    await requerir(2);
     const guardar = baseDeDatos.guardarTraslado.bind(baseDeDatos);
     baseDeDatos.guardarTraslado = async (...args) => {
       baseDeDatos.incapacidades[0].estado = 'pagada';
@@ -120,30 +197,50 @@ describe('HU-19.CA1 — traslado con motivo y correo a Cartera y Jurídica', () 
   });
 
   it('si otro usuario trasladó a la vez, el mensaje lo dice', async () => {
+    await requerir(1);
+    await requerir(2);
     const guardar = baseDeDatos.guardarTraslado.bind(baseDeDatos);
     baseDeDatos.guardarTraslado = async (...args) => {
-      await guardar(1, 'Trasladada por otro auxiliar', '2026-12-04');
+      await guardar(1, { causal: 'deterioro', motivo: 'Trasladada por otro auxiliar' }, '2026-12-04');
       return guardar(...args);
     };
     expect((await errores(trasladar())).estado).toMatch(/ya se trasladó/);
-    expect(enviados).toHaveLength(0); // no sale un correo de más
+    expect(enviados).toHaveLength(0);
   });
 
   it('no existe o el número no es válido → null', async () => {
-    expect(await control.trasladarACartera('99', { motivo: '180 días sin pago' })).toBeNull();
-    expect(await control.trasladarACartera('abc', { motivo: '180 días sin pago' })).toBeNull();
+    expect(await trasladar({ id: '99' })).toBeNull();
+    expect(await trasladar({ id: 'abc' })).toBeNull();
   });
 });
 
 describe('HU-19.CA2 — el pago posterior al traslado usa registrarPago (HU-15)', () => {
   it('HU-19.CA2 — trasladada y pendiente: la pantalla ofrece el pago, y registrarlo deja la incapacidad pagada', async () => {
+    await requerir(1);
+    await requerir(2);
     await trasladar();
     expect((await control.prepararRequerimientos('1')).puedeRegistrarPago).toBe(true);
     hoy = '2026-12-10';
     await control.registrarPago('1', { valor: '1.250.000', fechaPago: '2026-12-10' }, USUARIOS.auxiliar);
     expect(baseDeDatos.incapacidades[0].estado).toBe('pagada');
-    expect(baseDeDatos.pagos).toHaveLength(1);
     expect(await control.prepararRequerimientos('1')).toMatchObject({ puedeRegistrarPago: false, trasladada: true });
+  });
+
+  it('4A — una rechazada trasladada por rechazo admite el pago si la entidad termina pagando; anulado, vuelve a rechazada', async () => {
+    await rechazada();
+    await requerir(1, '2');
+    await requerir(2, '2');
+    await trasladar({ id: '2', causal: 'rechazo' });
+    expect((await control.prepararRequerimientos('2')).puedeRegistrarPago).toBe(true);
+    const { idPago } = await control.registrarPago('2', { valor: '500.000', fechaPago: '2026-12-04' }, USUARIOS.auxiliar);
+    expect(baseDeDatos.incapacidades[1].estado).toBe('pagada');
+    await control.anularPago('2', String(idPago), { motivo: 'Valor mal digitado en el registro' }, USUARIOS.auxiliar);
+    expect(baseDeDatos.incapacidades[1].estado).toBe('rechazada');
+  });
+
+  it('una rechazada sin traslado no admite el pago', async () => {
+    await rechazada();
+    expect((await errores(control.registrarPago('2', { valor: '500.000', fechaPago: '2026-12-04' }, USUARIOS.auxiliar))).estado).toBeDefined();
   });
 
   it('sin traslado no se ofrece el pago en esta pantalla', async () => {
@@ -151,7 +248,7 @@ describe('HU-19.CA2 — el pago posterior al traslado usa registrarPago (HU-15)'
   });
 });
 
-describe('DA-44 — validación del motivo', () => {
+describe('DA-44 — validación del motivo (el detalle)', () => {
   it.each([
     ['', 'Escriba el motivo del traslado.'],
     ['ab', 'Escriba el motivo con al menos 3 caracteres.'],

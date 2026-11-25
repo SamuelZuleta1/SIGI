@@ -57,7 +57,7 @@ describe('HU-05 — registrar el reemplazo del colaborador (Control)', () => {
   });
 
   it('HU-05.CA2 — cada incapacidad tiene su propio reemplazo', async () => {
-    await control.registrarIncapacidad(formularioDeRegistro({ fechaInicio: '2026-12-01' }), USUARIOS.receptor);
+    await control.registrarIncapacidad(formularioDeRegistro({ fechaInicio: '2026-11-10' }), USUARIOS.receptor);
     await control.registrarReemplazo(1, 'Carlos Ruiz', USUARIOS.lider);
     await control.registrarReemplazo(2, 'Marta Lopera', USUARIOS.lider);
     expect(baseDeDatos.reemplazos.map((r) => [r.idIncapacidad, r.reemplazo])).toEqual([[1, 'Carlos Ruiz'], [2, 'Marta Lopera']]);

@@ -15,14 +15,20 @@ let control;
 let hoy;
 
 beforeEach(() => {
+  registradas = 0;
   hoy = '2026-11-21';
   baseDeDatos = crearBaseDeDatosFalsa();
   control = crearControlIncapacidades({ baseDeDatos, correo: crearCorreoFalso().correo, hoy: () => hoy });
 });
 
 /** Registra, radica y cobra una incapacidad el día `hoy` con `tiempoPago` días. */
+// Cada una de otro colaborador: el mismo colaborador, tipo y fechas sería un duplicado (HU-03).
+let registradas = 0;
 const cobrada = async ({ tiempoPago = '30', ...cambios } = {}) => {
-  const { idIncapacidad } = await control.registrarIncapacidad(formularioDeRegistro(cambios), USUARIOS.receptor);
+  const { idIncapacidad } = await control.registrarIncapacidad(
+    formularioDeRegistro({ correoColaborador: registradas++ === 0 ? 'ana.gomez@sigi.test' : `ana.gomez${registradas}@sigi.test`, ...cambios }),
+    USUARIOS.receptor,
+  );
   await control.registrarRadicacion(String(idIncapacidad), { radicado: `RAD-${idIncapacidad}`, evidencia: PDF }, USUARIOS.auxiliar);
   await control.registrarCobrada(String(idIncapacidad), { tiempoPago });
   return idIncapacidad;
@@ -38,7 +44,10 @@ const errores = async (promesa) => {
 describe('HU-16.CA1 — lista de las cobradas pendientes de pago', () => {
   it('HU-16.CA1 — muestra solo las cobradas, con la fecha prometida', async () => {
     await cobrada();
-    const { idIncapacidad: sinRadicar } = await control.registrarIncapacidad(formularioDeRegistro(), USUARIOS.receptor);
+    const { idIncapacidad: sinRadicar } = await control.registrarIncapacidad(
+      formularioDeRegistro({ correoColaborador: 'otro@sigi.test' }),
+      USUARIOS.receptor,
+    );
     const { pendientes, conteos } = await control.consultarPendientesDePago();
     expect(pendientes.map((p) => p.idIncapacidad)).toEqual([1]);
     expect(pendientes.map((p) => p.idIncapacidad)).not.toContain(sinRadicar);
@@ -65,7 +74,7 @@ describe('HU-16.CA1 — lista de las cobradas pendientes de pago', () => {
     await cobrada({ tiempoPago: '60' }); // 2027-01-20
     await cobrada({ tiempoPago: '15' }); // 2026-12-06
     hoy = '2026-11-01';
-    await cobrada({ tiempoPago: '10' }); // 2026-11-11: con demora el 21
+    await cobrada({ tiempoPago: '10', fechaInicio: '2026-10-20' }); // 2026-11-11: con demora el 21
     hoy = '2026-11-21';
     const { pendientes } = await control.consultarPendientesDePago();
     expect(pendientes.map((p) => p.idIncapacidad)).toEqual([3, 2, 1]);
@@ -74,8 +83,8 @@ describe('HU-16.CA1 — lista de las cobradas pendientes de pago', () => {
 
   it('DA-41 — pestañas: con demora y las que no tienen seguimiento esta semana', async () => {
     hoy = '2026-11-01';
-    await cobrada({ tiempoPago: '10' });
-    await cobrada({ tiempoPago: '90' });
+    await cobrada({ tiempoPago: '10', fechaInicio: '2026-10-20' });
+    await cobrada({ tiempoPago: '90', fechaInicio: '2026-10-20' });
     hoy = '2026-11-21';
     baseDeDatos.fechaSeguimiento = '2026-11-20T15:00:00.000Z';
     await seguir(2);

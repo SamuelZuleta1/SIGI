@@ -26,7 +26,7 @@ beforeAll(async () => {
     [{ fechaInicio: '2025-11-21', fechaRecepcion: '2025-11-22' }, null],
     [{ fechaInicio: '2026-11-03', fechaRecepcion: '2026-11-04' }, { estado: 'transcrita', documentacion_completa: false, fecha_aviso_faltantes: '2026-11-12', faltantes: ['epicrisis'] }],
     [{ fechaInicio: '2026-08-24', fechaRecepcion: '2026-08-25', diasIncapacidad: '120' }, { estado: 'cobrada', tiempo_pago: 30, fecha_cobrada: '2026-08-30' }], // una cobrada lleva su tiempo de pago (DA-38)
-    [{ fechaInicio: '2026-11-03', fechaRecepcion: '2026-11-04' }, { estado: 'transcrita' }],
+    [{ fechaInicio: '2026-11-03', fechaRecepcion: '2026-11-04', diasIncapacidad: '6' }, { estado: 'transcrita' }], // 6 días: no es duplicado de la 1 (HU-03)
   ]) {
     const { idIncapacidad } = await control.registrarIncapacidad(
       formularioDeRegistro({ colaborador: nombre, correoColaborador, entidad: nuevaEps, ...cambios }),
