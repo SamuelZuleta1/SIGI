@@ -179,13 +179,10 @@ describe('HU-19 — traslado a Cartera y Jurídica (base de datos)', () => {
     expect((await fila(id)).estado).toBe('rechazada');
   });
 
-  it('TEMPORAL — la firma vieja (3 parámetros) solo traslada con 180 días desde la cobrada y 2 requerimientos', async () => {
-    const vieja = (id, fecha) => servidor.rpc('trasladar_a_cartera', { p_incapacidad_id: id, p_motivo: 'Desde la versión anterior', p_fecha: fecha });
+  it('DA-70 — la firma temporal de 3 parámetros ya no existe: el traslado exige la causal', async () => {
     const id = await registrarCobrada();
-    expect(await vieja(id, '2026-12-04')).toMatchObject({ data: false, error: null }); // sin 180 días: no inventa la causal
-    expect(await vieja(id, '2027-05-20')).toMatchObject({ data: true, error: null });
-    expect(await fila(id)).toMatchObject({ causal_traslado: '180_dias', motivo_traslado: 'Desde la versión anterior' });
-    const sinRequerimientos = await registrarCobrada({ requerimientos: 0 });
-    expect((await vieja(sinRequerimientos, '2027-05-20')).data).toBe(false);
+    const { error } = await servidor.rpc('trasladar_a_cartera', { p_incapacidad_id: id, p_motivo: 'Sin causal', p_fecha: '2027-05-20' });
+    expect(error?.code).toBe('PGRST202'); // PostgREST no encuentra una función con esos parámetros
+    expect((await fila(id)).motivo_traslado).toBeNull();
   });
 });
