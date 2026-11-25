@@ -87,6 +87,23 @@ describe('HU-16 — seguimiento semanal (rutas)', () => {
     expect(pagina.text).toContain('Con 3 días de demora');
   });
 
+  it('HU-17.CA1 — con demora y el aviso de retraso falla: 502 con el mensaje y sin guardar el seguimiento', async () => {
+    await cobrar('10');
+    hoy = '2026-12-04';
+    const correo = crearCorreoFalso().correo;
+    correo.notificarRetraso = async () => { throw new Error('SMTP caído'); };
+    control = crearControlIncapacidades({ baseDeDatos, correo, hoy: () => hoy });
+    app = crearApp({ sesion: crearSesionFalsa(), control });
+    const registro = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const agente = await agenteCon(request, app, 'auxiliar');
+    const res = await seguir(agente);
+    expect(registro).toHaveBeenCalledWith(expect.stringContaining('aviso de retraso falló'), expect.objectContaining({ idIncapacidad: 1 }));
+    registro.mockRestore();
+    expect(res.status).toBe(502);
+    expect(res.text).toContain('No se pudo avisar a la Coordinación del retraso; no se guardó nada. Intente de nuevo.');
+    expect(baseDeDatos.seguimientos).toHaveLength(0);
+  });
+
   it('HU-16.CA3 — sin evidencia o de otro tipo: 400 con el mensaje en su campo', async () => {
     await cobrar();
     const agente = await agenteCon(request, app, 'auxiliar');

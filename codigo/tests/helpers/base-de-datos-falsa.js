@@ -167,6 +167,7 @@ export function crearBaseDeDatosFalsa() {
         diasIncapacidad: guardada.diasIncapacidad,
         originalPendiente: guardada.originalPendiente ?? false,
         archivoPreparado: guardada.fechaArchivoPreparado != null,
+        epicrisisEliminada: guardada.epicrisisEliminadaEn != null,
       };
     },
     async guardarDocumentos(idIncapacidad, nuevos, creadoPor, { originalPendiente = false } = {}) {
@@ -182,7 +183,8 @@ export function crearBaseDeDatosFalsa() {
       }));
       documentos.push(...guardados);
       const incapacidad = incapacidades.find((i) => i.idIncapacidad === idIncapacidad);
-      if (originalPendiente) incapacidad.originalPendiente = true;
+      // Como registrar_documentos: por correo queda pendiente; en recepción el original llegó en físico (HU-04).
+      incapacidad.originalPendiente = Boolean(originalPendiente);
       // Como registrar_documentos: vuelve a quedar lista para verificarse (HU-07.CA2, DA-29).
       Object.assign(incapacidad, { documentacionCompleta: null, archivadoDigital: false });
       return guardados.map(({ tipo, archivo }) => ({ tipo, archivo }));
@@ -794,6 +796,10 @@ export function crearBaseDeDatosFalsa() {
       return true;
     },
     async eliminarEpicrisis(idIncapacidad) {
+      // Como eliminarEpicrisis (B4): si hay epicrisis, marca la eliminación (no la quita ningún deshacer).
+      const incapacidad = incapacidades.find((i) => i.idIncapacidad === idIncapacidad);
+      const hay = documentos.some((d) => d.idIncapacidad === idIncapacidad && d.tipo === 'epicrisis');
+      if (hay && incapacidad && incapacidad.epicrisisEliminadaEn == null) incapacidad.epicrisisEliminadaEn = new Date().toISOString();
       let eliminadas = 0;
       for (let k = documentos.length - 1; k >= 0; k--) {
         if (documentos[k].idIncapacidad === idIncapacidad && documentos[k].tipo === 'epicrisis') {

@@ -7,12 +7,14 @@
 import { Router } from 'express';
 import multer from 'multer';
 import { TAMANO_MAXIMO_ARCHIVO } from '../controllers/archivo.js';
+import { ErrorDeAviso } from '../controllers/error-de-aviso.js';
 import { ErrorDeValidacion } from '../controllers/error-de-validacion.js';
 import { permitir } from '../middleware/autenticacion.js';
 import { NOMBRES_TIPO_INCAPACIDAD } from '../models/incapacidad.model.js';
 import { fechaBreve, fechaEnColombia, fechaLarga, sumarIntervalo } from '../servicios/dias-habiles.js';
 import { ACUERDO_DIAS_MAXIMO } from '../controllers/seguimiento.controller.js';
 import { pesos } from '../servicios/moneda.js';
+import { responderAvisoFallido } from './aviso-fallido.js';
 
 // La evidencia (P-D) se recibe en memoria y la Persistencia la pasa al bucket privado: nunca toca el disco.
 const recibirEvidencia = multer({
@@ -65,7 +67,8 @@ export function crearRutasSeguimiento({ control }) {
     });
   });
 
-  // registrarSeguimiento(evidencia) — HU-16.CA3. Evidencia no válida: 400; no está pendiente de pago: 409.
+  // registrarSeguimiento(evidencia) — HU-16.CA3. Evidencia no válida: 400; no está pendiente de pago: 409;
+  // con demora y el aviso de retraso (HU-17.CA1) falló: 502, sin guardar nada.
   rutas.post(
     '/incapacidades/:id/seguimiento',
     permitir('registrarSeguimiento'),
@@ -86,6 +89,16 @@ export function crearRutasSeguimiento({ control }) {
         if (!resultado) return noExiste(res);
         res.redirect(303, `/incapacidades/${resultado.idIncapacidad}/seguimiento?registrado=1`);
       } catch (error) {
+        if (error instanceof ErrorDeAviso) {
+          return responderAvisoFallido(res, error, {
+            destinatario: 'a la Coordinación del retraso',
+            volverAlFormulario: async (estado, errores) => {
+              const seguimiento = await control.prepararSeguimiento(req.params.id);
+              if (!seguimiento) return noExiste(res);
+              await pagina(res, estado, { seguimiento, errores: { estado: errores.aviso } });
+            },
+          });
+        }
         if (!(error instanceof ErrorDeValidacion)) throw error;
         const seguimiento = await control.prepararSeguimiento(req.params.id);
         if (!seguimiento) return noExiste(res);

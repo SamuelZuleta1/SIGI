@@ -43,10 +43,15 @@ export function documentosObligatorios({ tipo, diasIncapacidad }, { epsTranscrib
  */
 export function compararConRequisitos(incapacidad, documentos, { epsTranscribio = false } = {}) {
   const exencion = admiteExencion(incapacidad) && epsTranscribio;
+  // DA-59: al preparar el archivo (HU-29) se elimina la epicrisis. Que ya no esté no es un faltante: se muestra como
+  // eliminada, sin afirmar si se archivó con ella o con la transcripción (DA-26 no se guarda).
+  // `epicrisisEliminada` sigue aunque se deshaga la preparación (correo a Gestión Documental o conciliación fallidos).
+  const epicrisisEliminada = Boolean(incapacidad.archivoPreparado || incapacidad.epicrisisEliminada);
   const delTipo = (tipo) => documentos.filter((d) => d.tipo === tipo).map((d) => d.idDocumento);
   const requisitos = documentosObligatorios(incapacidad, { epsTranscribio: exencion }).map(({ tipo, exento }) => {
     const recibidos = delTipo(tipo);
-    const estado = exento ? 'exento' : recibidos.length > 0 ? 'recibido' : 'falta';
+    const eliminada = epicrisisEliminada && tipo === 'epicrisis' && recibidos.length === 0;
+    const estado = eliminada ? 'eliminada' : exento ? 'exento' : recibidos.length > 0 ? 'recibido' : 'falta';
     return { tipo, estado, documentos: recibidos };
   });
   const exigidos = new Set(requisitos.map((r) => r.tipo));
@@ -59,9 +64,10 @@ export function compararConRequisitos(incapacidad, documentos, { epsTranscribio 
     otros,
     faltantes,
     completa: faltantes.length === 0,
-    exigidos: requisitos.filter((r) => r.estado !== 'exento').length,
+    exigidos: requisitos.filter((r) => r.estado !== 'exento' && r.estado !== 'eliminada').length,
     recibidos: requisitos.filter((r) => r.estado === 'recibido').length,
-    epsTranscribio: exencion,
+    epsTranscribio: exencion && !epicrisisEliminada,
+    epicrisisEliminada: requisitos.some((r) => r.estado === 'eliminada'),
   };
 }
 

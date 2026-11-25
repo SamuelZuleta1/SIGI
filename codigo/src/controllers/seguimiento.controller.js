@@ -5,6 +5,7 @@
 import { diasCalendario, fechaBreve, fechaEnColombia, hoyEnColombia, sumarIntervalo } from '../servicios/dias-habiles.js';
 import { leerEvidencia } from './archivo.js';
 import { fechaPrometida, leerValor } from './cobro.controller.js';
+import { ErrorDeAviso, resumirError } from './error-de-aviso.js';
 import { ErrorDeValidacion } from './error-de-validacion.js';
 import { esIdentificador } from './identificador.js';
 
@@ -142,6 +143,7 @@ export function crearControlSeguimiento({ baseDeDatos, correo, hoy = hoyEnColomb
      * @returns {Promise<null | { idIncapacidad: number, idSeguimiento: number, demora: ReturnType<typeof evaluarDemora> }>}
      *   null si la incapacidad no existe.
      * @throws {ErrorDeValidacion} evidencia no válida, o la incapacidad no está pendiente de pago (`estado`).
+     * @throws {ErrorDeAviso} con demora, el aviso de retraso a la Coordinación falló (no se guardó nada).
      */
     async registrarSeguimiento(idIncapacidad, datos, usuario) {
       const actual = esIdentificador(idIncapacidad) ? await baseDeDatos.obtenerDatosSeguimiento(Number(idIncapacidad)) : null;
@@ -155,7 +157,18 @@ export function crearControlSeguimiento({ baseDeDatos, correo, hoy = hoyEnColomb
       // avisos (DA-31, HU-08), primero el correo y después el registro: si el correo falla, no queda un seguimiento
       // «con demora» sin aviso y el auxiliar puede intentarlo de nuevo (DA-42).
       const demora = evaluarDemora(actual, hoy());
-      if (demora.conDemora) await correo.notificarRetraso({ ...actual, fechaPrometida: demora.fechaPrometida, diasDemora: demora.diasDemora });
+      // Si el aviso falla, todavía no se guardó nada: ErrorDeAviso con `deshecho` (la ruta responde 502 y se reintenta).
+      if (demora.conDemora) {
+        try {
+          await correo.notificarRetraso({ ...actual, fechaPrometida: demora.fechaPrometida, diasDemora: demora.diasDemora });
+        } catch (causa) {
+          console.error('[registrarSeguimiento] El aviso de retraso falló; no se guardó nada', {
+            idIncapacidad: actual.idIncapacidad,
+            errorCorreo: resumirError(causa),
+          });
+          throw new ErrorDeAviso({ operacion: 'retraso', idIncapacidad: actual.idIncapacidad, deshecho: true, causa });
+        }
+      }
 
       const idSeguimiento = await baseDeDatos.guardarSeguimiento(
         actual.idIncapacidad,

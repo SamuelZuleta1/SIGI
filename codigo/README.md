@@ -70,7 +70,7 @@ codigo/
 ├── api/           index.js (función de Vercel)
 ├── scripts/       crear-usuarios-demo.js
 ├── supabase/      config.toml, migrations/, seed.sql
-├── src/           app.js, arranque.js, config/, middleware/, routes/, views/,
+├── src/           app.js, arranque.js, servidor.js, config/, middleware/, routes/, views/,
 │                  controllers/, models/, persistence/, servicios/
 └── tests/         unit/, http/, integracion/, helpers/
 ```

@@ -103,7 +103,7 @@ export function crearPersistenciaRegistro(cliente, almacen = crearAlmacenDocumen
       const fila = comprobar(
         await cliente
           .from('incapacidad')
-          .select('id, tipo, fecha_inicio, dias_incapacidad, original_pendiente, fecha_archivo_preparado, colaborador(nombre, correo), entidad(nombre)')
+          .select('id, tipo, fecha_inicio, dias_incapacidad, original_pendiente, fecha_archivo_preparado, epicrisis_eliminada_en, colaborador(nombre, correo), entidad(nombre)')
           .eq('id', idIncapacidad)
           .maybeSingle(),
       );
@@ -119,6 +119,8 @@ export function crearPersistenciaRegistro(cliente, almacen = crearAlmacenDocumen
         originalPendiente: fila.original_pendiente,
         // Con el archivo preparado (HU-29, DA-59) ya no se recibe epicrisis: se eliminó al archivar.
         archivoPreparado: fila.fecha_archivo_preparado != null,
+        // B4: sigue aunque se deshaga la preparación del archivo.
+        epicrisisEliminada: fila.epicrisis_eliminada_en != null,
       };
     },
 
@@ -127,8 +129,9 @@ export function crearPersistenciaRegistro(cliente, almacen = crearAlmacenDocumen
      * el archivo se sube al bucket privado y en la tabla queda su tipo y su ruta (CL-01).
      * Ruta: incapacidades/{idIncapacidad}/{tipo}-{uuid}.{ext}. El nombre original no se usa:
      * puede traer datos personales o caracteres que Storage no acepta.
-     * Con `originalPendiente`, en la misma transacción marca el original en físico como pendiente
-     * (DS-01 alt. correo, HU-04.CA2): o quedan los documentos y la marca, o no queda ninguno.
+     * En la misma transacción deja el original en físico como pendiente si `originalPendiente` (DS-01 alt. correo,
+     * HU-04.CA2) o como recibido si no (llegó en físico a recepción, HU-04.CA1): o quedan los documentos y la
+     * marca, o no queda ninguno.
      * Si algo falla, se borran los archivos que ya se habían subido.
      * @returns {Promise<Array<{ tipo: string, archivo: string }>>}
      */

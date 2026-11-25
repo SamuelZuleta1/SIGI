@@ -55,7 +55,7 @@ jobs:
         run: npm ci
 
       # No hay TypeScript ni ESLint: la comprobación de sintaxis es `node --check` sobre cada módulo. No se importa
-      # src/app.js para ejecutarlo: abriría el puerto y pediría las variables de Supabase.
+      # src/servidor.js para ejecutarlo: abriría el puerto y pediría las variables de Supabase.
       - name: Sintaxis de todos los módulos
         run: find src scripts tests -name '*.js' -print0 | xargs -0 -n1 node --check
 

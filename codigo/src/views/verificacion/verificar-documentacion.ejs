@@ -3,8 +3,9 @@
     recibido: '<path d="M5 12.5l4.5 4.5L19 7.5"/>',
     falta: '<path d="M7 7l10 10M17 7L7 17"/>',
     exento: '<path d="M6 12h12"/>',
+    eliminada: '<path d="M6 12h12"/>',
   };
-  const TEXTOS = { recibido: 'Recibido', falta: 'Falta', exento: 'No se exige' };
+  const TEXTOS = { recibido: 'Recibido', falta: 'Falta', exento: 'No se exige', eliminada: 'Eliminada al archivar' };
   const enlaces = (ids) => ids.map((id, i) =>
     `<a class="ver" href="/documentos/${id}/archivo" target="_blank" rel="noopener">${ids.length > 1 ? `Ver ${i + 1}` : 'Ver'}</a>`).join(' ');
 %>
@@ -79,7 +80,10 @@
       </tbody>
     </table>
 
-    <% if (incapacidad.admiteExencion && archivada) { %>
+    <% if (resultado.epicrisisEliminada) { %>
+      <%# HU-29 (DA-59): la epicrisis se eliminó al preparar el archivo; no se sabe si se archivó con ella o con la transcripción. %>
+      <p class="ayuda">La epicrisis se eliminó al preparar el archivo para Gestión Documental.</p>
+    <% } else if (incapacidad.admiteExencion && archivada) { %>
       <%# Ya archivada: la casilla muestra con qué se archivó y no se puede cambiar. %>
       <div class="exencion">
         <label class="casilla fija">

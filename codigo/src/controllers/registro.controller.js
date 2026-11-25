@@ -75,7 +75,7 @@ export { TAMANO_MAXIMO_ARCHIVO };
 export const MAXIMO_DOCUMENTOS = 10;
 
 export const MENSAJE_EPICRISIS_ARCHIVADA =
-  'El archivo de esta incapacidad ya está preparado y su epicrisis se eliminó: no se registra una nueva (CAR-11).';
+  'La epicrisis de esta incapacidad se eliminó al preparar el archivo: no se registra una nueva (CAR-11).';
 
 export function crearControlRegistro({ baseDeDatos, correo }) {
   return {
@@ -162,7 +162,7 @@ export function crearControlRegistro({ baseDeDatos, correo }) {
     /**
      * DS-01: registrarDocumentos(idIncapacidad, documentos).
      * `documentos` es una lista de { tipo, contenido: Buffer }.
-     * - Recepción (personal receptor): guarda y avisa al auxiliar por correo (HU-04.CA1).
+     * - Recepción (personal receptor): guarda, da el original en físico por recibido y avisa al auxiliar (HU-04.CA1).
      * - Correo (auxiliar): guarda y marca el original en físico como pendiente, sin aviso (HU-04.CA2).
      * El canal sale del rol: en DA-02 el auxiliar solo registra documentos cuando llegan por correo.
      * @returns {Promise<{ idIncapacidad: number, cantidad: number, originalPendiente: boolean, avisoEnviado: boolean }>}
@@ -187,8 +187,8 @@ export function crearControlRegistro({ baseDeDatos, correo }) {
         else if (!tipoMime) errores[clave] = 'El archivo debe ser PDF, JPG o PNG.';
         else validos.push({ tipo: documento.tipo, contenido, tipoMime });
       });
-      // CAR-11, DA-59: la epicrisis se elimina al archivar; una vez preparado el archivo no se vuelve a recibir.
-      if (incapacidad.archivoPreparado) {
+      // CAR-11, DA-59: la epicrisis se elimina al archivar; no se vuelve a recibir, ni aunque se deshaga la preparación.
+      if (incapacidad.archivoPreparado || incapacidad.epicrisisEliminada) {
         lista.forEach((documento, posicion) => {
           if (documento?.tipo === 'epicrisis' && !errores[`documento${posicion}`]) errores[`documento${posicion}`] = MENSAJE_EPICRISIS_ARCHIVADA;
         });

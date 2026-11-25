@@ -156,6 +156,38 @@ describe('HU-29.CA2 — archivar con el pago conciliado', () => {
     expect(enviarParaArchivo).toHaveBeenCalledTimes(2);
   });
 
+  it('B4 — si el correo falla y se quita la marca, la epicrisis sigue eliminada en la verificación y no se vuelve a recibir', async () => {
+    const id = await pagada({ documentos: ['epicrisis'] });
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    vi.spyOn(correo, 'enviarParaArchivo').mockRejectedValueOnce(new Error('SMTP caído'));
+    await control.archivarIncapacidad(String(id), USUARIOS.auxiliar).catch(() => {});
+    expect(baseDeDatos.incapacidades.find((i) => i.idIncapacidad === id).fechaArchivoPreparado).toBeNull();
+
+    const { resultado } = await control.verificarDocumentacion(String(id));
+    expect(resultado.requisitos.find((r) => r.tipo === 'epicrisis').estado).toBe('eliminada');
+    expect(resultado.faltantes).not.toContain('epicrisis');
+    expect((await errores(control.registrarDocumentos(String(id), [{ tipo: 'epicrisis', contenido: PDF }], USUARIOS.auxiliar))).documento0).toBe(
+      MENSAJE_EPICRISIS_ARCHIVADA,
+    );
+  });
+
+  it('B4 — deshacer la conciliación tampoco devuelve la epicrisis a «Falta»', async () => {
+    const id = await pagada({ documentos: ['epicrisis'] });
+    await control.archivarIncapacidad(String(id), USUARIOS.auxiliar);
+    await baseDeDatos.deshacerConciliacion(1);
+    const { resultado } = await control.verificarDocumentacion(String(id));
+    expect(resultado.requisitos.find((r) => r.tipo === 'epicrisis').estado).toBe('eliminada');
+  });
+
+  it('B4 — sin epicrisis al archivar, deshacer la preparación no la marca como eliminada', async () => {
+    const id = await pagada();
+    await control.archivarIncapacidad(String(id), USUARIOS.auxiliar);
+    await baseDeDatos.deshacerConciliacion(1);
+    expect(baseDeDatos.incapacidades.find((i) => i.idIncapacidad === id).epicrisisEliminadaEn).toBeUndefined();
+    const { resultado } = await control.verificarDocumentacion(String(id));
+    expect(resultado.requisitos.find((r) => r.tipo === 'epicrisis').estado).toBe('falta');
+  });
+
   it('si no se puede eliminar la epicrisis, quita la marca, no envía el correo y lo dice con su propio error', async () => {
     const id = await pagada({ documentos: ['epicrisis'] });
     vi.spyOn(console, 'error').mockImplementation(() => {});

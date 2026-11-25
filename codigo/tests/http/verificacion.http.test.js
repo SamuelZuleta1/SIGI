@@ -38,6 +38,22 @@ describe('HU-06 — verificar la documentación (rutas)', () => {
     expect((await agente.get('/incapacidades/99/verificacion')).status).toBe(404);
   });
 
+  it('HU-29 / DA-59 — con el archivo preparado, la epicrisis aparece eliminada y no como faltante ni con la casilla de la EPS', async () => {
+    await completar();
+    await control.registrarVerificacion(1);
+    baseDeDatos.documentos.splice(baseDeDatos.documentos.findIndex((d) => d.tipo === 'epicrisis'), 1);
+    baseDeDatos.incapacidades[0].fechaArchivoPreparado = '2026-11-24T15:00:00.000Z';
+    const agente = await agenteCon(request, app, 'auxiliar');
+    const res = await agente.get('/incapacidades/1/verificacion');
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('Eliminada al archivar');
+    expect(res.text).toContain('La epicrisis se eliminó al preparar el archivo para Gestión Documental.');
+    expect(res.text).toContain('<b>1 de 1</b>');
+    expect(res.text).not.toContain('Se archivó con la transcripción');
+    expect(res.text).not.toContain('Se archivó con la epicrisis.');
+    expect(res.text).not.toMatch(/<span class="estado falta">/);
+  });
+
   it('HU-06.CA1 — muestra el cruce: recibidos, faltantes y documentos no obligatorios', async () => {
     const agente = await agenteCon(request, app, 'auxiliar');
     const res = await agente.get('/incapacidades/1/verificacion');

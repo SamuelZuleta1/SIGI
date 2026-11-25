@@ -1,5 +1,5 @@
 // Composición de la aplicación real (persistencia, correo y sesión desde el entorno).
-// La usan `npm start` (src/app.js) y la función de Vercel (api/index.js).
+// La usan `npm start` (src/servidor.js) y la función de Vercel (api/index.js).
 import { crearApp } from './app.js';
 
 export async function crearAppDeProduccion() {
