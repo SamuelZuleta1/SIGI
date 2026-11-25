@@ -55,18 +55,18 @@ describe('HU-18.CA1 — guardar los fundamentos de un requerimiento (solo cobrad
     expect(datos).toMatchObject({ total: 2, puedeRegistrar: true, demora: { diasDemora: 3 } });
   });
 
-  it('DA-05 — una rechazada no admite requerimientos (solo vuelve a radicarse)', async () => {
+  it('4A — una rechazada sí admite requerimientos (cambia DA-05): puede trasladarse por rechazo', async () => {
     await control.registrarIncapacidad(formularioDeRegistro({ correoColaborador: 'otro@correo.co' }), USUARIOS.receptor);
     await control.registrarRadicacion('2', { radicado: 'RAD-2', evidencia: PDF }, USUARIOS.auxiliar);
     await control.registrarRechazo('2', { causal: 'Falta la epicrisis del paciente' });
-    expect((await errores(control.registrarRequerimiento('2', { fundamentos: 'Fundamentos válidos' }, USUARIOS.auxiliar))).estado).toMatch(/rechazó/);
-    expect(baseDeDatos.requerimientos).toHaveLength(0);
+    expect(await control.registrarRequerimiento('2', { fundamentos: 'Fundamentos válidos' }, USUARIOS.auxiliar)).toMatchObject({ total: 1 });
+    expect(baseDeDatos.requerimientos).toHaveLength(1);
   });
 
   it('DA-05 — una transcrita, una pagada y una dada de baja tampoco', async () => {
     await control.registrarIncapacidad(formularioDeRegistro({ correoColaborador: 'otro@correo.co' }), USUARIOS.receptor);
     await control.registrarRadicacion('2', { radicado: 'RAD-2', evidencia: PDF }, USUARIOS.auxiliar);
-    expect((await errores(control.registrarRequerimiento('2', { fundamentos: 'Fundamentos válidos' }, USUARIOS.auxiliar))).estado).toMatch(/no ha aprobado/);
+    expect((await errores(control.registrarRequerimiento('2', { fundamentos: 'Fundamentos válidos' }, USUARIOS.auxiliar))).estado).toMatch(/aún no ha respondido/);
     baseDeDatos.incapacidades[0].decision = 'dar_de_baja';
     expect((await errores(requerir())).estado).toMatch(/dio de baja/);
     baseDeDatos.incapacidades[0].decision = null;
@@ -75,12 +75,10 @@ describe('HU-18.CA1 — guardar los fundamentos de un requerimiento (solo cobrad
     expect(baseDeDatos.requerimientos).toHaveLength(0);
   });
 
-  it('DA-43 — sin demora no se registra (ni siquiera el día prometido) y la pantalla no ofrece el formulario', async () => {
+  it('4A — también sin demora (cambia DA-43): el día prometido ya se puede requerir', async () => {
     hoy = '2026-12-01';
-    expect((await errores(requerir())).estado).toMatch(/dentro del plazo \(hasta el 1 dic 2026\)/);
-    expect((await control.prepararRequerimientos('1')).puedeRegistrar).toBe(false);
-    hoy = '2026-12-02';
     expect((await control.prepararRequerimientos('1')).puedeRegistrar).toBe(true);
+    expect(await requerir()).toMatchObject({ total: 1 });
   });
 
   it('si a la vez se registró el pago, la transacción no guarda el requerimiento', async () => {

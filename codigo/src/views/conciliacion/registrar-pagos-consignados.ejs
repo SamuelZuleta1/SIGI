@@ -16,6 +16,15 @@
     por <strong><%= pesos(confirmacion.total / 100) %></strong>. Se avisó al auxiliar que hay pagos por identificar.
   </p>
 <% } %>
+<% const anuladoAhora = anulado != null ? recientes.find((p) => p.id === anulado && p.anulacion) : null; %>
+<% if (anuladoAhora) { %>
+  <p class="mensaje mensaje-aviso entra" role="status">
+    Pago consignado de <%= anuladoAhora.colaborador %> por <%= pesos(anuladoAhora.valor) %> anulado. Ya no queda por identificar ni como saldo pendiente de <%= anuladoAhora.entidad %>.
+  </p>
+<% } %>
+<% if (errores['anular-anulacion'] && !recientes.some((p) => p.id === anulando && !p.anulacion && !p.conciliado)) { %>
+  <p class="mensaje mensaje-error" role="alert"><%= errores['anular-anulacion'] %></p>
+<% } %>
 <% if (errores.aviso) { %>
   <p class="mensaje mensaje-error" role="alert"><%= errores.aviso %></p>
 <% } else if (errores.lista || errores.entidad) { %>
@@ -96,17 +105,47 @@
     <% } else { %>
       <table class="estados">
         <thead>
-          <tr><th scope="col">Registrado</th><th scope="col">Entidad</th><th scope="col">Colaborador</th><th scope="col" class="num">Días pagados</th><th scope="col" class="num">Valor</th></tr>
+          <tr><th scope="col">Registrado</th><th scope="col">Entidad</th><th scope="col">Colaborador</th><th scope="col" class="num">Días pagados</th><th scope="col" class="num">Valor</th><th scope="col">Estado</th></tr>
         </thead>
         <tbody>
-          <% for (const p of recientes) { %>
-          <tr>
+          <%# Auditoría (HU-25, decisión 3A): un consignado por identificar se anula desde su fila; el anulado queda tachado
+              con quién, cuándo y el motivo. %>
+          <% for (const p of recientes) { const abierto = anulando === p.id; %>
+          <tr class="<%= p.anulacion ? 'anulado' : '' %> <%= anuladoAhora?.id === p.id ? 'entra' : '' %>">
             <td><%= fechaBreve(fechaEnColombia(p.creadoEn)) %></td>
             <td><%= p.entidad %></td>
             <td><%= p.colaborador %></td>
             <td class="num cifra"><%= dias(p.diasPagados) %></td>
-            <td class="num cifra"><%= pesos(p.valor) %></td>
+            <td class="num cifra valor"><%= pesos(p.valor) %></td>
+            <td>
+              <% if (p.anulacion) { %>
+                <span class="chip rechazada">Anulado</span>
+                <span class="tenue nota-anulacion"><%= p.anulacion.por ? `${p.anulacion.por}, ` : '' %><%= fechaBreve(fechaEnColombia(p.anulacion.fecha)) %>: «<%= p.anulacion.motivo %>»</span>
+              <% } else if (p.conciliado) { %>
+                <span class="chip pagada">Identificado</span>
+              <% } else { %>
+                <%# El desplegable solo abre y cierra; el formulario va en la fila de abajo, a todo el ancho (sigi.css :has). %>
+                <details class="otro-pago anular-pago"<%- abierto ? ' open' : '' %>>
+                  <summary aria-controls="anular-<%= p.id %>">Anular</summary>
+                </details>
+              <% } %>
+            </td>
           </tr>
+          <% if (!p.anulacion && !p.conciliado) { %>
+          <tr class="fila-anular" id="anular-<%= p.id %>">
+            <td colspan="6">
+              <% if (abierto && errores['anular-anulacion']) { %><p class="mensaje mensaje-error separado" role="alert"><%= errores['anular-anulacion'] %></p><% } %>
+              <form class="radicar anular-fila" method="post" action="/pagos-consignados/<%= p.id %>/anulacion" novalidate data-un-envio>
+                <div class="campo <%= abierto && errores['anular-motivo'] ? 'invalido' : '' %>">
+                  <label for="motivo-<%= p.id %>">Motivo de la anulación de <%= p.colaborador %> · <%= pesos(p.valor) %></label>
+                  <textarea id="motivo-<%= p.id %>" name="motivo" maxlength="<%= motivoMaximo %>" required placeholder="Por ejemplo: colaborador equivocado" aria-describedby="<%= abierto && errores['anular-motivo'] ? `error-motivo-${p.id}` : `ayuda-motivo-${p.id}` %>"<%- abierto && errores['anular-motivo'] ? ' aria-invalid="true" autofocus' : '' %>><%= abierto ? valoresAnulacion.motivo ?? '' : '' %></textarea>
+                  <% if (abierto && errores['anular-motivo']) { %><span class="error" id="error-motivo-<%= p.id %>"><%= errores['anular-motivo'] %></span><% } else { %><span class="ayuda" id="ayuda-motivo-<%= p.id %>">De <%= motivoMinimo %> a <%= motivoMaximo %> caracteres. No se borra: queda con su motivo.</span><% } %>
+                </div>
+                <div class="acciones"><button class="boton peligro pequeno" data-enviando="Anulando…">Anular el pago</button></div>
+              </form>
+            </td>
+          </tr>
+          <% } %>
           <% } %>
         </tbody>
       </table>

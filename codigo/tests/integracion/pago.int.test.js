@@ -6,7 +6,9 @@ import { BUCKET_DOCUMENTOS, crearClienteServidor } from '../../src/config/supaba
 import { crearControlIncapacidades } from '../../src/controllers/control-incapacidades.js';
 import { crearBaseDeDatos } from '../../src/persistence/base-de-datos.js';
 import { crearCorreoFalso } from '../helpers/correo-falso.js';
-import { formularioDeRegistro, PDF } from '../helpers/fabricas.js';
+import { formularioDeRegistro, PDF, diasDistintos } from '../helpers/fabricas.js';
+
+const diasDelCaso = diasDistintos(); // HU-03: sin duplicados entre las pruebas del archivo
 
 const servidor = crearClienteServidor();
 const baseDeDatos = crearBaseDeDatos(servidor);
@@ -18,7 +20,7 @@ let receptor;
 let auxiliar;
 
 const registrarYRadicar = async () => {
-  const { idIncapacidad } = await control.registrarIncapacidad(formularioDeRegistro({ correoColaborador }), receptor);
+  const { idIncapacidad } = await control.registrarIncapacidad(formularioDeRegistro({ diasIncapacidad: diasDelCaso(), correoColaborador }), receptor);
   ids.push(idIncapacidad);
   await control.registrarRadicacion(idIncapacidad, { radicado: 'RAD-PAGO', evidencia: PDF }, auxiliar);
   return idIncapacidad;
@@ -58,7 +60,7 @@ describe('HU-15 — registrar el pago (base de datos)', () => {
     expect(Number(data.valor).toFixed(2)).toBe('1234567.89');
     const datos = await baseDeDatos.obtenerDatosCobro(id);
     expect(datos.estado).toBe('pagada');
-    expect(datos.pagos).toEqual([{ idPago, valor: '1234567.89', fechaPago: '2026-11-20' }]);
+    expect(datos.pagos).toEqual([{ idPago, valor: '1234567.89', fechaPago: '2026-11-20', conciliado: false, anulacion: null }]);
   });
 
   it('HU-15.CA3 — varios pagos, en orden, y el total exacto', async () => {

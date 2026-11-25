@@ -19,7 +19,9 @@
   </p>
 <% } else if (recienRegistrada) { %>
   <p class="mensaje mensaje-aviso entra" role="status">
-    Quedaron <strong><%= saldos.length %></strong> <%= saldos.length === 1 ? 'saldo' : 'saldos' %> sin identificar. Se guardaron y se notificaron a Contabilidad y Tesorería.
+    <%# B5 (auditoría): concordancia en singular y plural. %>
+    <% const uno = saldos.length === 1; %>
+    <%= uno ? 'Quedó' : 'Quedaron' %> <strong><%= saldos.length %></strong> <%= uno ? 'saldo' : 'saldos' %> sin identificar. <%= uno ? 'Se guardó y se notificó' : 'Se guardaron y se notificaron' %> a Contabilidad y Tesorería.
     <% if (detalle.length > 0) { %><%= detalle.length === 1 ? 'El pago que sí coincidió quedó conciliado.' : `Los ${detalle.length} pagos que sí coincidieron quedaron conciliados.` %><% } %>
   </p>
 <% } %>

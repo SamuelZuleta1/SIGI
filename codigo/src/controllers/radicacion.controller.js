@@ -85,7 +85,10 @@ export function calcularPlazoRadicacion(incapacidad, entidad, hoy) {
 }
 
 // EST-01 (DA-01, DA-36): se radica desde «registrada» (sin estado) o, tras un rechazo, desde «rechazada».
-export const puedeRadicar = (estado) => estado == null || estado === 'rechazada';
+// Auditoría (decisión 4A, DA-70): una rechazada ya trasladada a Cartera y Jurídica no se radica de nuevo: su cobro
+// sigue por vía jurídica.
+export const puedeRadicar = (estado, motivoTraslado = null) => (estado == null || estado === 'rechazada') && motivoTraslado == null;
+const MENSAJE_TRASLADADA = 'La incapacidad ya se trasladó a Cartera y Jurídica: su cobro sigue por vía jurídica y no se radica de nuevo.';
 
 const NOMBRES_ESTADO = { transcrita: 'ya está radicada (transcrita)', cobrada: 'ya está cobrada', pagada: 'ya está pagada' };
 const mensajeEstado = (estado) =>
@@ -119,7 +122,7 @@ export function crearControlRadicacion({ baseDeDatos, hoy = hoyEnColombia }) {
         hoy: fechaHoy,
         // DA-14: radicar sin la documentación verificada se advierte y se permite.
         sinVerificar: !incapacidad.archivadoDigital,
-        puedeRadicar: puedeRadicar(incapacidad.estado),
+        puedeRadicar: puedeRadicar(incapacidad.estado, incapacidad.motivoTraslado),
       };
     },
 
@@ -135,6 +138,7 @@ export function crearControlRadicacion({ baseDeDatos, hoy = hoyEnColombia }) {
     async registrarRadicacion(idIncapacidad, datos, usuario) {
       const actual = esIdentificador(idIncapacidad) ? await baseDeDatos.obtenerDatosRadicacion(Number(idIncapacidad)) : null;
       if (!actual) return null;
+      if (actual.motivoTraslado != null) throw new ErrorDeValidacion({ estado: MENSAJE_TRASLADADA });
       if (!puedeRadicar(actual.estado)) throw new ErrorDeValidacion({ estado: mensajeEstado(actual.estado) });
 
       const errores = {};
@@ -153,7 +157,10 @@ export function crearControlRadicacion({ baseDeDatos, hoy = hoyEnColombia }) {
         usuario.id,
       );
       // Otro usuario la radicó entre la consulta y el registro: la transacción no la repitió.
-      if (idRadicacion == null) throw new ErrorDeValidacion({ estado: mensajeEstado('transcrita') });
+      if (idRadicacion == null) {
+        const ahora = await baseDeDatos.obtenerDatosRadicacion(actual.idIncapacidad);
+        throw new ErrorDeValidacion({ estado: ahora?.motivoTraslado != null ? MENSAJE_TRASLADADA : mensajeEstado('transcrita') });
+      }
       return { idIncapacidad: actual.idIncapacidad, idRadicacion };
     },
 

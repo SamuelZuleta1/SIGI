@@ -78,6 +78,8 @@ describe('HU-19 — el correo a Cartera y Jurídica falla', () => {
     await preparar.registrarRadicacion('1', { radicado: 'NEPS-1', evidencia: PDF }, USUARIOS.auxiliar);
     await preparar.registrarCobrada('1', { tiempoPago: '10' });
     hoy = '2026-12-04';
+    // Auditoría (4A): el traslado exige 2 requerimientos.
+    for (const n of [1, 2]) await preparar.registrarRequerimiento('1', { fundamentos: `Requerimiento número ${n} de cobro.` }, USUARIOS.auxiliar);
     const control = crearControlIncapacidades({
       baseDeDatos: { ...baseDeDatos, ...cambiosBase },
       correo: { ...crearCorreoFalso().correo, notificarTraslado: falla },
@@ -89,7 +91,7 @@ describe('HU-19 — el correo a Cartera y Jurídica falla', () => {
   it('se deshizo: 502, conserva el motivo y no queda trasladada', async () => {
     const { app, baseDeDatos } = await appTraslado();
     const agente = await agenteCon(request, app, 'auxiliar');
-    const res = await agente.post('/incapacidades/1/traslado').type('form').send({ motivo: 'Deterioro crediticio de la entidad' });
+    const res = await agente.post('/incapacidades/1/traslado').type('form').send({ causal: 'deterioro', motivo: 'Deterioro crediticio de la entidad' });
     expect(res.status).toBe(502);
     expect(res.text).toContain('No se pudo avisar a Cartera y Jurídica; no se guardó nada. Intente de nuevo.');
     expect(res.text).toContain('Deterioro crediticio de la entidad');
@@ -99,7 +101,7 @@ describe('HU-19 — el correo a Cartera y Jurídica falla', () => {
   it('no se pudo deshacer: 500 con el mensaje propio', async () => {
     const { app } = await appTraslado({ deshacerTraslado: fallaDeshacer });
     const agente = await agenteCon(request, app, 'auxiliar');
-    const res = await agente.post('/incapacidades/1/traslado').type('form').send({ motivo: 'Deterioro crediticio de la entidad' });
+    const res = await agente.post('/incapacidades/1/traslado').type('form').send({ causal: 'deterioro', motivo: 'Deterioro crediticio de la entidad' });
     expect(res.status).toBe(500);
     expect(res.text).toContain('El correo a Cartera y Jurídica falló y no se pudo deshacer el registro');
   });

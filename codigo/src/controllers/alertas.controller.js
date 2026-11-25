@@ -41,9 +41,13 @@ const alerta = (incapacidad, tipo, estado, fechaLimite, hoy, extra = {}) => ({
   ...extra,
 });
 
-/** Envío (DA-37): solo puede llegar tarde, porque ya se recibió; se muestra mientras siga sin radicar. */
+/**
+ * Envío (DA-37): solo puede llegar tarde, porque ya se recibió; se muestra mientras siga sin radicar.
+ * Auditoría (HU-03): una recepción posterior a hoy no es una llegada tarde (el registro ya no la admite; si quedara
+ * algún dato así de antes, no se alerta).
+ */
 function alertaEnvio(i, hoy) {
-  if (i.estado != null) return null;
+  if (i.estado != null || i.fechaRecepcion > hoy) return null;
   const fechaLimite = sumarIntervalo(i.fechaInicio, { dias: DIAS_PARA_ENVIAR });
   if (i.fechaRecepcion <= fechaLimite) return null;
   return alerta(i, 'envio', 'vencido', fechaLimite, hoy, {
@@ -66,7 +70,7 @@ function alertaSubsanacion(i, hoy) {
 
 /** Transcripción y paternidad (DA-13, DA-35, DA-37): el plazo de radicación, hasta que se radique. */
 function alertaTranscripcion(i, hoy) {
-  if (!puedeRadicar(i.estado)) return null;
+  if (!puedeRadicar(i.estado, i.motivoTraslado)) return null; // una trasladada ya no se radica (DA-70)
   const plazo = calcularPlazoRadicacion(i, i.entidad, hoy);
   if (!plazo || plazo.estado === 'al_dia') return null;
   return alerta(i, plazo.regla === 'paternidad' ? 'paternidad' : 'transcripcion', plazo.estado, plazo.fechaLimite, hoy, {

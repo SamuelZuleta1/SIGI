@@ -4,7 +4,10 @@
 // Operación: identificarPagos(entidad, detallePagos) → obtenerPagosConsignados → compararPagos →
 // guardarConciliacion + enviarDetalleConciliado | guardarSaldosPendientes + notificarSaldosPendientes (HU-26, DA-11,
 // DA-56). Apoyo de la Vista: prepararConciliacion y consultarConciliacion.
+// Auditoría (HU-25, decisión 3A): anularPagoConsignado, desde «Registrados recientemente».
+import { leerMotivoAnulacion } from './anulacion.js';
 import { leerValor } from './cobro.controller.js';
+import { esIdentificador } from './identificador.js';
 import { avisarODeshacer } from './error-de-aviso.js';
 import { normalizarTexto } from './estados.controller.js';
 import { ErrorDeValidacion } from './error-de-validacion.js';
@@ -174,6 +177,32 @@ export function crearControlConciliacion({ baseDeDatos, correo }) {
         }
       }
       return { entidades, recientes, confirmacion };
+    },
+
+    /**
+     * Auditoría (HU-25, decisión 3A): anula un pago consignado mal digitado — no lo borra: guarda quién, cuándo y el
+     * motivo. Solo si aún no se identificó en una conciliación. Anulado, ya no queda por identificar ni como saldo
+     * pendiente de la entidad.
+     * @param {{ motivo?: string }} datos
+     * @returns {Promise<null | { id: number }>} null si no existe.
+     * @throws {ErrorDeValidacion} motivo no válido (`motivo`) o ya no se puede anular (`anulacion`).
+     */
+    async anularPagoConsignado(id, datos, usuario) {
+      const pago = esIdentificador(id) ? await baseDeDatos.obtenerPagoConsignado(Number(id)) : null;
+      if (!pago) return null;
+      const impedimento = (p) =>
+        p.anulacion ? 'Este pago consignado ya está anulado.' : p.conciliado ? 'Este pago ya se identificó en una conciliación: no se puede anular.' : null;
+      if (impedimento(pago)) throw new ErrorDeValidacion({ anulacion: impedimento(pago) });
+
+      const motivo = leerMotivoAnulacion(datos?.motivo);
+      if (motivo.error) throw new ErrorDeValidacion({ motivo: motivo.error });
+
+      if (!(await baseDeDatos.anularPagoConsignado(pago.id, motivo.valor, usuario.id))) {
+        // Otro usuario lo anuló o lo concilió entre la consulta y la anulación.
+        const ahora = await baseDeDatos.obtenerPagoConsignado(pago.id);
+        throw new ErrorDeValidacion({ anulacion: impedimento(ahora) ?? 'No se pudo anular el pago: vuelva a intentarlo.' });
+      }
+      return { id: pago.id };
     },
 
     /**

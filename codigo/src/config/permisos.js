@@ -9,7 +9,7 @@ const AUXILIAR = [
   'registrarSegundoLlamado', 'verDocumento',                                                  // DS-03, DA-06
   'prepararRadicacion', 'registrarRadicacion',                                                // DS-04
   'consultarEstados',                                                                         // DS-05
-  'registrarCobrada', 'registrarRechazo', 'registrarPago',                                    // DS-06
+  'registrarCobrada', 'registrarRechazo', 'registrarPago', 'anularPago',                      // DS-06 (+ auditoría)
   'consultarPendientesDePago', 'registrarSeguimiento', 'registrarAcuerdo',                    // DS-07
   'registrarRequerimiento', 'trasladarACartera',                                              // DS-08
   'calcularReconocimiento',                                                                   // DS-09
@@ -25,7 +25,7 @@ export const OPERACIONES_POR_ROL = Object.freeze({
   receptor: Object.freeze(['registrarIncapacidad', 'registrarDocumentos']),                   // DS-01
   lider: Object.freeze(['registrarReemplazo']),                                               // DS-02
   auxiliar: Object.freeze(AUXILIAR),
-  contabilidad: Object.freeze(['registrarPagosConsignados']),                                 // DS-11
+  contabilidad: Object.freeze(['registrarPagosConsignados', 'anularPagoConsignado']),         // DS-11 (+ auditoría)
   cartera: Object.freeze(['registrarDecision']),                                              // DS-08
 });
 

@@ -1,6 +1,7 @@
 // Grupo `cobro` del Control de incapacidades — DS-06 (CU-10).
 // Operaciones: registrarCobrada (HU-13), registrarRechazo (HU-14) y registrarPago (HU-15), esta última
-// compartida con el seguimiento (HU-16, DS-07) y el cobro jurídico (HU-19, DS-08).
+// compartida con el seguimiento (HU-16, DS-07) y el cobro jurídico (HU-19, DS-08). Auditoría: anularPago.
+import { leerMotivoAnulacion } from './anulacion.js';
 import { fechaBreve, hoyEnColombia, sumarIntervalo } from '../servicios/dias-habiles.js';
 import { aCentavos, centavosATexto } from '../servicios/moneda.js';
 import { ErrorDeValidacion } from './error-de-validacion.js';
@@ -53,8 +54,10 @@ export function leerCausal(texto) {
   return { valor: limpio };
 }
 
-// DA-08: cualquier pago deja la incapacidad pagada; después se pueden registrar más pagos.
-export const puedeRegistrarPago = (estado) => estado === 'cobrada' || estado === 'pagada';
+// DA-08: cualquier pago deja la incapacidad pagada; después se pueden registrar más pagos. Auditoría (4A): también una
+// rechazada trasladada a Cartera por rechazo (`causalTraslado`), por si la entidad termina pagando.
+export const puedeRegistrarPago = (estado, causalTraslado = null) =>
+  estado === 'cobrada' || estado === 'pagada' || (estado === 'rechazada' && causalTraslado === 'rechazo');
 
 const MENSAJES_PAGO = {
   null: 'La incapacidad aún no se ha radicado: radíquela primero.',
@@ -65,7 +68,17 @@ const mensajePago = (estado) => MENSAJES_PAGO[estado ?? 'null'] ?? 'La incapacid
 
 // Con el archivo preparado (HU-29, DA-59) la incapacidad ya no admite pagos.
 export const MENSAJE_PAGO_ARCHIVADA = 'El archivo de esta incapacidad ya está preparado: no admite más pagos.';
-const admitePago = (i) => puedeRegistrarPago(i.estado) && !i.archivoPreparado;
+const admitePago = (i) => puedeRegistrarPago(i.estado, i.causalTraslado) && !i.archivoPreparado;
+
+// Auditoría (HU-15, decisión 3A): un pago se anula (no se borra) mientras no esté conciliado ni el archivo preparado.
+const vigentes = (pagos) => pagos.filter((p) => !p.anulacion);
+const impedimentoDeAnular = (incapacidad, pago) => {
+  if (!pago) return 'Ese pago no es de esta incapacidad.';
+  if (pago.anulacion) return 'Este pago ya está anulado.';
+  if (pago.conciliado) return 'Este pago ya se identificó en una conciliación: no se puede anular.';
+  if (incapacidad.archivoPreparado) return 'El archivo de esta incapacidad ya está preparado: sus pagos no se anulan.';
+  return null;
+};
 const mensajeDePago = (i) => (i && i.archivoPreparado ? MENSAJE_PAGO_ARCHIVADA : mensajePago(i?.estado));
 
 // numeric(14,2): hasta 12 cifras enteras (DA-40).
@@ -148,7 +161,10 @@ export function crearControlCobro({ baseDeDatos, hoy = hoyEnColombia }) {
         puedeRegistrarCobrada: puedeRegistrarCobrada(incapacidad.estado),
         puedeRegistrarRechazo: puedeRegistrarRechazo(incapacidad.estado),
         puedeRegistrarPago: admitePago(incapacidad),
-        totalPagado: centavosATexto(incapacidad.pagos.reduce((total, p) => total + aCentavos(p.valor), 0)),
+        // Auditoría (HU-15): el total y el número de pagos cuentan solo los vigentes; los anulados quedan en la línea.
+        totalPagado: centavosATexto(vigentes(incapacidad.pagos).reduce((total, p) => total + aCentavos(p.valor), 0)),
+        pagosVigentes: vigentes(incapacidad.pagos).length,
+        anulables: incapacidad.pagos.filter((p) => !impedimentoDeAnular(incapacidad, p)).map((p) => p.idPago),
         fechaPrometida:
           incapacidad.tiempoPago != null && incapacidad.fechaCobrada
             ? fechaPrometida(incapacidad.fechaCobrada, incapacidad.tiempoPago)
@@ -233,6 +249,36 @@ export function crearControlCobro({ baseDeDatos, hoy = hoyEnColombia }) {
         throw new ErrorDeValidacion({ estado: mensajeDePago(ahora) });
       }
       return { idIncapacidad: actual.idIncapacidad, idPago };
+    },
+
+    /**
+     * Auditoría (HU-15, decisión 3A): anula un pago mal digitado — no lo borra: guarda quién, cuándo y el motivo. Solo
+     * mientras no esté conciliado ni el archivo preparado. Si la incapacidad se queda sin pagos vigentes, vuelve a
+     * «cobrada» (y otra vez a los pendientes de pago).
+     * @param {{ motivo?: string }} datos
+     * @returns {Promise<null | { idIncapacidad: number, idPago: number, estado: string }>} null si la incapacidad no existe.
+     * @throws {ErrorDeValidacion} motivo no válido (`motivo`) o el pago no se puede anular (`anulacion`).
+     */
+    async anularPago(idIncapacidad, idPago, datos, usuario) {
+      const actual = esIdentificador(idIncapacidad) ? await baseDeDatos.obtenerDatosCobro(Number(idIncapacidad)) : null;
+      if (!actual) return null;
+      const pago = esIdentificador(idPago) ? actual.pagos.find((p) => p.idPago === Number(idPago)) : undefined;
+      const impedimento = impedimentoDeAnular(actual, pago);
+      if (impedimento) throw new ErrorDeValidacion({ anulacion: impedimento });
+
+      const motivo = leerMotivoAnulacion(datos?.motivo);
+      if (motivo.error) throw new ErrorDeValidacion({ motivo: motivo.error });
+
+      const anulado = await baseDeDatos.anularPago(pago.idPago, motivo.valor, usuario.id);
+      // Otro usuario lo anuló, lo concilió o preparó el archivo entre la consulta y la anulación.
+      if (!anulado) {
+        const ahora = await baseDeDatos.obtenerDatosCobro(actual.idIncapacidad);
+        throw new ErrorDeValidacion({
+          anulacion: impedimentoDeAnular(ahora, ahora.pagos.find((p) => p.idPago === pago.idPago)) ?? 'No se pudo anular el pago: vuelva a intentarlo.',
+        });
+      }
+      const despues = await baseDeDatos.obtenerDatosCobro(actual.idIncapacidad);
+      return { idIncapacidad: actual.idIncapacidad, idPago: pago.idPago, estado: despues.estado };
     },
   };
 }

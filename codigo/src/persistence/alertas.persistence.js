@@ -29,7 +29,7 @@ export function crearPersistenciaAlertas(cliente) {
           await cliente
             .from('incapacidad')
             .select(
-              'id, tipo, fecha_inicio, dias_incapacidad, fecha_recepcion, fecha_nacimiento, estado, ' +
+              'id, tipo, fecha_inicio, dias_incapacidad, fecha_recepcion, fecha_nacimiento, estado, motivo_traslado, ' +
                 'documentacion_completa, fecha_aviso_faltantes, segundo_llamado, ' +
                 `${COLUMNAS_CASO}, colaborador(nombre), entidad(nombre, plazo_transcripcion, plazo_transcripcion_transito)`,
             )
@@ -49,6 +49,7 @@ export function crearPersistenciaAlertas(cliente) {
         fechaRecepcion: f.fecha_recepcion,
         fechaNacimiento: f.fecha_nacimiento,
         estado: f.estado,
+        motivoTraslado: f.motivo_traslado, // DA-70: sin alerta de transcripción una vez trasladada
         documentacionCompleta: f.documentacion_completa,
         fechaAvisoFaltantes: f.fecha_aviso_faltantes,
         segundoLlamado: f.segundo_llamado,

@@ -17,8 +17,18 @@ let correo;
 
 // Hoy fijo. Por defecto las incapacidades empiezan el 1 de abril: ya pasaron el día 120 (29 jul) y el 181 (28 sep).
 const HOY = '2026-11-23';
+// Cada una de otro colaborador: el mismo colaborador, tipo y fechas sería un duplicado (HU-03).
+let registradas = 0;
 const registrar = (dias, fechaInicio = '2026-04-01') =>
-  control.registrarIncapacidad(formularioDeRegistro({ diasIncapacidad: String(dias), fechaInicio, fechaRecepcion: fechaInicio }), USUARIOS.receptor);
+  control.registrarIncapacidad(
+    formularioDeRegistro({
+      diasIncapacidad: String(dias),
+      fechaInicio,
+      fechaRecepcion: fechaInicio,
+      correoColaborador: registradas++ === 0 ? 'ana.gomez@sigi.test' : `ana.gomez${registradas}@sigi.test`,
+    }),
+    USUARIOS.receptor,
+  );
 const CONCEPTO = 'Concepto favorable de rehabilitación, pronóstico de recuperación en seis meses.';
 const errores = async (promesa) => {
   const error = await promesa.catch((e) => e);
@@ -27,6 +37,7 @@ const errores = async (promesa) => {
 };
 
 beforeEach(() => {
+  registradas = 0;
   baseDeDatos = crearBaseDeDatosFalsa();
   ({ correo, enviados } = crearCorreoFalso());
   control = crearControlIncapacidades({ baseDeDatos, correo, hoy: () => HOY });

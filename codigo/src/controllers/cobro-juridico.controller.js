@@ -2,15 +2,48 @@
 // Operaciones: prepararRequerimientos (apoyo de la Vista), registrarRequerimiento → guardarRequerimiento (HU-18)
 // trasladarACartera → guardarTraslado (HU-19), consultarTrasladadas y prepararDecision (apoyo de la Vista) y
 // registrarDecision → guardarDecision (HU-20), la única operación del rol Cartera y Jurídica.
-import { fechaBreve, fechaEnColombia, hoyEnColombia } from '../servicios/dias-habiles.js';
+import { diasCalendario, fechaBreve, fechaEnColombia, hoyEnColombia, sumarIntervalo } from '../servicios/dias-habiles.js';
 import { DECISIONES, NOMBRES_DECISION } from '../models/incapacidad.model.js';
 import { avisarODeshacer } from './error-de-aviso.js';
 import { ErrorDeValidacion } from './error-de-validacion.js';
 import { esIdentificador } from './identificador.js';
-import { estaPendienteDePago, evaluarDemora } from './seguimiento.controller.js';
+import { evaluarDemora } from './seguimiento.controller.js';
 
-// RN-09: mínimo dos requerimientos antes del traslado a Cartera (HU-19 solo advierte si hay menos, DA-14).
+// RN-09: mínimo dos requerimientos antes del traslado a Cartera. Auditoría (decisión 4A): se exige para toda causal
+// (antes DA-14 solo advertía).
 export const REQUERIMIENTOS_MINIMOS = 2;
+
+// Auditoría (decisión 4A): causal del traslado, de una lista cerrada; el motivo es el detalle libre (DA-44).
+export const CAUSALES_TRASLADO = Object.freeze(['180_dias', 'deterioro', 'rechazo']);
+export const NOMBRES_CAUSAL = Object.freeze({
+  '180_dias': '180 días sin pago',
+  deterioro: 'Deterioro crediticio de la entidad',
+  rechazo: 'Rechazo de la entidad',
+});
+// RN «a los 180 días sin pago»: se cuentan desde que la incapacidad quedó cobrada (fecha_cobrada, DA-38).
+export const DIAS_SIN_PAGO = 180;
+
+/**
+ * Auditoría (decisión 4A): cobro persuasivo = una «cobrada» (con o sin demora) o una «rechazada», sin dar de baja.
+ * Cambia DA-05 (solo cobradas con demora).
+ */
+export const enCobroPersuasivo = ({ estado, decision }) => (estado === 'cobrada' || estado === 'rechazada') && decision !== 'dar_de_baja';
+
+/** Por qué no se puede trasladar con esta causal hoy, o null si se puede (sin contar los requerimientos). */
+export function impedimentoDeCausal(incapacidad, causal, hoy) {
+  if (causal === 'rechazo') {
+    return incapacidad.estado === 'rechazada' ? null : 'La causal «Rechazo de la entidad» es para una incapacidad que la entidad rechazó.';
+  }
+  if (incapacidad.estado !== 'cobrada') return `La causal «${NOMBRES_CAUSAL[causal]}» es para una incapacidad cobrada.`;
+  if (causal === '180_dias') {
+    const desde = sumarIntervalo(incapacidad.fechaCobrada, { dias: DIAS_SIN_PAGO });
+    const van = diasCalendario(incapacidad.fechaCobrada, hoy);
+    if (hoy < desde) {
+      return `Van ${van} días desde que quedó cobrada (${fechaBreve(incapacidad.fechaCobrada)}): la causal «180 días sin pago» se puede desde el ${fechaBreve(desde)}.`;
+    }
+  }
+  return null;
+}
 
 // DA-43: los fundamentos son texto libre.
 export const FUNDAMENTOS_MINIMO = 10;
@@ -28,11 +61,10 @@ export function leerFundamentos(texto) {
   return { valor: limpio };
 }
 
-// DA-05: el cobro persuasivo se aplica solo a las cobradas con demora. Una rechazada solo vuelve a radicarse.
+// Auditoría (decisión 4A): el cobro persuasivo es de las cobradas (con o sin demora) y de las rechazadas.
 const MENSAJES_ESTADO = {
   null: 'La incapacidad aún no se ha radicado: no tiene cobro que reclamar.',
-  transcrita: 'La entidad aún no ha aprobado la incapacidad: regístrela como cobrada antes del cobro persuasivo.',
-  rechazada: 'La entidad rechazó la incapacidad: no tiene cobro persuasivo, debe radicarse de nuevo.',
+  transcrita: 'La entidad aún no ha respondido la radicación: regístrela como cobrada o rechazada antes del cobro persuasivo.',
   pagada: 'La incapacidad ya está pagada: no necesita cobro persuasivo.',
 };
 const mensajeTrasladada = (incapacidad) =>
@@ -63,58 +95,63 @@ export const FILTROS_TRASLADADAS = Object.freeze({
   decididas: (t) => t.decision != null,
 });
 
-// HU-20 (DA-45): se decide sobre una incapacidad cobrada, ya trasladada y sin decisión.
-const puedeDecidir = (incapacidad) =>
-  incapacidad.estado === 'cobrada' && incapacidad.motivoTraslado != null && incapacidad.decision == null;
+// HU-20 (DA-45): se decide sobre una incapacidad trasladada y sin decisión; auditoría (4A): cobrada o rechazada.
+const enCartera = (incapacidad) => (incapacidad.estado === 'cobrada' || incapacidad.estado === 'rechazada') && incapacidad.motivoTraslado != null;
+const puedeDecidir = (incapacidad) => enCartera(incapacidad) && incapacidad.decision == null;
 
 const mensajeDecision = (incapacidad) => {
   if (incapacidad.decision != null) {
     return `Ya se registró la decisión (${NOMBRES_DECISION[incapacidad.decision].toLowerCase()}) el ${fechaBreve(incapacidad.fechaDecision)}.`;
   }
-  if (incapacidad.estado === 'cobrada') return 'Esta incapacidad aún no se ha trasladado a Cartera y Jurídica.';
+  if (incapacidad.estado === 'cobrada' || incapacidad.estado === 'rechazada') return 'Esta incapacidad aún no se ha trasladado a Cartera y Jurídica.';
   if (incapacidad.estado === 'pagada') return 'La incapacidad ya está pagada: no hay decisión que registrar.';
   return 'La incapacidad no está en cobro: no hay decisión que registrar.';
 };
 
 export function crearControlCobroJuridico({ baseDeDatos, correo, hoy = hoyEnColombia }) {
-  const sinDemora = (demora) => ({
-    estado: `La entidad aún está dentro del plazo (hasta el ${fechaBreve(demora.fechaPrometida)}): el cobro persuasivo se hace cuando hay demora.`,
-  });
+  const demoraDe = (i, fecha) => (i.tiempoPago != null && i.fechaCobrada != null ? evaluarDemora(i, fecha) : null);
 
   return {
     /** Datos de la pantalla de requerimientos de una incapacidad. Solo consulta. null si no existe. */
     async prepararRequerimientos(idIncapacidad) {
       const incapacidad = esIdentificador(idIncapacidad) ? await baseDeDatos.obtenerDatosRequerimientos(Number(idIncapacidad)) : null;
       if (!incapacidad) return null;
-      const pendiente = estaPendienteDePago(incapacidad);
-      const cobrada = incapacidad.tiempoPago != null && incapacidad.fechaCobrada != null;
-      const demora = cobrada ? evaluarDemora(incapacidad, hoy()) : null;
+      const fecha = hoy();
+      const enCobro = enCobroPersuasivo(incapacidad);
       const requerimientos = incapacidad.requerimientos.map((r) => ({ ...r, dia: fechaEnColombia(r.registrado) }));
       const trasladada = incapacidad.motivoTraslado != null;
-      const conDemora = pendiente && demora?.conDemora === true;
+      const cumpleMinimo = requerimientos.length >= REQUERIMIENTOS_MINIMOS;
+      // Auditoría (4A): las causales con su disponibilidad de hoy; el formulario solo ofrece las disponibles.
+      const causales = CAUSALES_TRASLADO.map((causal) => ({
+        causal,
+        nombre: NOMBRES_CAUSAL[causal],
+        impedimento: impedimentoDeCausal(incapacidad, causal, fecha),
+      }));
       return {
         incapacidad: { ...incapacidad, requerimientos },
-        pendiente,
-        demora,
+        pendiente: enCobro,
+        demora: demoraDe(incapacidad, fecha),
         trasladada,
-        hoy: hoy(),
+        hoy: fecha,
         // HU-18: después del traslado el cobro persuasivo terminó (DA-44).
-        puedeRegistrar: conDemora && !trasladada,
-        puedeTrasladar: conDemora && !trasladada,
-        // HU-19.CA1 (DA-14): con menos de dos requerimientos se advierte y se permite.
-        advertirMinimo: requerimientos.length < REQUERIMIENTOS_MINIMOS,
+        puedeRegistrar: enCobro && !trasladada,
+        // HU-19 (4A): el paso del traslado se muestra en cobro persuasivo; el formulario, solo con el mínimo cumplido.
+        puedeTrasladar: enCobro && !trasladada,
+        causales,
+        causalesDisponibles: causales.filter((c) => !c.impedimento),
         // HU-19.CA2: pagos posteriores al traslado, con la misma operación registrarPago (HU-15).
-        puedeRegistrarPago: pendiente && trasladada,
+        puedeRegistrarPago: enCobro && trasladada,
         total: requerimientos.length,
         minimo: REQUERIMIENTOS_MINIMOS,
-        cumpleMinimo: requerimientos.length >= REQUERIMIENTOS_MINIMOS,
-        mensajeEstado: pendiente ? null : mensajeEstado(incapacidad),
+        cumpleMinimo,
+        faltan: Math.max(REQUERIMIENTOS_MINIMOS - requerimientos.length, 0),
+        mensajeEstado: enCobro ? null : mensajeEstado(incapacidad),
       };
     },
 
     /**
-     * DS-08: registrarRequerimiento(fundamentos) → guardarRequerimiento(fundamentos) — HU-18.CA1. Solo con la
-     * incapacidad pendiente de pago y en demora (DA-05, DA-43). Devuelve cuántos requerimientos lleva (HU-18.CA2).
+     * DS-08: registrarRequerimiento(fundamentos) → guardarRequerimiento(fundamentos) — HU-18.CA1. Auditoría (4A): en una
+     * incapacidad cobrada (con o sin demora) o rechazada, sin trasladar ni dar de baja. Devuelve cuántos lleva (HU-18.CA2).
      * @param {{ fundamentos?: string }} datos
      * @param {{ id: string }} usuario
      * @returns {Promise<null | { idIncapacidad: number, idRequerimiento: number, total: number, cumpleMinimo: boolean }>}
@@ -124,19 +161,17 @@ export function crearControlCobroJuridico({ baseDeDatos, correo, hoy = hoyEnColo
     async registrarRequerimiento(idIncapacidad, datos, usuario) {
       const actual = esIdentificador(idIncapacidad) ? await baseDeDatos.obtenerDatosRequerimientos(Number(idIncapacidad)) : null;
       if (!actual) return null;
-      if (!estaPendienteDePago(actual)) throw new ErrorDeValidacion({ estado: mensajeEstado(actual) });
+      if (!enCobroPersuasivo(actual)) throw new ErrorDeValidacion({ estado: mensajeEstado(actual) });
       if (actual.motivoTraslado != null) throw new ErrorDeValidacion({ estado: mensajeTrasladada(actual) });
-      const demora = evaluarDemora(actual, hoy());
-      if (!demora.conDemora) throw new ErrorDeValidacion(sinDemora(demora));
 
       const fundamentos = leerFundamentos(datos?.fundamentos);
       if (fundamentos.error) throw new ErrorDeValidacion({ fundamentos: fundamentos.error });
 
       const idRequerimiento = await baseDeDatos.guardarRequerimiento(actual.idIncapacidad, fundamentos.valor, usuario.id);
-      // Otro usuario registró el pago (o la baja) entre la consulta y el registro: la transacción no lo guardó.
+      // Otro usuario registró el pago, la baja o el traslado entre la consulta y el registro: la transacción no lo guardó.
       if (idRequerimiento == null) {
         const ahora = await baseDeDatos.obtenerDatosRequerimientos(actual.idIncapacidad);
-        throw new ErrorDeValidacion({ estado: mensajeEstado(ahora ?? actual) });
+        throw new ErrorDeValidacion({ estado: ahora?.motivoTraslado != null ? mensajeTrasladada(ahora) : mensajeEstado(ahora ?? actual) });
       }
       // El total se lee después de guardar: si otro auxiliar registró uno a la vez, la confirmación cuenta los dos.
       const total = (await baseDeDatos.obtenerDatosRequerimientos(actual.idIncapacidad)).requerimientos.length;
@@ -144,42 +179,58 @@ export function crearControlCobroJuridico({ baseDeDatos, correo, hoy = hoyEnColo
     },
 
     /**
-     * DS-08: trasladarACartera(id, motivo) → notificarTraslado(motivo) → guardarTraslado(motivo) — HU-19.CA1.
-     * Solo con la incapacidad pendiente de pago, en demora y sin trasladar antes (DA-05, DA-44). Con menos de dos
-     * requerimientos se advierte y se permite (DA-14). Primero se guarda el traslado (condicionado en la base) y
-     * solo entonces se avisa a Cartera y Jurídica: si otro usuario trasladó o pagó a la vez, no sale ningún correo
-     * de más; si el correo falla, se deshace el traslado y se puede reintentar.
-     * @param {{ motivo?: string }} datos
-     * @returns {Promise<null | { idIncapacidad: number, requerimientos: number, advertencia: boolean }>} null si no existe.
-     * @throws {ErrorDeValidacion} motivo no válido (`motivo`), o no admite traslado (`estado`).
+     * DS-08: trasladarACartera(id, causal, motivo) → guardarTraslado → notificarTraslado — HU-19.CA1. Auditoría (4A):
+     * exige mínimo 2 requerimientos (RN-09) y la condición de la causal — 180 días desde que quedó cobrada, deterioro
+     * crediticio (cobrada, aunque no haya demora) o rechazo (rechazada). Primero se guarda el traslado (condicionado en
+     * la base: si otro usuario trasladó o pagó a la vez, no sale un correo de más) y después se avisa a Cartera y
+     * Jurídica; si el correo falla, se deshace el traslado y se puede reintentar.
+     * @param {{ causal?: string, motivo?: string }} datos
+     * @returns {Promise<null | { idIncapacidad: number, requerimientos: number, causal: string }>} null si no existe.
+     * @throws {ErrorDeValidacion} causal (`causal`), motivo (`motivo`), faltan requerimientos (`requerimientos`) o el
+     *   estado no lo admite (`estado`).
      */
     async trasladarACartera(idIncapacidad, datos) {
       const actual = esIdentificador(idIncapacidad) ? await baseDeDatos.obtenerDatosRequerimientos(Number(idIncapacidad)) : null;
       if (!actual) return null;
-      if (!estaPendienteDePago(actual)) throw new ErrorDeValidacion({ estado: mensajeEstado(actual) });
+      if (!enCobroPersuasivo(actual)) throw new ErrorDeValidacion({ estado: mensajeEstado(actual) });
       if (actual.motivoTraslado != null) throw new ErrorDeValidacion({ estado: mensajeTrasladada(actual) });
-      const demora = evaluarDemora(actual, hoy());
-      if (!demora.conDemora) throw new ErrorDeValidacion(sinDemora(demora));
+      const fecha = hoy();
 
+      const errores = {};
+      const total = actual.requerimientos.length;
+      if (total < REQUERIMIENTOS_MINIMOS) {
+        const faltan = REQUERIMIENTOS_MINIMOS - total;
+        errores.requerimientos = `Para trasladar se necesitan mínimo ${REQUERIMIENTOS_MINIMOS} requerimientos: falta${faltan === 1 ? '' : 'n'} ${faltan}.`;
+      }
+      const causal = typeof datos?.causal === 'string' ? datos.causal : '';
+      if (!CAUSALES_TRASLADO.includes(causal)) errores.causal = 'Elija la causal del traslado.';
+      else {
+        const impedimento = impedimentoDeCausal(actual, causal, fecha);
+        if (impedimento) errores.causal = impedimento;
+      }
       const motivo = leerMotivo(datos?.motivo);
-      if (motivo.error) throw new ErrorDeValidacion({ motivo: motivo.error });
+      if (motivo.error) errores.motivo = motivo.error;
+      if (Object.keys(errores).length > 0) throw new ErrorDeValidacion(errores);
 
-      const guardado = await baseDeDatos.guardarTraslado(actual.idIncapacidad, motivo.valor, hoy());
-      // Otro usuario trasladó, pagó o dio de baja entre la consulta y el registro: la transacción no lo guardó.
+      const guardado = await baseDeDatos.guardarTraslado(actual.idIncapacidad, { causal, motivo: motivo.valor }, fecha);
+      // Otro usuario trasladó, pagó, dio de baja o cambió los requerimientos entre la consulta y el registro: la
+      // transacción no lo guardó. Se explica con lo que hay ahora.
       if (!guardado) {
-        const ahora = await baseDeDatos.obtenerDatosRequerimientos(actual.idIncapacidad);
-        throw new ErrorDeValidacion({
-          estado: ahora?.motivoTraslado != null ? mensajeTrasladada(ahora) : mensajeEstado(ahora ?? actual),
-        });
+        const ahora = (await baseDeDatos.obtenerDatosRequerimientos(actual.idIncapacidad)) ?? actual;
+        if (ahora.motivoTraslado != null) throw new ErrorDeValidacion({ estado: mensajeTrasladada(ahora) });
+        if (!enCobroPersuasivo(ahora)) throw new ErrorDeValidacion({ estado: mensajeEstado(ahora) });
+        if (ahora.requerimientos.length < REQUERIMIENTOS_MINIMOS) {
+          throw new ErrorDeValidacion({ requerimientos: `Para trasladar se necesitan mínimo ${REQUERIMIENTOS_MINIMOS} requerimientos.` });
+        }
+        throw new ErrorDeValidacion({ causal: impedimentoDeCausal(ahora, causal, fecha) ?? 'No se pudo trasladar: vuelva a intentarlo.' });
       }
       await avisarODeshacer({
         operacion: 'trasladarACartera',
         idIncapacidad: actual.idIncapacidad,
-        avisar: () => correo.notificarTraslado(actual, motivo.valor),
+        avisar: () => correo.notificarTraslado(actual, motivo.valor, NOMBRES_CAUSAL[causal]),
         deshacer: () => baseDeDatos.deshacerTraslado(actual.idIncapacidad, motivo.valor),
       });
-      const requerimientos = actual.requerimientos.length;
-      return { idIncapacidad: actual.idIncapacidad, requerimientos, advertencia: requerimientos < REQUERIMIENTOS_MINIMOS };
+      return { idIncapacidad: actual.idIncapacidad, requerimientos: total, causal };
     },
 
     /**
@@ -190,7 +241,7 @@ export function crearControlCobroJuridico({ baseDeDatos, correo, hoy = hoyEnColo
     async consultarTrasladadas(ver = 'pendientes') {
       const fecha = hoy();
       const trasladadas = (await baseDeDatos.consultarTrasladadas())
-        .map((t) => ({ ...t, ...evaluarDemora(t, fecha) }))
+        .map((t) => ({ ...t, ...(demoraDe(t, fecha) ?? { conDemora: false }) }))
         .sort((a, b) => a.fechaTraslado.localeCompare(b.fechaTraslado) || a.idIncapacidad - b.idIncapacidad);
       const pestana = Object.hasOwn(FILTROS_TRASLADADAS, ver) ? ver : 'pendientes';
       return {
@@ -206,14 +257,13 @@ export function crearControlCobroJuridico({ baseDeDatos, correo, hoy = hoyEnColo
      */
     async prepararDecision(idIncapacidad) {
       const incapacidad = esIdentificador(idIncapacidad) ? await baseDeDatos.obtenerDatosRequerimientos(Number(idIncapacidad)) : null;
-      if (!incapacidad || incapacidad.estado !== 'cobrada' || incapacidad.motivoTraslado == null) return null;
-      const cobrada = incapacidad.tiempoPago != null && incapacidad.fechaCobrada != null;
+      if (!incapacidad || !enCartera(incapacidad)) return null;
       return {
         incapacidad: {
           ...incapacidad,
           requerimientos: incapacidad.requerimientos.map((r) => ({ ...r, dia: fechaEnColombia(r.registrado) })),
         },
-        demora: cobrada ? evaluarDemora(incapacidad, hoy()) : null,
+        demora: demoraDe(incapacidad, hoy()),
         puedeDecidir: puedeDecidir(incapacidad),
         mensajeEstado: puedeDecidir(incapacidad) ? null : mensajeDecision(incapacidad),
       };

@@ -140,8 +140,9 @@ describe('HU-10.CA2 — tras un rechazo, una nueva radicación vuelve a «transc
   });
 
   it('EST-01 — puedeRadicar: solo registrada (sin estado) o rechazada', () => {
-    expect([null, undefined, 'rechazada'].every(puedeRadicar)).toBe(true);
-    expect(['transcrita', 'cobrada', 'pagada'].some(puedeRadicar)).toBe(false);
+    expect([null, undefined, 'rechazada'].every((estado) => puedeRadicar(estado))).toBe(true);
+    expect(['transcrita', 'cobrada', 'pagada'].some((estado) => puedeRadicar(estado))).toBe(false);
+    expect(puedeRadicar('rechazada', 'Trasladada por rechazo')).toBe(false); // DA-70
   });
 });
 

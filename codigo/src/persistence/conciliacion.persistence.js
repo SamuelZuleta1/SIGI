@@ -3,7 +3,7 @@
 // consultarPagosConsignados (apoyo de la Vista). HU-26: obtenerPagosConsignados(entidad), guardarConciliacion(detalle)
 // y guardarSaldosPendientes(saldos) (las dos en la transacción `registrar_conciliacion`, DA-56), con
 // deshacerConciliacion; y de apoyo, consultarPagosPorConciliar, contarPorIdentificar, consultarConciliaciones y
-// consultarConciliacion.
+// consultarConciliacion. Auditoría (HU-25): obtenerPagoConsignado y anularPagoConsignado.
 
 const comprobar = ({ data, error }) => {
   if (error) throw error;
@@ -18,6 +18,11 @@ const aDatos = (f) => ({
   diasPagados: f.dias_pagados,
   valor: f.valor,
   creadoEn: f.creado_en,
+  // Auditoría (HU-25): identificado en una conciliación y anulación (quién, cuándo y el motivo), si se pidieron.
+  ...('conciliacion_id' in f ? { conciliado: f.conciliacion_id != null } : {}),
+  ...('anulado_en' in f
+    ? { anulacion: f.anulado_en ? { fecha: f.anulado_en, motivo: f.motivo_anulacion, por: f.anulador?.correo ?? null } : null }
+    : {}),
 });
 
 const aConciliacion = (f) => ({
@@ -77,7 +82,10 @@ export function crearPersistenciaConciliacion(cliente) {
       const filas = comprobar(
         await cliente
           .from('pago_consignado')
-          .select('id, entidad_id, colaborador, dias_pagados, valor, creado_en, entidad(nombre)')
+          .select(
+            'id, entidad_id, colaborador, dias_pagados, valor, creado_en, conciliacion_id, anulado_en, motivo_anulacion, ' +
+              'entidad(nombre), anulador:usuario!pago_consignado_anulado_por_fkey(correo)',
+          )
           .order('creado_en', { ascending: false })
           .order('id', { ascending: false })
           .limit(limite),
@@ -93,6 +101,7 @@ export function crearPersistenciaConciliacion(cliente) {
           .select('id, entidad_id, colaborador, dias_pagados, valor, creado_en, entidad(nombre)')
           .eq('entidad_id', entidadId)
           .is('conciliacion_id', null)
+          .is('anulado_en', null) // un consignado anulado no queda por identificar ni como saldo (auditoría HU-25)
           .order('id'),
       );
       return filas.map(aDatos);
@@ -109,6 +118,7 @@ export function crearPersistenciaConciliacion(cliente) {
           .select('id, valor, fecha_pago, incapacidad!inner(id, entidad_id, colaborador(nombre))')
           .eq('incapacidad.entidad_id', entidadId)
           .is('conciliacion_id', null)
+          .is('anulado_en', null) // un pago anulado no se concilia (auditoría HU-15)
           .order('fecha_pago')
           .order('id'),
       );
@@ -123,8 +133,34 @@ export function crearPersistenciaConciliacion(cliente) {
 
     /** Apoyo de HU-26: cuántos pagos consignados siguen por identificar, por entidad: { [entidadId]: n }. */
     async contarPorIdentificar() {
-      const filas = comprobar(await cliente.from('pago_consignado').select('entidad_id').is('conciliacion_id', null));
+      const filas = comprobar(
+        await cliente.from('pago_consignado').select('entidad_id').is('conciliacion_id', null).is('anulado_en', null),
+      );
       return filas.reduce((cuenta, f) => ({ ...cuenta, [f.entidad_id]: (cuenta[f.entidad_id] ?? 0) + 1 }), {});
+    },
+
+    /** Auditoría (HU-25): un pago consignado por su id (con su estado de anulación y conciliación), o null. */
+    async obtenerPagoConsignado(id) {
+      const fila = comprobar(
+        await cliente
+          .from('pago_consignado')
+          .select(
+            'id, entidad_id, colaborador, dias_pagados, valor, creado_en, conciliacion_id, anulado_en, motivo_anulacion, ' +
+              'entidad(nombre), anulador:usuario!pago_consignado_anulado_por_fkey(correo)',
+          )
+          .eq('id', id)
+          .maybeSingle(),
+      );
+      return fila ? aDatos(fila) : null;
+    },
+
+    /**
+     * Auditoría (HU-25): anula un pago consignado mal digitado sin borrarlo (`anular_pago_consignado`), con quién,
+     * cuándo y el motivo. Solo si aún no se identificó en una conciliación.
+     * @returns {Promise<boolean>} false si ya no se podía (anulado o conciliado entre tanto).
+     */
+    async anularPagoConsignado(id, motivo, por) {
+      return comprobar(await cliente.rpc('anular_pago_consignado', { p_id: id, p_motivo: motivo, p_por: por })) === true;
     },
 
     /** DS-11: guardarConciliacion(detalle) — HU-26.CA2, todos los pagos quedaron identificados. @returns {Promise<number|null>} */

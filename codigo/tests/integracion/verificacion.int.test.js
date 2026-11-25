@@ -77,7 +77,7 @@ describe('HU-06 — verificar la documentación (base de datos y Storage)', () =
   });
 
   it('HU-06.CA2 — completa: archivarDigital marca documentación completa y archivada', async () => {
-    const id = await nueva({ tipo: 'enfermedad_general', diasIncapacidad: '5' });
+    const id = await nueva({ tipo: 'enfermedad_general', diasIncapacidad: '6' }); // 6: no es duplicado de la anterior (HU-03)
     await control.registrarDocumentos(id, [documentoDePrueba()], receptor);
     await control.registrarVerificacion(id, { epsTranscribio: true });
     expect(await banderas(id)).toEqual({ documentacion_completa: true, archivado_digital: true });
@@ -88,7 +88,7 @@ describe('HU-06 — verificar la documentación (base de datos y Storage)', () =
   });
 
   it('DA-06 — ver documento descarga del bucket privado el mismo archivo que se subió', async () => {
-    const id = await nueva({});
+    const id = await nueva({ diasIncapacidad: '7' }); // 7: no es duplicado (HU-03)
     await control.registrarDocumentos(id, [documentoDePrueba({ tipo: 'epicrisis' })], receptor);
     const [{ idDocumento }] = (await baseDeDatos.obtenerExpediente(id)).documentos;
     const documento = await control.obtenerDocumento(idDocumento);

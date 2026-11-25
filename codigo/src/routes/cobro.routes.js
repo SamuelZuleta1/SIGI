@@ -1,8 +1,10 @@
 // Grupo `cobro` de la Interfaz de incapacidades — DS-06 (CU-10).
 // Operaciones de la Vista: registrarCobrada (HU-13), registrarRechazo (HU-14) y registrarPago (HU-15).
 // Diseño: opción B «línea de tiempo del cobro» (DA-38); la respuesta de la entidad, segmento «Aprobó / Rechazó» (DA-39);
-// el pago, último paso de la misma línea de tiempo (DA-40).
+// el pago, último paso de la misma línea de tiempo (DA-40). Auditoría (HU-15, decisión 3A): anularPago desde el mismo
+// paso del pago, con un desplegable como «Registrar otro pago».
 import { Router } from 'express';
+import { MOTIVO_ANULACION_MAXIMO, MOTIVO_ANULACION_MINIMO } from '../controllers/anulacion.js';
 import {
   CAUSAL_MAXIMO,
   CAUSAL_MINIMO,
@@ -39,6 +41,10 @@ export function crearRutasCobro({ control }) {
       registrada: false,
       rechazoRegistrado: false,
       pagoRegistrado: false,
+      pagoAnulado: null,
+      anulando: null,
+      motivoMinimo: MOTIVO_ANULACION_MINIMO,
+      motivoMaximo: MOTIVO_ANULACION_MAXIMO,
       origen: 'cobro',
       pesos,
       respuesta: 'aprobo',
@@ -79,6 +85,8 @@ export function crearRutasCobro({ control }) {
       registrada: req.query.registrada === '1' && cobro.fechaPrometida != null,
       rechazoRegistrado: req.query.rechazada === '1' && cobro.incapacidad.estado === 'rechazada',
       pagoRegistrado: req.query.pagado === '1' && cobro.incapacidad.estado === 'pagada' && cobro.incapacidad.pagos.length > 0,
+      // Auditoría: confirmación de la anulación, solo si ese pago de verdad está anulado.
+      pagoAnulado: cobro.incapacidad.pagos.find((p) => String(p.idPago) === String(req.query.anulado ?? '') && p.anulacion) ?? null,
     });
   });
 
@@ -139,6 +147,27 @@ export function crearRutasCobro({ control }) {
         origen,
         errores: error.errores,
         valores: { valor: valor.trim().slice(0, 30), fechaPago: fechaPago.trim().slice(0, 10) },
+      });
+    }
+  });
+
+  // Auditoría (HU-15): anularPago(idIncapacidad, idPago, motivo). Motivo no válido: 400; el pago ya no se puede anular
+  // (anulado, conciliado o archivo preparado): 409. Si falla, el desplegable de ese pago vuelve abierto con lo escrito.
+  rutas.post('/incapacidades/:id/pagos/:idPago/anulacion', permitir('anularPago'), async (req, res) => {
+    const motivo = String(req.body?.motivo ?? '');
+    try {
+      const resultado = await control.anularPago(req.params.id, req.params.idPago, { motivo }, req.usuario);
+      if (!resultado) return noExiste(res, req.params.id);
+      res.redirect(303, `/incapacidades/${resultado.idIncapacidad}/cobro?anulado=${resultado.idPago}`);
+    } catch (error) {
+      if (!(error instanceof ErrorDeValidacion)) throw error;
+      const cobro = await control.prepararCobro(req.params.id);
+      if (!cobro) return noExiste(res, req.params.id);
+      await pagina(res, error.errores.anulacion ? 409 : 400, {
+        cobro,
+        anulando: Number(req.params.idPago) || null,
+        errores: error.errores,
+        valores: { motivo: motivo.trim().slice(0, MOTIVO_ANULACION_MAXIMO * 2) },
       });
     }
   });

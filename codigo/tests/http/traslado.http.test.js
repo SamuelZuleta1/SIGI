@@ -1,4 +1,5 @@
-// HU-19 — traslado a Cartera y Jurídica (DS-08), rutas con sesión, persistencia y correo falsos (DA-05, DA-14, DA-44).
+// HU-19 — traslado a Cartera y Jurídica (DS-08), rutas con sesión, persistencia y correo falsos (DA-44 y auditoría,
+// decisión 4A: causal de una lista cerrada y mínimo 2 requerimientos exigidos).
 import request from 'supertest';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { crearApp } from '../../src/app.js';
@@ -28,73 +29,115 @@ beforeEach(async () => {
 
 const requerir = (agente, n = 1) =>
   agente.post('/incapacidades/1/requerimiento').type('form').send({ fundamentos: `Requerimiento número ${n} de cobro.` });
-const trasladar = (agente, motivo = '180 días sin pago') => agente.post('/incapacidades/1/traslado').type('form').send({ motivo });
+const trasladar = (agente, motivo = 'La entidad está en liquidación', causal = 'deterioro') =>
+  agente.post('/incapacidades/1/traslado').type('form').send({ causal, motivo });
+const conMinimo = async (agente) => {
+  await requerir(agente, 1);
+  await requerir(agente, 2);
+};
 
 describe('HU-19 — traslado a Cartera y Jurídica (rutas)', () => {
-  it('DA-14 — con menos de dos requerimientos la pantalla advierte y ofrece el traslado', async () => {
+  it('4A — con menos de dos requerimientos no hay formulario: dice cuántos faltan', async () => {
     const agente = await agenteCon(request, app, 'auxiliar');
     await requerir(agente);
     const res = await agente.get('/incapacidades/1/requerimientos');
-    expect(res.text).toContain('action="/incapacidades/1/traslado"');
-    expect(res.text).toContain('Solo hay 1 de 2 requerimientos. Puede trasladar de todos modos');
-    expect(res.text).toContain('maxlength="500"');
+    expect(res.text).not.toContain('action="/incapacidades/1/traslado"');
+    expect(res.text).toContain('Para trasladar se necesitan mínimo 2 requerimientos: falta 1.');
   });
 
-  it('con dos requerimientos ya no advierte', async () => {
+  it('4A — con dos, el formulario ofrece las causales: las que no se cumplen, desactivadas con su motivo', async () => {
     const agente = await agenteCon(request, app, 'auxiliar');
-    await requerir(agente, 1);
-    await requerir(agente, 2);
+    await conMinimo(agente);
     const res = await agente.get('/incapacidades/1/requerimientos');
     expect(res.text).toContain('action="/incapacidades/1/traslado"');
-    expect(res.text).not.toContain('Puede trasladar de todos modos');
+    expect(res.text).toMatch(/<input type="radio" name="causal" value="deterioro" checked>/); // la única que se cumple
+    expect(res.text).toMatch(/<input type="radio" name="causal" value="180_dias" disabled>/);
+    expect(res.text).toContain('Van 13 días desde que quedó cobrada (21 nov 2026)');
+    expect(res.text).toMatch(/<input type="radio" name="causal" value="rechazo" disabled>/);
+    expect(res.text).toContain('maxlength="500"');
   });
 
   it('HU-19.CA1 — traslada, avisa a Cartera y lo muestra en la línea de tiempo', async () => {
     const agente = await agenteCon(request, app, 'auxiliar');
-    await requerir(agente, 1);
-    await requerir(agente, 2);
+    await conMinimo(agente);
     const res = await trasladar(agente);
     expect(res.status).toBe(303);
     expect(res.headers.location).toBe('/incapacidades/1/requerimientos?trasladado=1');
     expect(enviados.map((m) => m.to)).toEqual([DESTINATARIOS.cartera]);
     const pagina = await agente.get(res.headers.location);
-    expect(pagina.text).toContain('Incapacidad trasladada a Cartera y Jurídica; se les avisó por correo.');
-    expect(pagina.text).not.toContain('Se trasladó con');
-    expect(pagina.text).toContain('Trasladada a Cartera y Jurídica');
-    expect(pagina.text).toContain('180 días sin pago');
+    expect(pagina.text).toContain('Incapacidad trasladada a Cartera y Jurídica por «Deterioro crediticio de la entidad»; se les avisó por correo.');
+    expect(pagina.text).toContain('Trasladada a Cartera y Jurídica · Deterioro crediticio de la entidad');
+    expect(pagina.text).toContain('La entidad está en liquidación');
     expect(pagina.text).not.toContain('action="/incapacidades/1/traslado"');
     expect(pagina.text).not.toContain('action="/incapacidades/1/requerimiento"');
   });
 
-  it('DA-14 — trasladar con un requerimiento se permite y la confirmación lo señala', async () => {
+  it('4A — con un requerimiento el traslado se rechaza (409) y no sale el correo', async () => {
     const agente = await agenteCon(request, app, 'auxiliar');
     await requerir(agente);
     const res = await trasladar(agente);
+    expect(res.status).toBe(409);
+    expect(res.text).toContain('Para trasladar se necesitan mínimo 2 requerimientos: falta 1.');
+    expect(enviados).toHaveLength(0);
+  });
+
+  it('4A — 180 días antes de tiempo: 409 con la fecha desde la que se puede; una causal desconocida: 400', async () => {
+    const agente = await agenteCon(request, app, 'auxiliar');
+    await conMinimo(agente);
+    const antes = await trasladar(agente, 'Sin pago desde la aprobación', '180_dias');
+    expect(antes.status).toBe(409);
+    expect(antes.text).toContain('se puede desde el 20 may 2027');
+    expect((await trasladar(agente, 'Sin pago desde la aprobación', 'inventada')).status).toBe(400);
+    hoy = '2027-05-20';
+    expect((await trasladar(agente, 'Sin pago desde la aprobación', '180_dias')).status).toBe(303);
+  });
+
+  it('4A — una rechazada: la pantalla del cobro lleva al cobro persuasivo y se traslada por rechazo', async () => {
+    const agente = await agenteCon(request, app, 'auxiliar');
+    const control = crearControlIncapacidades({ baseDeDatos, correo: crearCorreoFalso().correo, hoy: () => hoy });
+    await control.registrarIncapacidad(formularioDeRegistro({ entidad: '2', correoColaborador: 'otro@sigi.test' }), USUARIOS.receptor);
+    await control.registrarRadicacion('2', { radicado: 'NEPS-2', evidencia: PDF }, USUARIOS.auxiliar);
+    await control.registrarRechazo('2', { causal: 'Falta la epicrisis del paciente' });
+    expect((await agente.get('/incapacidades/2/cobro')).text).toContain('href="/incapacidades/2/requerimientos">cobro persuasivo</a>');
+    for (const n of [1, 2]) await agente.post('/incapacidades/2/requerimiento').type('form').send({ fundamentos: `Reclamo número ${n} por el rechazo.` });
+    const pantalla = await agente.get('/incapacidades/2/requerimientos');
+    expect(pantalla.text).toContain('Rechazada por Nueva EPS');
+    expect(pantalla.text).toMatch(/<input type="radio" name="causal" value="rechazo" checked>/); // la única disponible
+    expect(pantalla.text).toContain('href="/incapacidades/2/cobro">Volver al cobro</a>');
+    const res = await agente.post('/incapacidades/2/traslado').type('form').send({ causal: 'rechazo', motivo: 'La entidad no reconoce la epicrisis' });
     expect(res.status).toBe(303);
-    const pagina = await agente.get(res.headers.location);
-    expect(pagina.text).toContain('Se trasladó con 1 de 2 requerimientos.');
+    expect(baseDeDatos.incapacidades[1]).toMatchObject({ estado: 'rechazada', causalTraslado: 'rechazo' });
+
+    // DA-70: ya trasladada, el cobro no pide radicarla de nuevo.
+    const cobro = await agente.get('/incapacidades/2/cobro');
+    expect(cobro.text).toContain('Trasladada a Cartera y Jurídica');
+    expect(cobro.text).not.toContain('Debe radicarse de nuevo');
   });
 
   it('XSS — el motivo se escapa al mostrarse', async () => {
     const agente = await agenteCon(request, app, 'auxiliar');
+    await conMinimo(agente);
     await trasladar(agente, '<script>alert(1)</script> motivo');
     const pagina = await agente.get('/incapacidades/1/requerimientos');
     expect(pagina.text).not.toContain('<script>alert(1)</script>');
     expect(pagina.text).toContain('&lt;script&gt;');
   });
 
-  it('DA-44 — motivo no válido: 400 y conserva lo escrito', async () => {
+  it('DA-44 — motivo no válido: 400 y conserva lo escrito y la causal', async () => {
     const agente = await agenteCon(request, app, 'auxiliar');
+    await conMinimo(agente);
     const res = await trasladar(agente, 'ab');
     expect(res.status).toBe(400);
     expect(res.text).toContain('Escriba el motivo con al menos 3 caracteres.');
     expect(res.text).toContain('>ab</textarea>');
+    expect(res.text).toMatch(/<input type="radio" name="causal" value="deterioro" checked>/);
     expect(enviados).toHaveLength(0);
     expect(baseDeDatos.incapacidades[0].motivoTraslado ?? null).toBeNull();
   });
 
   it('DA-44 — ya trasladada: 409', async () => {
     const agente = await agenteCon(request, app, 'auxiliar');
+    await conMinimo(agente);
     await trasladar(agente);
     const res = await trasladar(agente, 'Otro motivo distinto');
     expect(res.status).toBe(409);
@@ -102,11 +145,11 @@ describe('HU-19 — traslado a Cartera y Jurídica (rutas)', () => {
     expect(enviados).toHaveLength(1);
   });
 
-  it('DA-05 — sin demora: 409 y la pantalla no ofrece el traslado', async () => {
-    hoy = '2026-12-01';
+  it('4A — deterioro crediticio sin demora (antes DA-05 lo impedía): se traslada', async () => {
+    hoy = '2026-11-25';
     const agente = await agenteCon(request, app, 'auxiliar');
-    expect((await trasladar(agente)).status).toBe(409);
-    expect((await agente.get('/incapacidades/1/requerimientos')).text).not.toContain('action="/incapacidades/1/traslado"');
+    await conMinimo(agente);
+    expect((await trasladar(agente)).status).toBe(303);
   });
 
   it('?trasladado=1 sin traslado no muestra la confirmación', async () => {
@@ -129,6 +172,7 @@ describe('HU-19 — traslado a Cartera y Jurídica (rutas)', () => {
 describe('HU-19.CA2 — pago posterior al traslado', () => {
   it('HU-19.CA2 — trasladada, la pantalla ofrece el pago con origen cobro-juridico; registrarlo vuelve aquí', async () => {
     const agente = await agenteCon(request, app, 'auxiliar');
+    await conMinimo(agente);
     await trasladar(agente);
     const pantalla = await agente.get('/incapacidades/1/requerimientos');
     expect(pantalla.text).toContain('action="/incapacidades/1/pago"');
@@ -145,6 +189,7 @@ describe('HU-19.CA2 — pago posterior al traslado', () => {
 
   it('un pago con error desde el cobro jurídico: 400 y conserva el origen para volver a esta pantalla', async () => {
     const agente = await agenteCon(request, app, 'auxiliar');
+    await conMinimo(agente);
     await trasladar(agente);
     const res = await agente.post('/incapacidades/1/pago').type('form').send({ valor: '0', fechaPago: '2026-12-04', origen: 'cobro-juridico' });
     expect(res.status).toBe(400);

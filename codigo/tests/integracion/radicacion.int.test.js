@@ -6,7 +6,9 @@ import { BUCKET_DOCUMENTOS, crearClienteServidor } from '../../src/config/supaba
 import { crearControlIncapacidades } from '../../src/controllers/control-incapacidades.js';
 import { crearBaseDeDatos } from '../../src/persistence/base-de-datos.js';
 import { crearCorreoFalso } from '../helpers/correo-falso.js';
-import { formularioDeRegistro, PDF, PNG } from '../helpers/fabricas.js';
+import { formularioDeRegistro, PDF, PNG, diasDistintos } from '../helpers/fabricas.js';
+
+const diasDelCaso = diasDistintos(); // HU-03: sin duplicados entre las pruebas del archivo
 
 const servidor = crearClienteServidor();
 const baseDeDatos = crearBaseDeDatos(servidor);
@@ -21,7 +23,7 @@ let entidades;
 const registrar = async (nombreEntidad, cambios = {}) => {
   const entidad = entidades.find((e) => e.nombre === nombreEntidad);
   const { idIncapacidad } = await control.registrarIncapacidad(
-    formularioDeRegistro({ correoColaborador, entidad: String(entidad.id), ...cambios }),
+    formularioDeRegistro({ diasIncapacidad: diasDelCaso(), correoColaborador, entidad: String(entidad.id), ...cambios }),
     receptor,
   );
   ids.push(idIncapacidad);

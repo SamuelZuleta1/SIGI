@@ -17,7 +17,9 @@
     <a href="/incapacidades/<%= registrada %>/documentos">Registrar sus documentos</a>
   </p>
 <% } %>
-<% if (primerError) { %>
+<% if (errores.duplicada) { %>
+  <p class="mensaje mensaje-error" role="alert"><%= errores.duplicada %></p>
+<% } else if (primerError) { %>
   <p class="mensaje mensaje-error" role="alert">No se registró. Revise los campos marcados.</p>
 <% } %>
 
@@ -29,6 +31,13 @@
         <label for="colaborador">Nombre completo</label>
         <input id="colaborador" name="colaborador" type="text" value="<%= valores.colaborador %>" maxlength="200" autocomplete="off" required<%- atributos('colaborador') %>>
         <% if (errores.colaborador) { %><span class="error" id="error-colaborador"><%= errores.colaborador %></span><% } %>
+        <%# Auditoría HU-03 (decisión 1A): el correo ya es de otro nombre; se registra con el guardado solo si se confirma. %>
+        <% if (errores.nombreGuardado) { %>
+          <label class="casilla" for="usarNombreGuardado">
+            <input id="usarNombreGuardado" name="usarNombreGuardado" type="checkbox" value="si">
+            Usar el nombre guardado («<%= errores.nombreGuardado %>»)
+          </label>
+        <% } %>
       </div>
       <div class="campo <%= errores.correoColaborador ? 'invalido' : '' %>">
         <label for="correoColaborador">Correo</label>
@@ -36,7 +45,7 @@
         <% if (errores.correoColaborador) { %>
           <span class="error" id="error-correoColaborador"><%= errores.correoColaborador %></span>
         <% } else { %>
-          <span class="ayuda">Si el colaborador ya está en SIGI, se usa el que tiene este correo.</span>
+          <span class="ayuda">Si el correo ya está en SIGI con otro nombre, se le pedirá confirmar que es la misma persona.</span>
         <% } %>
       </div>
     </div>
@@ -70,6 +79,18 @@
         <input id="fechaInicio" name="fechaInicio" type="date" value="<%= valores.fechaInicio %>" required<%- atributos('fechaInicio') %>>
         <% if (errores.fechaInicio) { %><span class="error" id="error-fechaInicio"><%= errores.fechaInicio %></span><% } %>
       </div>
+      <%# HU-12 (decisión 2A): solo para las licencias. Con JavaScript aparece al elegir una licencia y muestra el plazo
+          de radicación de la paternidad en vivo (public/js/sigi.js); sin JavaScript se ve siempre. %>
+      <div class="campo <%= errores.fechaNacimiento ? 'invalido' : '' %>" data-nacimiento>
+        <label for="fechaNacimiento">Fecha de nacimiento</label>
+        <input id="fechaNacimiento" name="fechaNacimiento" type="date" value="<%= valores.fechaNacimiento ?? '' %>" max="<%= hoy %>" aria-describedby="<%= errores.fechaNacimiento ? 'error-fechaNacimiento' : 'ayuda-fechaNacimiento' %>"<%- atributos('fechaNacimiento') %>>
+        <% if (errores.fechaNacimiento) { %>
+          <span class="error" id="error-fechaNacimiento"><%= errores.fechaNacimiento %></span>
+        <% } else { %>
+          <span class="ayuda" id="ayuda-fechaNacimiento" data-ayuda-nacimiento>Solo licencias de maternidad y paternidad: la del certificado de nacido vivo.</span>
+        <% } %>
+        <span class="ayuda" data-plazo-paternidad aria-live="polite" hidden></span>
+      </div>
       <div class="campo <%= errores.diasIncapacidad ? 'invalido' : '' %>">
         <label for="diasIncapacidad">Días de incapacidad</label>
         <input id="diasIncapacidad" name="diasIncapacidad" type="number" inputmode="numeric" min="1" max="9999" step="1" value="<%= valores.diasIncapacidad %>" required<%- atributos('diasIncapacidad') %>>
@@ -77,7 +98,7 @@
       </div>
       <div class="campo <%= errores.fechaRecepcion ? 'invalido' : '' %>">
         <label for="fechaRecepcion">Fecha de recepción</label>
-        <input id="fechaRecepcion" name="fechaRecepcion" type="date" value="<%= valores.fechaRecepcion %>" required<%- atributos('fechaRecepcion') %>>
+        <input id="fechaRecepcion" name="fechaRecepcion" type="date" value="<%= valores.fechaRecepcion %>" max="<%= hoy %>" required<%- atributos('fechaRecepcion') %>>
         <% if (errores.fechaRecepcion) { %><span class="error" id="error-fechaRecepcion"><%= errores.fechaRecepcion %></span><% } %>
       </div>
     </div>

@@ -13,7 +13,7 @@ const comprobar = ({ data, error }) => {
 const COLUMNAS =
   'id, tipo, fecha_inicio, dias_incapacidad, estado, enviada_a_gestion_documental, fecha_archivo_preparado, ' +
   'fecha_envio_archivo, envio:usuario!incapacidad_envio_archivo_por_fkey(correo), ' +
-  'colaborador(nombre), entidad(nombre), pago(id, valor, fecha_pago, conciliado), documento(id, tipo)';
+  'colaborador(nombre), entidad(nombre), pago(id, valor, fecha_pago, conciliado, anulado_en), documento(id, tipo)';
 
 const aDatos = (f) => ({
   idIncapacidad: f.id,
@@ -27,7 +27,9 @@ const aDatos = (f) => ({
   fechaArchivoPreparado: f.fecha_archivo_preparado,
   fechaEnvioArchivo: f.fecha_envio_archivo,
   envioArchivoPor: f.envio?.correo ?? null,
-  pagos: [...f.pago]
+  // Auditoría (HU-15): un pago anulado no cuenta para el archivo (ni lo bloquea ni lo habilita).
+  pagos: f.pago
+    .filter((p) => p.anulado_en == null)
     .sort((a, b) => a.fecha_pago.localeCompare(b.fecha_pago) || a.id - b.id)
     .map((p) => ({ idPago: p.id, valor: p.valor, fechaPago: p.fecha_pago, conciliado: p.conciliado })),
   documentos: [...f.documento].sort((a, b) => a.id - b.id).map((d) => ({ idDocumento: d.id, tipo: d.tipo })),

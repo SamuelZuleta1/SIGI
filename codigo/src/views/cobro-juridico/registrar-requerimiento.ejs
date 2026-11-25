@@ -11,26 +11,27 @@
   const dias = (n) => (n === 1 ? '1 día' : `${n} días`);
   const { incapacidad, demora } = cobro;
   const ultimo = incapacidad.requerimientos.at(-1);
-  const faltan = Math.max(cobro.minimo - cobro.total, 0);
+  const faltan = cobro.faltan;
+  const rechazada = incapacidad.estado === 'rechazada' || (incapacidad.causalTraslado === 'rechazo' && !demora);
 %>
 <h1>Cobro persuasivo</h1>
-<p class="sub">Requerimientos a la entidad por el pago que sigue en demora. Lo habitual es hacer mínimo <%= cobro.minimo %> antes de trasladar a Cartera y Jurídica.</p>
+<p class="sub">Requerimientos a la entidad por el pago o por el rechazo. Para trasladar a Cartera y Jurídica se necesitan mínimo <%= cobro.minimo %>.</p>
 
 <div class="formulario">
   <% if (errores.aviso) { %>
     <p class="mensaje mensaje-error" role="alert" tabindex="-1" autofocus><%= errores.aviso %></p>
   <% } %>
   <% if (trasladadoAhora) { %>
-    <p class="mensaje <%= cobro.advertirMinimo ? 'mensaje-aviso' : 'mensaje-ok' %> entra" role="status">Incapacidad trasladada a Cartera y Jurídica; se les avisó por correo.<% if (cobro.advertirMinimo) { %> Se trasladó con <%= cobro.total %> de <%= cobro.minimo %> requerimientos.<% } %></p>
+    <p class="mensaje mensaje-ok entra" role="status">Incapacidad trasladada a Cartera y Jurídica por «<%= nombresCausal[incapacidad.causalTraslado] %>»; se les avisó por correo.</p>
   <% } %>
   <% if (pagoRegistrado) { %>
     <p class="mensaje mensaje-ok entra" role="status">Pago registrado. La incapacidad quedó pagada y sale de los pendientes de pago.</p>
   <% } %>
   <% if (registrado) { %>
     <% if (cobro.cumpleMinimo) { %>
-      <p class="mensaje mensaje-ok entra" role="status">Requerimiento registrado. Ya van <%= cobro.total %>: se cumple el mínimo de <%= cobro.minimo %> antes del traslado.</p>
+      <p class="mensaje mensaje-ok entra" role="status">Requerimiento registrado. Ya van <%= cobro.total %>: se cumple el mínimo de <%= cobro.minimo %> para trasladar.</p>
     <% } else { %>
-      <p class="mensaje mensaje-aviso entra" role="status">Requerimiento registrado (<%= cobro.total %> de <%= cobro.minimo %>). Falta<%= faltan === 1 ? '' : 'n' %> <%= faltan %> para el mínimo antes del traslado.</p>
+      <p class="mensaje mensaje-aviso entra" role="status">Requerimiento registrado (<%= cobro.total %> de <%= cobro.minimo %>). Falta<%= faltan === 1 ? '' : 'n' %> <%= faltan %> para poder trasladar.</p>
     <% } %>
   <% } %>
 
@@ -53,6 +54,15 @@
             <p class="tenue">Debía pagar a más tardar el <%= fechaBreve(demora.fechaPrometida) %><% if (demora.conDemora) { %> · <b><%= dias(demora.diasDemora) %> de demora</b><% } %></p>
           </div>
         </li>
+      <% } else if (rechazada && incapacidad.causalRechazo) { %>
+        <%# Auditoría (4A): una rechazada tiene cobro persuasivo y puede trasladarse por rechazo, en vez de radicarse de nuevo. %>
+        <li>
+          <span class="punto rechazo"><svg viewBox="0 0 24 24" aria-hidden="true"><%- ICONOS.hecho %></svg></span>
+          <div class="paso">
+            <p class="titulo"><b>Rechazada por <%= incapacidad.entidad %></b><% if (incapacidad.fechaRechazo) { %> <span class="tenue"><%= fechaBreve(incapacidad.fechaRechazo) %></span><% } %></p>
+            <p class="tenue">Causal: <%= incapacidad.causalRechazo %></p>
+          </div>
+        </li>
       <% } %>
       <% incapacidad.requerimientos.forEach((r, i) => { %>
         <li class="<%= registrado && r === ultimo ? 'entra' : '' %>">
@@ -69,7 +79,7 @@
           <span class="punto actual"><svg viewBox="0 0 24 24" aria-hidden="true"><%- ICONOS.nueva %></svg></span>
           <div class="paso">
             <p class="titulo"><b>Requerimiento <%= cobro.total + 1 %></b></p>
-            <p class="tenue">Escriba los fundamentos con los que le reclama el pago a <%= incapacidad.entidad %>.</p>
+            <p class="tenue">Escriba los fundamentos con los que le reclama <%= rechazada ? 'el reconocimiento' : 'el pago' %> a <%= incapacidad.entidad %>.</p>
             <form class="radicar" method="post" action="/incapacidades/<%= incapacidad.idIncapacidad %>/requerimiento" novalidate data-un-envio>
               <div class="campo <%= errores.fundamentos ? 'invalido' : '' %>">
                 <label for="fundamentos">Fundamentos del requerimiento</label>
@@ -84,34 +94,46 @@
         </li>
       <% } %>
 
-      <%# HU-19 (DS-08; DA-44): traslado a Cartera y Jurídica, con advertencia (no bloqueo) si hay menos de dos requerimientos (DA-14). %>
+      <%# HU-19 (DS-08; DA-44). Auditoría (decisión 4A): causal de una lista cerrada y mínimo 2 requerimientos, exigidos. %>
       <% if (cobro.trasladada) { %>
         <li class="<%= trasladadoAhora ? 'entra' : '' %>">
           <span class="punto hecho"><svg viewBox="0 0 24 24" aria-hidden="true"><%- ICONOS.traslado %></svg></span>
           <div class="paso">
-            <p class="titulo"><b>Trasladada a Cartera y Jurídica</b> <span class="tenue"><%= fechaBreve(incapacidad.fechaTraslado) %></span></p>
+            <p class="titulo"><b>Trasladada a Cartera y Jurídica<% if (incapacidad.causalTraslado) { %> · <%= nombresCausal[incapacidad.causalTraslado] %><% } %></b> <span class="tenue"><%= fechaBreve(incapacidad.fechaTraslado) %></span></p>
             <p class="fundamentos"><%= incapacidad.motivoTraslado %></p>
             <p class="tenue">Se avisó por correo a Cartera y Jurídica. El cobro lo gestionan ellos; si la entidad paga, regístrelo aquí.</p>
           </div>
         </li>
       <% } else if (cobro.puedeTrasladar) { %>
         <li>
-          <span class="punto"><svg viewBox="0 0 24 24" aria-hidden="true"><%- ICONOS.traslado %></svg></span>
+          <span class="punto <%= cobro.cumpleMinimo ? '' : 'bloqueado' %>"><svg viewBox="0 0 24 24" aria-hidden="true"><%- ICONOS.traslado %></svg></span>
           <div class="paso">
             <p class="titulo"><b>Trasladar a Cartera y Jurídica</b></p>
-            <p class="tenue">Cuando el cobro persuasivo no funcionó, Cartera y Jurídica sigue el cobro por vía jurídica.</p>
-            <% if (cobro.advertirMinimo) { %>
-              <p class="mensaje mensaje-aviso separado" role="status">Solo hay <%= cobro.total %> de <%= cobro.minimo %> requerimientos. Puede trasladar de todos modos, pero lo habitual es hacer al menos <%= cobro.minimo %> antes.</p>
+            <p class="tenue">A los 180 días sin pago, por deterioro crediticio de la entidad o por su rechazo: Cartera y Jurídica sigue el cobro por vía jurídica.</p>
+            <% if (errores.requerimientos) { %><p class="mensaje mensaje-error separado" role="alert"><%= errores.requerimientos %></p><% } %>
+            <% if (!cobro.cumpleMinimo) { %>
+              <p class="mensaje mensaje-aviso separado" role="status">Para trasladar se necesitan mínimo <%= cobro.minimo %> requerimientos: falta<%= faltan === 1 ? '' : 'n' %> <%= faltan %>.</p>
+            <% } else { %>
+              <form class="radicar" method="post" action="/incapacidades/<%= incapacidad.idIncapacidad %>/traslado" novalidate data-un-envio>
+                <fieldset class="causales <%= errores.causal ? 'invalido' : '' %>" aria-describedby="<%= errores.causal ? 'error-causal' : 'ayuda-causal' %>">
+                  <legend>Causal del traslado</legend>
+                  <% cobro.causales.forEach((c) => { const elegida = valores.causal === c.causal || (!valores.causal && cobro.causalesDisponibles.length === 1 && !c.impedimento); %>
+                    <label class="casilla <%= c.impedimento ? 'no-disponible' : '' %>">
+                      <input type="radio" name="causal" value="<%= c.causal %>"<%- elegida ? ' checked' : '' %><%- c.impedimento ? ' disabled' : '' %><%- errores.causal && elegida ? ' autofocus' : '' %>>
+                      <span><%= c.nombre %><% if (c.impedimento) { %><small><%= c.impedimento %></small><% } %></span>
+                    </label>
+                  <% }) %>
+                  <% if (errores.causal) { %><span class="error" id="error-causal"><%= errores.causal %></span><% } else { %><span class="ayuda" id="ayuda-causal">Solo se pueden elegir las que se cumplen hoy.</span><% } %>
+                </fieldset>
+                <div class="campo <%= errores.motivo ? 'invalido' : '' %>">
+                  <label for="motivo">Detalle del traslado</label>
+                  <textarea id="motivo" name="motivo" maxlength="<%= motivoMaximo %>" required placeholder="Por ejemplo: la entidad no respondió los dos requerimientos" aria-describedby="<%= errores.motivo ? 'error-motivo' : 'ayuda-motivo' %>"<%- errores.motivo ? ' aria-invalid="true" autofocus' : '' %>><%= valores.motivo ?? '' %></textarea>
+                  <% if (errores.motivo) { %><span class="error" id="error-motivo"><%= errores.motivo %></span><% } else { %><span class="ayuda" id="ayuda-motivo">Se envía por correo a Cartera y Jurídica con la causal y queda en la línea de tiempo.</span><% } %>
+                  <span class="contador" data-contador hidden></span>
+                </div>
+                <div class="acciones"><button class="boton peligro" data-enviando="Trasladando…"<%- cobro.causalesDisponibles.length === 0 ? ' disabled' : '' %>>Trasladar a Cartera y Jurídica</button></div>
+              </form>
             <% } %>
-            <form class="radicar" method="post" action="/incapacidades/<%= incapacidad.idIncapacidad %>/traslado" novalidate data-un-envio>
-              <div class="campo <%= errores.motivo ? 'invalido' : '' %>">
-                <label for="motivo">Motivo del traslado</label>
-                <textarea id="motivo" name="motivo" maxlength="<%= motivoMaximo %>" required placeholder="Por ejemplo: 180 días sin pago o deterioro crediticio de la entidad" aria-describedby="<%= errores.motivo ? 'error-motivo' : 'ayuda-motivo' %>"<%- errores.motivo ? ' aria-invalid="true" autofocus' : '' %>><%= valores.motivo ?? '' %></textarea>
-                <% if (errores.motivo) { %><span class="error" id="error-motivo"><%= errores.motivo %></span><% } else { %><span class="ayuda" id="ayuda-motivo">Se envía por correo a Cartera y Jurídica y queda en la línea de tiempo.</span><% } %>
-                <span class="contador" data-contador hidden></span>
-              </div>
-              <div class="acciones"><button class="boton peligro" data-enviando="Trasladando…">Trasladar a Cartera y Jurídica</button></div>
-            </form>
           </div>
         </li>
       <% } %>
@@ -145,8 +167,6 @@
             <p class="titulo"><b><%= incapacidad.estado === 'pagada' ? 'Pagada' : 'Sin requerimiento nuevo' %></b></p>
             <% if (cobro.mensajeEstado) { %>
               <p class="tenue"><%= cobro.mensajeEstado %></p>
-            <% } else if (demora) { %>
-              <p class="tenue">La entidad aún está dentro del plazo (hasta el <%= fechaBreve(demora.fechaPrometida) %>): el cobro persuasivo se hace cuando hay demora.</p>
             <% } %>
           </div>
         </li>
@@ -155,6 +175,10 @@
   </section>
 
   <div class="acciones">
-    <a class="boton secundario" href="/incapacidades/<%= incapacidad.idIncapacidad %>/seguimiento">Volver al seguimiento</a>
+    <% if (demora) { %>
+      <a class="boton secundario" href="/incapacidades/<%= incapacidad.idIncapacidad %>/seguimiento">Volver al seguimiento</a>
+    <% } else { %>
+      <a class="boton secundario" href="/incapacidades/<%= incapacidad.idIncapacidad %>/cobro">Volver al cobro</a>
+    <% } %>
   </div>
 </div>

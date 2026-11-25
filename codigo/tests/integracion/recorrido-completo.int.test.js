@@ -154,7 +154,7 @@ describe('T-31 — recorrido completo de una incapacidad (AD-01)', () => {
       expect(res.status).toBe(303);
     }
     const antes = correosA(DESTINATARIOS.cartera);
-    const traslado = await agentes.auxiliar.post(`/incapacidades/${id}/traslado`).type('form').send({ motivo: 'Sin pago tras dos requerimientos' });
+    const traslado = await agentes.auxiliar.post(`/incapacidades/${id}/traslado`).type('form').send({ causal: 'deterioro', motivo: 'Sin pago tras dos requerimientos' });
     expect(traslado.status).toBe(303);
     expect((await fila()).motivo_traslado).toBe('Sin pago tras dos requerimientos');
     expect(correosA(DESTINATARIOS.cartera)).toBe(antes + 1);

@@ -11,16 +11,28 @@ export const incapacidadDePrueba = (cambios = {}) => ({
 });
 
 // Lo que envía el formulario «Registrar incapacidad» (HU-03): todo llega como texto.
+// La recepción, si no se da, es el día siguiente al inicio (HU-03: no puede ser anterior a él).
+const diaSiguiente = (fecha) => new Date(Date.parse(`${fecha}T00:00:00Z`) + 86_400_000).toISOString().slice(0, 10);
+// Por defecto cumple HU-03/HU-12: lo laboral va a la ARL SURA (1) y una licencia nace el día en que empieza.
+const LABORALES = ['accidente_laboral', 'enfermedad_laboral'];
 export const formularioDeRegistro = (cambios = {}) => ({
   colaborador: 'Ana María Gómez',
   correoColaborador: 'ana.gomez@sigi.test',
   tipo: 'enfermedad_general',
-  entidad: '2',
+  entidad: LABORALES.includes(cambios.tipo) ? '1' : '2',
+  ...(String(cambios.tipo ?? '').startsWith('licencia_') ? { fechaNacimiento: cambios.fechaInicio ?? '2026-11-03' } : {}),
   fechaInicio: '2026-11-03',
   diasIncapacidad: '5',
-  fechaRecepcion: '2026-11-04',
+  fechaRecepcion: diaSiguiente(/^\d{4}-\d{2}-\d{2}$/.test(cambios.fechaInicio ?? '') ? cambios.fechaInicio : '2026-11-03'),
   ...cambios,
 });
+
+// HU-03 (auditoría): el mismo colaborador, tipo, inicio y días es un duplicado. Las pruebas contra la base que
+// registran varias veces el mismo caso toman días distintos (5, 6, 7…) de un contador propio.
+export const diasDistintos = () => {
+  let n = 0;
+  return () => String(5 + n++);
+};
 
 // Archivos mínimos que pasan la comprobación de contenido (HU-04).
 export const PDF = Buffer.from('%PDF-1.4\n% documento de prueba\n');
@@ -40,3 +52,11 @@ export async function pagoRegistrado(baseDeDatos, { colaborador, entidad = 2, va
   return baseDeDatos.guardarPago(id, { valor, fechaPago }, 'id-auxiliar');
 }
 
+// HU-19 (auditoría, decisión 4A): trasladar exige 2 requerimientos y una causal. Registra los dos que falten y traslada.
+export async function trasladarConRequerimientos(control, id, { causal = 'deterioro', motivo = '180 días sin pago' } = {}) {
+  const { total } = await control.prepararRequerimientos(String(id));
+  for (let n = total + 1; n <= 2; n++) {
+    await control.registrarRequerimiento(String(id), { fundamentos: `Requerimiento número ${n} de cobro.` }, { id: 'id-auxiliar', rol: 'auxiliar' });
+  }
+  return control.trasladarACartera(String(id), { causal, motivo });
+}

@@ -5,7 +5,7 @@ import { crearControlIncapacidades } from '../../src/controllers/control-incapac
 import { ErrorDeAviso, avisarODeshacer, resumirError } from '../../src/controllers/error-de-aviso.js';
 import { crearBaseDeDatosFalsa } from '../helpers/base-de-datos-falsa.js';
 import { crearCorreoFalso } from '../helpers/correo-falso.js';
-import { formularioDeRegistro, PDF } from '../helpers/fabricas.js';
+import { formularioDeRegistro, PDF, trasladarConRequerimientos } from '../helpers/fabricas.js';
 import { USUARIOS } from '../helpers/sesion-falsa.js';
 
 const errorCorreo = new Error('SMTP caído');
@@ -106,7 +106,7 @@ describe('los controladores que avisan después de guardar', () => {
     await c.registrarRadicacion('1', { radicado: 'NEPS-1', evidencia: PDF }, USUARIOS.auxiliar);
     await c.registrarCobrada('1', { tiempoPago: '10' });
     hoy = '2026-12-04';
-    const error = await c.trasladarACartera('1', { motivo: '180 días sin pago' }).catch((e) => e);
+    const error = await trasladarConRequerimientos(c, 1).catch((e) => e);
     expect(error).toMatchObject({ name: 'ErrorDeAviso', deshecho: false, operacion: 'trasladarACartera' });
     expect(error.cause).toBe(errorCorreo);
     expect(registro).toHaveBeenCalledWith(expect.stringContaining('[trasladarACartera]'), expect.objectContaining({ errorDeshacer: resumirError(errorDeshacer) }));

@@ -38,6 +38,15 @@
             <p class="tenue">Debía pagar a más tardar el <%= fechaBreve(demora.fechaPrometida) %><% if (demora.conDemora) { %> · <b><%= dias(demora.diasDemora) %> de demora</b><% } %></p>
           </div>
         </li>
+      <% } else if (incapacidad.estado === 'rechazada' && incapacidad.causalRechazo) { %>
+        <%# Auditoría (4A): también se decide sobre una rechazada trasladada por rechazo. %>
+        <li>
+          <span class="punto rechazo"><svg viewBox="0 0 24 24" aria-hidden="true"><%- ICONOS.hecho %></svg></span>
+          <div class="paso">
+            <p class="titulo"><b>Rechazada por <%= incapacidad.entidad %></b><% if (incapacidad.fechaRechazo) { %> <span class="tenue"><%= fechaBreve(incapacidad.fechaRechazo) %></span><% } %></p>
+            <p class="tenue">Causal: <%= incapacidad.causalRechazo %></p>
+          </div>
+        </li>
       <% } %>
       <% incapacidad.requerimientos.forEach((r, i) => { %>
         <li>
@@ -52,7 +61,7 @@
         <li>
           <span class="punto hecho"><svg viewBox="0 0 24 24" aria-hidden="true"><%- ICONOS.traslado %></svg></span>
           <div class="paso">
-            <p class="titulo"><b>Trasladada a Cartera y Jurídica</b> <span class="tenue"><%= fechaBreve(incapacidad.fechaTraslado) %></span></p>
+            <p class="titulo"><b>Trasladada a Cartera y Jurídica<% if (incapacidad.causalTraslado) { %> · <%= nombresCausal[incapacidad.causalTraslado] %><% } %></b> <span class="tenue"><%= fechaBreve(incapacidad.fechaTraslado) %></span></p>
             <p class="fundamentos"><%= incapacidad.motivoTraslado %></p>
           </div>
         </li>

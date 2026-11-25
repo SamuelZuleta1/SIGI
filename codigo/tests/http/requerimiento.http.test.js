@@ -37,11 +37,10 @@ describe('HU-18 — requerimientos de cobro persuasivo (rutas)', () => {
     expect(res.text).toContain('maxlength="2000"');
   });
 
-  it('DA-43 — sin demora no se ofrece el formulario y se explica por qué', async () => {
+  it('4A — también sin demora se ofrece el formulario (cambia DA-43)', async () => {
     const agente = await agenteCon(request, app, 'auxiliar');
     const res = await agente.get('/incapacidades/1/requerimientos');
-    expect(res.text).not.toContain('action="/incapacidades/1/requerimiento"');
-    expect(res.text).toContain('dentro del plazo');
+    expect(res.text).toContain('action="/incapacidades/1/requerimiento"');
   });
 
   it('HU-18.CA1 — registra, confirma que faltan requerimientos y lo muestra en la línea de tiempo', async () => {
@@ -51,7 +50,7 @@ describe('HU-18 — requerimientos de cobro persuasivo (rutas)', () => {
     expect(res.status).toBe(303);
     expect(res.headers.location).toBe('/incapacidades/1/requerimientos?registrado=1');
     const pagina = await agente.get(res.headers.location);
-    expect(pagina.text).toContain('Requerimiento registrado (1 de 2). Falta 1 para el mínimo antes del traslado.');
+    expect(pagina.text).toContain('Requerimiento registrado (1 de 2). Falta 1 para poder trasladar.');
     expect(pagina.text).toContain('Plazo vencido; se reclama el pago de la prestación.');
     expect(pagina.text).toContain('1 de 2');
   });
@@ -62,7 +61,7 @@ describe('HU-18 — requerimientos de cobro persuasivo (rutas)', () => {
     await requerir(agente);
     const res = await requerir(agente, 'Segundo requerimiento con la norma aplicable.');
     const pagina = await agente.get(res.headers.location);
-    expect(pagina.text).toContain('Ya van 2: se cumple el mínimo de 2 antes del traslado.');
+    expect(pagina.text).toContain('Ya van 2: se cumple el mínimo de 2 para trasladar.');
     expect(pagina.text).toContain('Requerimiento 3');
   });
 
@@ -88,11 +87,9 @@ describe('HU-18 — requerimientos de cobro persuasivo (rutas)', () => {
     expect(baseDeDatos.requerimientos).toHaveLength(0);
   });
 
-  it('DA-05 — sin demora: 409', async () => {
+  it('4A — sin demora también se registra (antes 409, DA-05/DA-43)', async () => {
     const agente = await agenteCon(request, app, 'auxiliar');
-    const res = await requerir(agente);
-    expect(res.status).toBe(409);
-    expect(res.text).toContain('dentro del plazo');
+    expect((await requerir(agente)).status).toBe(303);
   });
 
   it('?registrado=1 sin requerimientos no muestra la confirmación', async () => {

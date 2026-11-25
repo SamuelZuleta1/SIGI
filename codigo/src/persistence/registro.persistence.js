@@ -27,10 +27,15 @@ export function crearPersistenciaRegistro(cliente, almacen = crearAlmacenDocumen
     /**
      * DS-01: guardarIncapacidad(colaborador, tipo, entidad, fechaInicio, dias, fechaRecepcion) → idIncapacidad.
      * `colaborador` es { nombre, correo }: si no existe uno con ese correo, se crea (DA-03, DA-04);
-     * si ya existe, se usa el que está guardado. `creadoPor` es el usuario que registra (DA-23).
+     * si ya existe, se usa el que está guardado (con `nombreConfirmado`; sin él, la base rechaza un nombre distinto,
+     * SG020). `fechaNacimiento` solo en las licencias (HU-12). `creadoPor` es el usuario que registra (DA-23).
+     * La base rechaza con SG020–SG023 o 23505 (duplicada): el error llega con su `code`.
      * Todo en una transacción: si la incapacidad no se puede guardar, tampoco queda el colaborador.
      */
-    async guardarIncapacidad({ colaborador, tipo, entidad, fechaInicio, diasIncapacidad, fechaRecepcion }, creadoPor) {
+    async guardarIncapacidad(
+      { colaborador, tipo, entidad, fechaInicio, diasIncapacidad, fechaRecepcion, fechaNacimiento = null, nombreConfirmado = false },
+      creadoPor,
+    ) {
       const id = comprobar(
         await cliente.rpc('registrar_incapacidad', {
           p_nombre: colaborador.nombre,
@@ -41,9 +46,36 @@ export function crearPersistenciaRegistro(cliente, almacen = crearAlmacenDocumen
           p_dias: diasIncapacidad,
           p_fecha_recepcion: fechaRecepcion,
           p_creado_por: creadoPor,
+          // HU-12: solo las licencias la tienen. HU-03: el nombre distinto ya se confirmó (o es el mismo).
+          p_fecha_nacimiento: fechaNacimiento,
+          p_nombre_confirmado: nombreConfirmado,
         }),
       );
       return Number(id);
+    },
+
+    /** HU-03: el colaborador que ya tiene ese correo ({ id, nombre }), o null. */
+    async consultarColaboradorPorCorreo(correo) {
+      return comprobar(await cliente.from('colaborador').select('id, nombre').eq('correo', correo).maybeSingle());
+    },
+
+    /**
+     * HU-03: el n.º de la incapacidad del mismo colaborador (por su correo), tipo, fecha de inicio y días, o null.
+     * Usa el índice único incapacidad_sin_duplicados.
+     */
+    async buscarIncapacidadDuplicada({ correo, tipo, fechaInicio, diasIncapacidad }) {
+      const fila = comprobar(
+        await cliente
+          .from('incapacidad')
+          .select('id, colaborador!inner(correo)')
+          .eq('colaborador.correo', correo)
+          .eq('tipo', tipo)
+          .eq('fecha_inicio', fechaInicio)
+          .eq('dias_incapacidad', diasIncapacidad)
+          .limit(1)
+          .maybeSingle(),
+      );
+      return fila?.id ?? null;
     },
 
     /**
