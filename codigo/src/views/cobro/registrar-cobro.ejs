@@ -218,7 +218,11 @@
           <li class="<%= rechazoRegistrado ? 'entra' : '' %>">
             <span class="punto"><svg viewBox="0 0 24 24" aria-hidden="true"><%- ICONOS.espera %></svg></span>
             <div class="paso">
-              <% if (estado === 'rechazada') { %>
+              <% if (estado === 'rechazada' && incapacidad.causalTraslado) { %>
+                <%# DA-70: trasladada por rechazo, ya no se radica de nuevo; el cobro sigue en Cartera y Jurídica. %>
+                <p class="titulo"><b>Trasladada a Cartera y Jurídica</b></p>
+                <p class="tenue">Su cobro sigue por vía jurídica: no se radica de nuevo. Si la entidad paga, regístrelo en el <a href="/incapacidades/<%= incapacidad.idIncapacidad %>/requerimientos">cobro persuasivo</a>.</p>
+              <% } else if (estado === 'rechazada') { %>
                 <p class="titulo"><b>Debe radicarse de nuevo</b></p>
                 <p class="tenue">Pida a <%= incapacidad.entidad %> una nueva transcripción y registre la nueva radicación en <a href="/incapacidades/<%= incapacidad.idIncapacidad %>/radicacion">Radicación</a>.</p>
                 <%# Auditoría (decisión 4A): o reclamarle a la entidad y, con 2 requerimientos, trasladar por rechazo. %>

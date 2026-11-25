@@ -107,6 +107,11 @@ describe('HU-19 — traslado a Cartera y Jurídica (rutas)', () => {
     const res = await agente.post('/incapacidades/2/traslado').type('form').send({ causal: 'rechazo', motivo: 'La entidad no reconoce la epicrisis' });
     expect(res.status).toBe(303);
     expect(baseDeDatos.incapacidades[1]).toMatchObject({ estado: 'rechazada', causalTraslado: 'rechazo' });
+
+    // DA-70: ya trasladada, el cobro no pide radicarla de nuevo.
+    const cobro = await agente.get('/incapacidades/2/cobro');
+    expect(cobro.text).toContain('Trasladada a Cartera y Jurídica');
+    expect(cobro.text).not.toContain('Debe radicarse de nuevo');
   });
 
   it('XSS — el motivo se escapa al mostrarse', async () => {
