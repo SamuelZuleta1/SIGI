@@ -266,3 +266,50 @@ describe('DA-44 — validación del motivo (el detalle)', () => {
     expect(leerMotivo(undefined).error).toBeDefined();
   });
 });
+
+describe('DA-70 — una rechazada ya trasladada no se radica de nuevo', () => {
+  const trasladarRechazada = async () => {
+    await rechazada();
+    await requerir(1, '2');
+    await requerir(2, '2');
+    await trasladar({ id: '2', causal: 'rechazo' });
+  };
+
+  it('la pantalla no ofrece radicar y el registro se rechaza sin guardar', async () => {
+    await trasladarRechazada();
+    expect((await control.prepararRadicacion('2')).puedeRadicar).toBe(false);
+    const e = await errores(control.registrarRadicacion('2', { radicado: 'RAD-3', evidencia: PDF }, USUARIOS.auxiliar));
+    expect(e.estado).toMatch(/ya se trasladó a Cartera y Jurídica/);
+    expect(baseDeDatos.incapacidades[1].estado).toBe('rechazada');
+    expect(baseDeDatos.radicaciones.filter((r) => r.idIncapacidad === 2)).toHaveLength(1);
+  });
+
+  it('sin traslado una rechazada sí se radica de nuevo (HU-10.CA2)', async () => {
+    await rechazada();
+    expect((await control.prepararRadicacion('2')).puedeRadicar).toBe(true);
+  });
+
+  it('ya no sale la alerta de transcripción de la trasladada', async () => {
+    await trasladarRechazada();
+    hoy = '2027-12-01'; // con el plazo de transcripción (1 año) vencido
+    const { vencidas, porVencer } = await control.obtenerAlertas({ tipo: 'transcripcion' });
+    expect([...vencidas, ...porVencer].map((a) => a.idIncapacidad)).not.toContain(2);
+  });
+
+  it('si otro usuario la trasladó entre la consulta y el registro, el mensaje lo dice', async () => {
+    await rechazada();
+    await requerir(1, '2');
+    await requerir(2, '2');
+    const obtener = baseDeDatos.obtenerDatosRadicacion.bind(baseDeDatos);
+    let llamadas = 0;
+    baseDeDatos.obtenerDatosRadicacion = async (id) => {
+      if (llamadas++ === 0) {
+        const antes = await obtener(id);
+        await trasladar({ id: '2', causal: 'rechazo' });
+        return antes; // la consulta vio la incapacidad sin trasladar
+      }
+      return obtener(id);
+    };
+    expect((await errores(control.registrarRadicacion('2', { radicado: 'RAD-3', evidencia: PDF }, USUARIOS.auxiliar))).estado).toMatch(/ya se trasladó/);
+  });
+});

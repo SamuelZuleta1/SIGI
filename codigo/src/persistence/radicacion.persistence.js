@@ -23,7 +23,7 @@ export function crearPersistenciaRadicacion(cliente, almacen = crearAlmacenDocum
         await cliente
           .from('incapacidad')
           .select(
-            'id, tipo, fecha_inicio, dias_incapacidad, fecha_recepcion, fecha_nacimiento, estado, causal_rechazo, fecha_rechazo, ' +
+            'id, tipo, fecha_inicio, dias_incapacidad, fecha_recepcion, fecha_nacimiento, estado, causal_rechazo, fecha_rechazo, motivo_traslado, ' +
               'documentacion_completa, archivado_digital, ' +
               'colaborador(nombre), entidad(nombre, tipo, plazo_transcripcion, plazo_transcripcion_transito, permite_transcripcion_digital), ' +
               'radicacion(id, radicado, evidencia, creado_en)',
@@ -42,6 +42,8 @@ export function crearPersistenciaRadicacion(cliente, almacen = crearAlmacenDocum
         fechaRecepcion: fila.fecha_recepcion,
         fechaNacimiento: fila.fecha_nacimiento,
         estado: fila.estado,
+        // DA-70: una trasladada a Cartera y Jurídica no se radica de nuevo.
+        motivoTraslado: fila.motivo_traslado,
         causalRechazo: fila.causal_rechazo,
         fechaRechazo: fila.fecha_rechazo,
         documentacionCompleta: fila.documentacion_completa,

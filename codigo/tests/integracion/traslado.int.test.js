@@ -164,4 +164,28 @@ describe('HU-19 — traslado a Cartera y Jurídica (base de datos)', () => {
     await control.registrarPago(id, { valor: '1.250.000', fechaPago: '2026-12-10' }, auxiliar);
     expect(await fila(id)).toMatchObject({ estado: 'pagada', causal_traslado: 'deterioro' });
   });
+
+  it('DA-70 — registrar_radicacion no devuelve a «transcrita» una rechazada trasladada', async () => {
+    hoy = '2026-11-21';
+    const { idIncapacidad: id } = await control.registrarIncapacidad(formularioDeRegistro({ diasIncapacidad: diasDelCaso(), correoColaborador }), receptor);
+    ids.push(id);
+    await control.registrarRadicacion(id, { radicado: 'RAD-R70', evidencia: PDF }, auxiliar);
+    await control.registrarRechazo(id, { causal: 'Falta la epicrisis del paciente' });
+    hoy = '2026-12-04';
+    for (const n of [1, 2]) await baseDeDatos.guardarRequerimiento(id, `Reclamo número ${n} por el rechazo.`, auxiliar.id);
+    expect(await traslado(id, 'rechazo', 'La entidad no reconoce la epicrisis')).toBe(true);
+    const { data } = await servidor.rpc('registrar_radicacion', { p_incapacidad_id: id, p_radicado: 'RAD-R70-2', p_evidencia: null, p_creado_por: auxiliar.id });
+    expect(data).toBeNull();
+    expect((await fila(id)).estado).toBe('rechazada');
+  });
+
+  it('TEMPORAL — la firma vieja (3 parámetros) solo traslada con 180 días desde la cobrada y 2 requerimientos', async () => {
+    const vieja = (id, fecha) => servidor.rpc('trasladar_a_cartera', { p_incapacidad_id: id, p_motivo: 'Desde la versión anterior', p_fecha: fecha });
+    const id = await registrarCobrada();
+    expect(await vieja(id, '2026-12-04')).toMatchObject({ data: false, error: null }); // sin 180 días: no inventa la causal
+    expect(await vieja(id, '2027-05-20')).toMatchObject({ data: true, error: null });
+    expect(await fila(id)).toMatchObject({ causal_traslado: '180_dias', motivo_traslado: 'Desde la versión anterior' });
+    const sinRequerimientos = await registrarCobrada({ requerimientos: 0 });
+    expect((await vieja(sinRequerimientos, '2027-05-20')).data).toBe(false);
+  });
 });

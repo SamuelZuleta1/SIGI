@@ -163,6 +163,10 @@
               <% if (estado === 'transcrita') { %>
                 <p class="titulo"><b>Esperando respuesta de la entidad</b></p>
                 <p class="tenue">Si la aprueba, regístrela en <a href="/incapacidades/<%= incapacidad.idIncapacidad %>/cobro">Cobro</a>. Si la rechaza, aquí se registra la nueva radicación.</p>
+              <% } else if (incapacidad.motivoTraslado) { %>
+                <%# DA-70: una rechazada trasladada sigue en Cartera y Jurídica, no se radica de nuevo. %>
+                <p class="titulo"><b>Trasladada a Cartera y Jurídica</b></p>
+                <p class="tenue">Su cobro sigue por vía jurídica: no admite una nueva radicación. Ver el <a href="/incapacidades/<%= incapacidad.idIncapacidad %>/requerimientos">cobro persuasivo</a>.</p>
               <% } else { %>
                 <p class="titulo"><b><%= nombresEstado[estado] %></b></p>
                 <p class="tenue">Ya no admite una nueva radicación.</p>

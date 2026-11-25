@@ -246,6 +246,7 @@ export function crearBaseDeDatosFalsa() {
         estado: guardada.estado,
         causalRechazo: guardada.causalRechazo ?? null,
         fechaRechazo: guardada.fechaRechazo ?? null,
+        motivoTraslado: guardada.motivoTraslado ?? null,
         documentacionCompleta: guardada.documentacionCompleta ?? null,
         archivadoDigital: guardada.archivadoDigital ?? false,
         entidad: { ...entidad, ...PLAZOS[id] },
@@ -257,7 +258,7 @@ export function crearBaseDeDatosFalsa() {
     // Como registrar_radicacion: solo desde registrada (null) o rechazada; guarda y pone transcrita.
     async guardarRadicacion(idIncapacidad, { radicado, contenido, tipoMime }, creadoPor) {
       const incapacidad = incapacidades.find((i) => i.idIncapacidad === idIncapacidad);
-      if (!incapacidad || !(incapacidad.estado == null || incapacidad.estado === 'rechazada')) return null;
+      if (!incapacidad || !(incapacidad.estado == null || incapacidad.estado === 'rechazada') || incapacidad.motivoTraslado != null) return null;
       const idRadicacion = radicaciones.length + 1;
       radicaciones.push({
         idRadicacion,
@@ -640,6 +641,7 @@ export function crearBaseDeDatosFalsa() {
             fechaRecepcion: i.fechaRecepcion,
             fechaNacimiento: i.fechaNacimiento ?? null,
             estado: i.estado,
+            motivoTraslado: i.motivoTraslado ?? null,
             documentacionCompleta: i.documentacionCompleta ?? null,
             fechaAvisoFaltantes: i.fechaAvisoFaltantes ?? null,
             segundoLlamado: i.segundoLlamado ?? false,

@@ -70,7 +70,7 @@ function alertaSubsanacion(i, hoy) {
 
 /** Transcripción y paternidad (DA-13, DA-35, DA-37): el plazo de radicación, hasta que se radique. */
 function alertaTranscripcion(i, hoy) {
-  if (!puedeRadicar(i.estado)) return null;
+  if (!puedeRadicar(i.estado, i.motivoTraslado)) return null; // una trasladada ya no se radica (DA-70)
   const plazo = calcularPlazoRadicacion(i, i.entidad, hoy);
   if (!plazo || plazo.estado === 'al_dia') return null;
   return alerta(i, plazo.regla === 'paternidad' ? 'paternidad' : 'transcripcion', plazo.estado, plazo.fechaLimite, hoy, {
