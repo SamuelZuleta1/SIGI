@@ -49,6 +49,8 @@ SIGI se publica en Vercel; cada push a `main` despliega automáticamente.
   los descarga, comprueba tamaño (10 MB) y tipo por contenido, los guarda en su ruta definitiva y borra el pendiente.
   Sin JavaScript el formulario sigue enviando el archivo en la petición (solo cabe hasta ~4 MB).
   La CSP (`connect-src`) permite conectar al origen de `SUPABASE_URL`.
+  Para **ver** un archivo (documento, evidencia), la ruta comprueba el permiso y responde `303` a una URL firmada de 60 s
+  del bucket (DA-71): Vercel tampoco deja responder más de 4,5 MB desde la función.
 
 ## Pruebas
 

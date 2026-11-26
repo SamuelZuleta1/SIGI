@@ -248,15 +248,14 @@ export function crearControlVerificacion({ baseDeDatos, correo, hoy = hoyEnColom
     },
 
     /**
-     * DA-06: ver o descargar un documento. El archivo lo entrega el servidor desde el bucket privado.
-     * Recibe el documento de `obtenerDocumento`: la ruta lo consulta primero para aplicar el permiso
-     * por tipo (HU-02, `restringirDocumento`) y solo después se descarga el archivo.
-     * @returns {Promise<{ tipo: string, contenido: Buffer, tipoMime: string, nombre: string }>}
+     * DA-06 / DA-71: ver un documento. Recibe el documento de `obtenerDocumento`: la ruta lo consulta primero para
+     * aplicar el permiso por tipo (HU-02, `restringirDocumento`) y solo después se firma un enlace de 60 s al bucket
+     * privado (el archivo no pasa por la función: Vercel limita la respuesta a 4,5 MB).
+     * @returns {Promise<null | { tipo: string, url: string }>} null si el archivo no está en el bucket.
      */
     async verDocumento(documento) {
-      const { contenido, tipoMime } = await baseDeDatos.descargarDocumento(documento.archivo);
-      const extension = documento.archivo.split('.').pop();
-      return { tipo: documento.tipo, contenido, tipoMime, nombre: `${documento.tipo}-${documento.idDocumento}.${extension}` };
+      const url = await baseDeDatos.enlaceDeArchivo(documento.archivo);
+      return url && { tipo: documento.tipo, url };
     },
   };
 }

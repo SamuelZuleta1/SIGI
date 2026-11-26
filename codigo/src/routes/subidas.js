@@ -7,6 +7,16 @@ import { prohibido } from '../middleware/autenticacion.js';
 
 const OPERACIONES_CON_ARCHIVO = ['registrarDocumentos', 'registrarRadicacion', 'registrarSeguimiento'];
 
+/**
+ * DA-71: responde a «ver archivo» con un 303 al enlace firmado (60 s) del bucket privado; el permiso ya se comprobó en la
+ * ruta. Sin caché. Si el archivo no está en el bucket, la página de «no encontrado».
+ */
+export function redirigirAlArchivo(res, enlace, noEncontrado) {
+  if (!enlace) return res.status(404).pagina('error', noEncontrado);
+  // Sin cuerpo: res.redirect() lo llenaría con la URL.
+  return res.status(303).set({ Location: enlace.url, 'Cache-Control': 'no-store' }).end();
+}
+
 export const MENSAJE_SUBIDA_PERDIDA = 'El archivo no llegó completo. Adjúntelo de nuevo.';
 
 export function crearRutasSubidas({ control }) {

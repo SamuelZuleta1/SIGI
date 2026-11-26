@@ -95,9 +95,10 @@ describe('HU-10 — registrar la radicación (base de datos)', () => {
     expect(fila.evidencia).toMatch(new RegExp(`^incapacidades/${id}/radicacion-[0-9a-f-]{36}\\.pdf$`));
 
     const radicacion = await control.obtenerRadicacion(idRadicacion);
-    const { contenido, tipoMime } = await control.verEvidencia(radicacion);
-    expect(tipoMime).toBe('application/pdf');
-    expect(contenido.equals(PDF)).toBe(true);
+    const { url } = await control.verEvidencia(radicacion); // DA-71: enlace firmado al bucket
+    const respuesta = await fetch(url);
+    expect(respuesta.headers.get('content-type')).toBe('application/pdf');
+    expect(Buffer.from(await respuesta.arrayBuffer()).equals(PDF)).toBe(true);
   });
 
   it('HU-10.CA2 — DA-36: ya transcrita, la función no guarda otra y no deja el archivo en el bucket', async () => {

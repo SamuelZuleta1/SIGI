@@ -122,15 +122,20 @@ describe('HU-10 — registrar la radicación (rutas)', () => {
     expect((await radicar(agente, {}, 99)).status).toBe(404);
   });
 
-  it('ver evidencia: la entrega el servidor, en línea y sin caché; inexistente, 404', async () => {
+  it('DA-71 — ver evidencia: 303 al enlace firmado del bucket y sin caché; inexistente, 404', async () => {
     const agente = await agenteCon(request, app, 'auxiliar');
     await radicar(agente, { evidencia: PNG, nombre: 'Ana María Gómez.png' });
     const res = await agente.get('/radicaciones/1/evidencia');
-    expect(res.status).toBe(200);
-    expect(res.headers['content-type']).toBe('image/png');
-    expect(res.headers['content-disposition']).toBe('inline; filename="radicacion-1.png"');
+    expect(res.status).toBe(303);
+    expect(res.headers.location).toBe(`https://supabase.test/storage/v1/object/sign/documentos/${baseDeDatos.radicaciones[0].evidencia}?token=firmado`);
+    expect(res.headers.location).not.toMatch(/Ana|Gómez/);
     expect(res.headers['cache-control']).toBe('no-store');
+    expect(res.text).toBe('');
     expect((await agente.get('/radicaciones/2/evidencia')).status).toBe(404);
+    baseDeDatos.enlaceDeArchivo = async () => null; // la fila existe pero el archivo ya no está en el bucket
+    const sinArchivo = await agente.get('/radicaciones/1/evidencia');
+    expect(sinArchivo.status).toBe(404);
+    expect(sinArchivo.text).toContain('El archivo de la evidencia no está disponible.');
   });
 
   it.each(ROLES.filter((rol) => rol !== 'auxiliar'))('DA-02 — %s no puede registrar ni ver la evidencia (403)', async (rol) => {

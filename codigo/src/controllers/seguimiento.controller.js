@@ -225,11 +225,10 @@ export function crearControlSeguimiento({ baseDeDatos, correo, hoy = hoyEnColomb
       return baseDeDatos.consultarSeguimiento(Number(idSeguimiento));
     },
 
-    /** «Ver evidencia» del seguimiento: el archivo lo entrega el servidor (como DA-06). */
+    /** «Ver evidencia» del seguimiento (DA-71): enlace firmado de 60 s al bucket privado, o null si el archivo no está. */
     async verEvidenciaSeguimiento(seguimiento) {
-      const { contenido, tipoMime } = await baseDeDatos.descargarEvidencia(seguimiento.evidencia);
-      const extension = seguimiento.evidencia.split('.').pop();
-      return { contenido, tipoMime, nombre: `seguimiento-${seguimiento.idSeguimiento}.${extension}` };
+      const url = await baseDeDatos.enlaceDeArchivo(seguimiento.evidencia);
+      return url && { url };
     },
   };
 }

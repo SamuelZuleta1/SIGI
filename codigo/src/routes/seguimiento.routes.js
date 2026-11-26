@@ -15,7 +15,7 @@ import { fechaBreve, fechaEnColombia, fechaLarga, sumarIntervalo } from '../serv
 import { ACUERDO_DIAS_MAXIMO } from '../controllers/seguimiento.controller.js';
 import { pesos } from '../servicios/moneda.js';
 import { responderAvisoFallido } from './aviso-fallido.js';
-import { archivosDePeticion, MENSAJE_SUBIDA_PERDIDA } from './subidas.js';
+import { archivosDePeticion, MENSAJE_SUBIDA_PERDIDA, redirigirAlArchivo } from './subidas.js';
 
 // La evidencia (P-D) se recibe en memoria y la Persistencia la pasa al bucket privado: nunca toca el disco.
 const recibirEvidencia = multer({
@@ -133,19 +133,16 @@ export function crearRutasSeguimiento({ control }) {
     }
   });
 
-  // Ver la evidencia de un seguimiento: la entrega el servidor desde el bucket privado (como DA-06).
+  // Ver la evidencia de un seguimiento: se abre con un enlace firmado de 60 s al bucket privado (DA-71).
   rutas.get('/seguimientos/:id/evidencia', permitir('registrarSeguimiento'), async (req, res) => {
     const seguimiento = await control.obtenerSeguimiento(req.params.id);
     if (!seguimiento) {
       return res.status(404).pagina('error', { titulo: 'Evidencia no encontrada', mensaje: 'La evidencia que busca no existe.' });
     }
-    const { contenido, tipoMime, nombre } = await control.verEvidenciaSeguimiento(seguimiento);
-    res.set({
-      'Content-Type': tipoMime,
-      'Content-Disposition': `${tipoMime === 'application/octet-stream' ? 'attachment' : 'inline'}; filename="${nombre}"`,
-      'Cache-Control': 'no-store',
+    redirigirAlArchivo(res, await control.verEvidenciaSeguimiento(seguimiento), {
+      titulo: 'Evidencia no encontrada',
+      mensaje: 'El archivo de la evidencia no está disponible.',
     });
-    res.send(contenido);
   });
 
   return rutas;

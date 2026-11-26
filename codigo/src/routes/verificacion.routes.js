@@ -7,6 +7,7 @@ import { permitir, restringirDocumento } from '../middleware/autenticacion.js';
 import { NOMBRES_TIPO_DOCUMENTO, TIPOS_DOCUMENTO } from '../models/documento.model.js';
 import { NOMBRES_TIPO_INCAPACIDAD } from '../models/incapacidad.model.js';
 import { fechaCorta, fechaLarga } from '../servicios/dias-habiles.js';
+import { redirigirAlArchivo } from './subidas.js';
 
 // La casilla «La EPS ya transcribió» (DA-26) llega como eps=si.
 const conEps = (valor) => ({ epsTranscribio: valor === 'si' });
@@ -118,7 +119,7 @@ export function crearRutasVerificacion({ control }) {
     }
   });
 
-  // DA-06: ver un documento. HU-02: la historia clínica y la epicrisis, solo el auxiliar.
+  // DA-06 / DA-71: ver un documento. HU-02: la historia clínica y la epicrisis, solo el auxiliar.
   rutas.get(
     '/documentos/:id/archivo',
     permitir('verDocumento'),
@@ -132,15 +133,11 @@ export function crearRutasVerificacion({ control }) {
     },
     restringirDocumento((req) => req.documento.tipo),
     async (req, res) => {
-      const { contenido, tipoMime, nombre } = await control.verDocumento(req.documento);
-      res.set({
-        'Content-Type': tipoMime,
-        // Se abre en el navegador; con un tipo desconocido, se descarga.
-        'Content-Disposition': `${tipoMime === 'application/octet-stream' ? 'attachment' : 'inline'}; filename="${nombre}"`,
-        // Documentos de salud: que no queden en cachés intermedias ni en la del navegador.
-        'Cache-Control': 'no-store',
+      // DA-71: el archivo no pasa por la función; documentos de salud, sin caché.
+      redirigirAlArchivo(res, await control.verDocumento(req.documento), {
+        titulo: 'Documento no encontrado',
+        mensaje: 'El archivo de este documento no está disponible.',
       });
-      res.send(contenido);
     },
   );
 

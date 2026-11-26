@@ -19,7 +19,17 @@ export function crearAlmacenDocumentos(cliente) {
       return { urlFirmada: data.signedUrl };
     },
 
-    /** Descarga un archivo como Buffer (DA-06: lo entrega el servidor, nunca el bucket al navegador). */
+    /** URL firmada de lectura que caduca en `segundos` (DA-71), o null si el archivo no existe. */
+    async firmarDescarga(ruta, segundos = 60) {
+      const { data, error } = await bucket().createSignedUrl(ruta, segundos);
+      if (error) {
+        if (error.status === 404 || error.statusCode === '404' || /not found/i.test(error.message ?? '')) return null;
+        throw error;
+      }
+      return data.signedUrl;
+    },
+
+    /** Descarga un archivo como Buffer (solo para el servidor: validar lo subido directo). */
     async descargar(ruta) {
       const { data, error } = await bucket().download(ruta);
       if (error) throw error;

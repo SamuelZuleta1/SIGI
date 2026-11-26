@@ -4,7 +4,6 @@ import { randomUUID } from 'node:crypto';
 import { crearAlmacenDocumentos } from './almacen-documentos.js';
 
 const EXTENSIONES = { 'application/pdf': 'pdf', 'image/jpeg': 'jpg', 'image/png': 'png' };
-const TIPOS_MIME = Object.fromEntries(Object.entries(EXTENSIONES).map(([tipo, ext]) => [ext, tipo]));
 
 const comprobar = ({ data, error }) => {
   if (error) throw error;
@@ -97,12 +96,6 @@ export function crearPersistenciaRadicacion(cliente, almacen = crearAlmacenDocum
         await cliente.from('radicacion').select('id, incapacidad_id, radicado, evidencia').eq('id', idRadicacion).maybeSingle(),
       );
       return fila && { idRadicacion: fila.id, idIncapacidad: fila.incapacidad_id, radicado: fila.radicado, evidencia: fila.evidencia };
-    },
-
-    /** Descarga la evidencia del bucket privado. */
-    async descargarEvidencia(evidencia) {
-      const contenido = await almacen.descargar(evidencia);
-      return { contenido, tipoMime: TIPOS_MIME[evidencia.split('.').pop()] ?? 'application/octet-stream' };
     },
   };
 }

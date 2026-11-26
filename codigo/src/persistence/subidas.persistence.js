@@ -22,6 +22,14 @@ export function crearPersistenciaSubidas(cliente, almacen = crearAlmacenDocument
       }
     },
 
+    /**
+     * DA-71: URL firmada (60 s) para ver un archivo guardado. El permiso se comprueba antes en la ruta; el archivo viaja
+     * del bucket al navegador sin pasar por la función (Vercel no admite respuestas de más de 4,5 MB). null si no existe.
+     */
+    async enlaceDeArchivo(ruta) {
+      return almacen.firmarDescarga(ruta);
+    },
+
     /** Borra los archivos pendientes ya usados o rechazados. */
     async eliminarSubidas(rutas) {
       await almacen.eliminar(rutas);

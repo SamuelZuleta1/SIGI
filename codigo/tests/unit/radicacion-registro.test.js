@@ -147,11 +147,12 @@ describe('HU-10.CA2 — tras un rechazo, una nueva radicación vuelve a «transc
 });
 
 describe('Ver la evidencia de una radicación', () => {
-  it('entrega el archivo con su tipo y un nombre sin datos personales', async () => {
+  it('DA-71 — entrega un enlace firmado al bucket, sin pasar el archivo por el servidor', async () => {
     await radicar({ evidencia: PNG });
     const radicacion = await control.obtenerRadicacion('1');
     expect(radicacion).toMatchObject({ idRadicacion: 1, idIncapacidad: 1, radicado: 'RAD-2026-001' });
-    expect(await control.verEvidencia(radicacion)).toEqual({ contenido: PNG, tipoMime: 'image/png', nombre: 'radicacion-1.png' });
+    expect(await control.verEvidencia(radicacion)).toEqual({ url: expect.stringContaining(`/object/sign/documentos/${radicacion.evidencia}?token=`) });
+    expect(await control.verEvidencia({ ...radicacion, evidencia: 'incapacidades/1/no-esta.png' })).toBeNull();
   });
 
   it('radicación inexistente o número inválido: null', async () => {
