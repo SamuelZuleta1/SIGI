@@ -228,13 +228,21 @@ const limpiarAvisos = (formulario) => {
   }
 };
 
+// El bucket solo admite PDF, JPG y PNG y decide por el tipo que declara la subida: si el navegador no informa el tipo
+// del archivo (pasa con algunos sistemas), se declara por su extensión. El servidor igual comprueba el contenido.
+const TIPOS_POR_EXTENSION = { pdf: 'application/pdf', jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png' };
+const conTipo = (archivo) => {
+  const tipo = TIPOS_POR_EXTENSION[archivo.name.split('.').pop().toLowerCase()];
+  return tipo && archivo.type !== tipo ? new File([archivo], archivo.name, { type: tipo }) : archivo;
+};
+
 async function subirArchivo(archivo) {
   const respuesta = await fetch('/subidas', { method: 'POST', credentials: 'same-origin', headers: { Accept: 'application/json' } });
   if (!respuesta.ok) throw new Error('No se pudo preparar la subida.');
   const { ruta, urlFirmada } = await respuesta.json();
   const cuerpo = new FormData();
   cuerpo.append('cacheControl', '3600');
-  cuerpo.append('', archivo);
+  cuerpo.append('', conTipo(archivo));
   const subida = await fetch(urlFirmada, { method: 'PUT', headers: { 'x-upsert': 'false' }, body: cuerpo });
   if (!subida.ok) throw new Error('No se pudo subir el archivo.');
   return ruta;
@@ -243,9 +251,14 @@ async function subirArchivo(archivo) {
 for (const formulario of document.querySelectorAll('form[data-subida-directa]')) {
   if (!window.fetch || !window.FormData) continue;
   let subido = false;
+  let enCurso = false;
 
   formulario.addEventListener('submit', async (evento) => {
     if (subido) return; // segundo envío, ya con las referencias
+    if (enCurso) {
+      evento.preventDefault(); // Enter o un segundo clic mientras sube: no se vuelve a subir ni a registrar
+      return;
+    }
     const campos = [...formulario.querySelectorAll('input[type=file]')].filter((campo) => campo.files.length > 0);
     if (campos.length === 0) return; // sin archivos: el servidor explica qué falta
     limpiarAvisos(formulario);
@@ -258,6 +271,7 @@ for (const formulario of document.querySelectorAll('form[data-subida-directa]'))
     }
 
     evento.preventDefault();
+    enCurso = true;
     const boton = evento.submitter ?? formulario.querySelector('button.boton');
     const texto = boton?.textContent;
     if (boton) {
@@ -275,6 +289,7 @@ for (const formulario of document.querySelectorAll('form[data-subida-directa]'))
         referencias.push(oculto);
       });
     } catch {
+      enCurso = false;
       // Se deshace lo que hizo el bloqueo de doble envío (arriba) para que se pueda reintentar.
       for (const otro of formulario.querySelectorAll('[data-enviando]')) {
         otro.disabled = false;
@@ -292,7 +307,10 @@ for (const formulario of document.querySelectorAll('form[data-subida-directa]'))
     for (const campo of campos) campo.disabled = true; // ya está en el bucket: no se envía otra vez
     formulario.enctype = 'application/x-www-form-urlencoded';
     subido = true;
-    if (boton) boton.disabled = false; // el navegador toma los datos del envío con el botón activo
+    if (boton) {
+      boton.disabled = false; // el navegador toma los datos del envío con el botón activo
+      boton.textContent = boton.dataset.texto ?? texto; // el bloqueo de doble envío guarda este texto como el original
+    }
     formulario.requestSubmit(boton ?? undefined);
   });
 }
