@@ -1,4 +1,5 @@
 // Persistencia falsa en memoria para las pruebas unitarias y HTTP: no usa Supabase.
+import { randomUUID } from 'node:crypto';
 import { diasDelCaso, fechasDelCaso, llegoAlDia } from '../../src/controllers/hitos.js';
 import { sumarIntervalo } from '../../src/servicios/dias-habiles.js';
 export const ENTIDADES = Object.freeze([
@@ -44,6 +45,7 @@ export function crearBaseDeDatosFalsa() {
   const colaboradores = [];
   const incapacidades = [];
   const documentos = [];
+  const subidas = new Map(); // ruta → Buffer (lo que el navegador subió directo al bucket)
   const reemplazos = []; // máximo uno por incapacidad, como el índice único de la tabla
   const radicaciones = [];
   const pagos = [];
@@ -181,6 +183,18 @@ export function crearBaseDeDatosFalsa() {
         archivoPreparado: guardada.fechaArchivoPreparado != null,
         epicrisisEliminada: guardada.epicrisisEliminadaEn != null,
       };
+    },
+    // Subidas directas al bucket (pendientes/{idUsuario}/{uuid}): `subidas` es lo que el navegador dejó allí.
+    subidas,
+    async prepararSubida(idUsuario) {
+      const ruta = `pendientes/${idUsuario}/${randomUUID()}`;
+      return { ruta, urlFirmada: `https://supabase.test/storage/v1/object/upload/sign/documentos/${ruta}?token=t` };
+    },
+    async descargarSubida(ruta) {
+      return subidas.get(ruta) ?? null;
+    },
+    async eliminarSubidas(rutas) {
+      for (const ruta of rutas) subidas.delete(ruta);
     },
     async guardarDocumentos(idIncapacidad, nuevos, creadoPor, { originalPendiente = false } = {}) {
       const guardados = nuevos.map(({ tipo, contenido, tipoMime }, i) => ({
@@ -487,17 +501,14 @@ export function crearBaseDeDatosFalsa() {
       const r = radicaciones.find((x) => x.idRadicacion === idRadicacion);
       return r ? { idRadicacion, idIncapacidad: r.idIncapacidad, radicado: r.radicado, evidencia: r.evidencia ?? null } : null;
     },
-    async descargarEvidencia(evidencia) {
-      const r = [...radicaciones, ...seguimientos].find((x) => x.evidencia === evidencia);
-      return { contenido: r.contenido, tipoMime: r.tipoMime };
-    },
     async consultarDocumento(idDocumento) {
       const documento = documentos.find((d) => d.idDocumento === idDocumento);
       return documento ? { idDocumento, idIncapacidad: documento.idIncapacidad, tipo: documento.tipo, archivo: documento.archivo } : null;
     },
-    async descargarDocumento(archivo) {
-      const documento = documentos.find((d) => d.archivo === archivo);
-      return { contenido: documento.contenido, tipoMime: documento.tipoMime };
+    // DA-71: enlace firmado de 60 s; null si el archivo no está en el «bucket» (una ruta que ninguna fila guardó).
+    async enlaceDeArchivo(ruta) {
+      const guardado = [...documentos, ...radicaciones, ...seguimientos].some((x) => x.archivo === ruta || x.evidencia === ruta);
+      return guardado ? `https://supabase.test/storage/v1/object/sign/documentos/${ruta}?token=firmado` : null;
     },
     // HU-11 (DS-05): como estados.persistence.js, con los mismos filtros (DA-20).
     async consultarColaboradores() {

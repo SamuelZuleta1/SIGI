@@ -6,7 +6,7 @@ import { ErrorDeValidacion } from '../../src/controllers/error-de-validacion.js'
 import { compararConRequisitos, documentosObligatorios } from '../../src/controllers/verificacion.controller.js';
 import { crearBaseDeDatosFalsa } from '../helpers/base-de-datos-falsa.js';
 import { crearCorreoFalso } from '../helpers/correo-falso.js';
-import { documentoDePrueba, formularioDeRegistro, PDF } from '../helpers/fabricas.js';
+import { documentoDePrueba, formularioDeRegistro } from '../helpers/fabricas.js';
 import { USUARIOS } from '../helpers/sesion-falsa.js';
 
 const tipos = (incapacidad, opciones) => documentosObligatorios(incapacidad, opciones).filter((d) => !d.exento).map((d) => d.tipo);
@@ -179,12 +179,14 @@ describe('HU-06 — verificar la documentación (Control)', () => {
     expect(baseDeDatos.incapacidades[0].archivadoDigital).toBe(true);
   });
 
-  it('DA-06 — ver documento: el servidor entrega el archivo con su tipo y un nombre sin datos personales', async () => {
+  it('DA-71 — ver documento: un enlace firmado al bucket, con una ruta sin datos personales', async () => {
     await registrar({}, ['epicrisis']);
     const documento = await control.obtenerDocumento('1');
     expect(documento).toMatchObject({ idDocumento: 1, idIncapacidad: 1, tipo: 'epicrisis' });
     const archivo = await control.verDocumento(documento);
-    expect(archivo).toEqual({ tipo: 'epicrisis', contenido: PDF, tipoMime: 'application/pdf', nombre: 'epicrisis-1.pdf' });
+    expect(archivo).toEqual({ tipo: 'epicrisis', url: expect.stringContaining('/object/sign/documentos/incapacidades/1/epicrisis-1.pdf?token=') });
+    expect(archivo.url).not.toMatch(/Ana|Gómez|@/);
+    expect(await control.verDocumento({ ...documento, archivo: 'incapacidades/1/no-esta.pdf' })).toBeNull();
   });
 
   it('DA-06 — un documento que no existe devuelve null', async () => {

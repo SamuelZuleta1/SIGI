@@ -31,7 +31,7 @@
     <p class="mensaje mensaje-error" role="alert">No se registró ningún documento. <%= errores.documentos ?? 'Revise las filas marcadas y adjunte de nuevo los archivos.' %></p>
   <% } %>
 
-  <form class="formulario" method="post" action="/incapacidades/<%= incapacidad.idIncapacidad %>/documentos" enctype="multipart/form-data" novalidate>
+  <form class="formulario" method="post" action="/incapacidades/<%= incapacidad.idIncapacidad %>/documentos" enctype="multipart/form-data" novalidate data-subida-directa>
     <dl class="resumen">
       <dt>Incapacidad</dt><dd>n.º <%= incapacidad.idIncapacidad %></dd>
       <dt>Colaborador</dt><dd><%= incapacidad.colaborador %></dd>

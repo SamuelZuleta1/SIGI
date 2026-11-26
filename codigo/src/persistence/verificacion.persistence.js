@@ -1,18 +1,14 @@
 // Grupo `verificacion` de la Base de datos — DS-03 (CU-04).
 // Operaciones: obtenerExpediente, archivarDigital, guardarFaltantes (HU-07), guardarSegundoLlamado (HU-08);
 // apoyo para «ver documento» (DA-06):
-// consultarDocumento y descargarDocumento.
-import { crearAlmacenDocumentos } from './almacen-documentos.js';
+// consultarDocumento (el archivo se ve con enlaceDeArchivo, DA-71).
 
 const comprobar = ({ data, error }) => {
   if (error) throw error;
   return data;
 };
 
-// El tipo del archivo sale de la extensión que le puso el servidor al guardarlo (HU-04), no del bucket.
-const TIPOS_MIME = { pdf: 'application/pdf', jpg: 'image/jpeg', png: 'image/png' };
-
-export function crearPersistenciaVerificacion(cliente, almacen = crearAlmacenDocumentos(cliente)) {
+export function crearPersistenciaVerificacion(cliente) {
   return {
     /**
      * DS-03: obtenerExpediente(idIncapacidad) → expediente: la incapacidad y sus documentos,
@@ -116,12 +112,6 @@ export function crearPersistenciaVerificacion(cliente, almacen = crearAlmacenDoc
         await cliente.from('documento').select('id, incapacidad_id, tipo, archivo').eq('id', idDocumento).maybeSingle(),
       );
       return fila && { idDocumento: fila.id, idIncapacidad: fila.incapacidad_id, tipo: fila.tipo, archivo: fila.archivo };
-    },
-
-    /** Descarga el archivo del bucket privado. */
-    async descargarDocumento(archivo) {
-      const contenido = await almacen.descargar(archivo);
-      return { contenido, tipoMime: TIPOS_MIME[archivo.split('.').pop()] ?? 'application/octet-stream' };
     },
   };
 }

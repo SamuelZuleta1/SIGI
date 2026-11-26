@@ -87,15 +87,16 @@ describe('HU-06 — verificar la documentación (base de datos y Storage)', () =
     await expect(baseDeDatos.archivarDigital(9_000_000_000)).rejects.toThrow();
   });
 
-  it('DA-06 — ver documento descarga del bucket privado el mismo archivo que se subió', async () => {
+  it('DA-71 — ver documento da un enlace firmado que sirve del bucket privado el mismo archivo que se subió', async () => {
     const id = await nueva({ diasIncapacidad: '7' }); // 7: no es duplicado (HU-03)
     await control.registrarDocumentos(id, [documentoDePrueba({ tipo: 'epicrisis' })], receptor);
     const [{ idDocumento }] = (await baseDeDatos.obtenerExpediente(id)).documentos;
     const documento = await control.obtenerDocumento(idDocumento);
     expect(documento).toMatchObject({ idDocumento, idIncapacidad: id, tipo: 'epicrisis' });
     const archivo = await control.verDocumento(documento);
-    expect(archivo.tipoMime).toBe('application/pdf');
-    expect(archivo.nombre).toBe(`epicrisis-${idDocumento}.pdf`);
-    expect(Buffer.compare(archivo.contenido, PDF)).toBe(0);
+    const respuesta = await fetch(archivo.url);
+    expect(respuesta.status).toBe(200);
+    expect(respuesta.headers.get('content-type')).toBe('application/pdf');
+    expect(Buffer.compare(Buffer.from(await respuesta.arrayBuffer()), PDF)).toBe(0);
   });
 });

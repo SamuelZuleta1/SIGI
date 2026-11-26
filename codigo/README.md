@@ -43,7 +43,14 @@ SIGI se publica en Vercel; cada push a `main` despliega automáticamente.
   `SUPABASE_SERVICE_ROLE_KEY`), el SMTP (`SMTP_*`), las seis `CORREO_*` y `DEMO_PASSWORD`.
   Cambiarlas exige un Redeploy.
 - Mailpit y `localhost` no existen en Vercel: el SMTP debe ser accesible desde internet.
-- Límites del plan Hobby: unos 4,5 MB por petición (evidencias grandes fallan) y 10 s por función.
+- Límites del plan Hobby: unos 4,5 MB por petición y 10 s por función. Por eso los archivos (documentos, evidencias) no
+  pasan por la función: el navegador pide a `POST /subidas` una URL firmada y los sube directo al bucket privado, en
+  `pendientes/{usuario}/{uuid}`; el formulario solo envía la referencia (`subida_<campo>`). Al registrar, el servidor
+  los descarga, comprueba tamaño (10 MB) y tipo por contenido, los guarda en su ruta definitiva y borra el pendiente.
+  Sin JavaScript el formulario sigue enviando el archivo en la petición (solo cabe hasta ~4 MB).
+  La CSP (`connect-src`) permite conectar al origen de `SUPABASE_URL`.
+  Para **ver** un archivo (documento, evidencia), la ruta comprueba el permiso y responde `303` a una URL firmada de 60 s
+  del bucket (DA-71): Vercel tampoco deja responder más de 4,5 MB desde la función.
 
 ## Pruebas
 

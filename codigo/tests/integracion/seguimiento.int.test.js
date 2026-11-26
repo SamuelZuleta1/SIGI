@@ -65,8 +65,8 @@ describe('HU-16 — seguimiento semanal (base de datos)', () => {
 
     const seguimiento = await baseDeDatos.consultarSeguimiento(idSeguimiento);
     expect(seguimiento.evidencia).toMatch(new RegExp(`^incapacidades/${id}/seguimiento-[0-9a-f-]{36}\\.pdf$`));
-    const { contenido } = await baseDeDatos.descargarEvidencia(seguimiento.evidencia);
-    expect(contenido.equals(PDF)).toBe(true);
+    const { url } = await control.verEvidenciaSeguimiento(seguimiento); // DA-71: enlace firmado al bucket
+    expect(Buffer.from(await (await fetch(url)).arrayBuffer()).equals(PDF)).toBe(true);
 
     const pendiente = (await control.consultarPendientesDePago()).pendientes.find((p) => p.idIncapacidad === id);
     expect(pendiente.ultimoSeguimiento).toMatch(/^\d{4}-\d{2}-\d{2}$/);

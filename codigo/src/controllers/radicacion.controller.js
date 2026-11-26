@@ -171,11 +171,10 @@ export function crearControlRadicacion({ baseDeDatos, hoy = hoyEnColombia }) {
       return radicacion?.evidencia ? radicacion : null;
     },
 
-    /** «Ver evidencia»: el archivo lo entrega el servidor, nunca el bucket al navegador (como DA-06). */
+    /** «Ver evidencia» (DA-71): enlace firmado de 60 s al bucket privado, o null si el archivo no está. */
     async verEvidencia(radicacion) {
-      const { contenido, tipoMime } = await baseDeDatos.descargarEvidencia(radicacion.evidencia);
-      const extension = radicacion.evidencia.split('.').pop();
-      return { contenido, tipoMime, nombre: `radicacion-${radicacion.idRadicacion}.${extension}` };
+      const url = await baseDeDatos.enlaceDeArchivo(radicacion.evidencia);
+      return url && { url };
     },
   };
 }

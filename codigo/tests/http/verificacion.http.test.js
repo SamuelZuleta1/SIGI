@@ -7,7 +7,7 @@ import { crearControlIncapacidades } from '../../src/controllers/control-incapac
 import { ROLES } from '../../src/models/usuario.model.js';
 import { crearBaseDeDatosFalsa } from '../helpers/base-de-datos-falsa.js';
 import { crearCorreoFalso } from '../helpers/correo-falso.js';
-import { documentoDePrueba, formularioDeRegistro, PDF } from '../helpers/fabricas.js';
+import { documentoDePrueba, formularioDeRegistro } from '../helpers/fabricas.js';
 import { agenteCon, crearSesionFalsa, USUARIOS } from '../helpers/sesion-falsa.js';
 
 let app;
@@ -157,14 +157,21 @@ describe('HU-06 — verificar la documentación (rutas)', () => {
 });
 
 describe('DA-06 / HU-02 — ver documento (ruta real)', () => {
-  it('HU-02.CA2 — el auxiliar ve la historia clínica: el servidor entrega el archivo sin caché', async () => {
+  it('HU-02.CA2 / DA-71 — el auxiliar ve la historia clínica: 303 al enlace firmado del bucket, sin caché', async () => {
     const agente = await agenteCon(request, app, 'auxiliar');
-    const res = await agente.get('/documentos/2/archivo').buffer(true);
-    expect(res.status).toBe(200);
-    expect(res.headers['content-type']).toBe('application/pdf');
-    expect(res.headers['content-disposition']).toBe('inline; filename="historia_clinica-2.pdf"');
+    const res = await agente.get('/documentos/2/archivo');
+    expect(res.status).toBe(303);
+    expect(res.headers.location).toMatch(/\/object\/sign\/documentos\/incapacidades\/1\/historia_clinica-2\.pdf\?token=/);
     expect(res.headers['cache-control']).toBe('no-store');
-    expect(Buffer.compare(res.body, PDF)).toBe(0);
+    expect(res.text).toBe('');
+  });
+
+  it('DA-71 — si el archivo ya no está en el bucket: 404', async () => {
+    baseDeDatos.enlaceDeArchivo = async () => null;
+    const agente = await agenteCon(request, app, 'auxiliar');
+    const res = await agente.get('/documentos/2/archivo');
+    expect(res.status).toBe(404);
+    expect(res.text).toContain('El archivo de este documento no está disponible.');
   });
 
   it.each(ROLES.filter((r) => r !== 'auxiliar'))('HU-02.CA1 — %s no ve la historia clínica ni el soporte (403)', async (rol) => {

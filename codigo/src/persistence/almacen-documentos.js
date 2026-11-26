@@ -1,5 +1,6 @@
 // Almacén de documentos: bucket privado `documentos` de Supabase Storage (RNF-03, HU-02.CA3).
-// Solo el servidor (clave service role) lee y escribe; el navegador nunca accede al bucket.
+// Solo el servidor (clave service role) lee y escribe. Única excepción: el navegador sube archivos grandes con una URL
+// firmada de un solo uso a `pendientes/`, porque Vercel no admite más de 4,5 MB por petición; nunca lee el bucket.
 import { BUCKET_DOCUMENTOS } from '../config/supabase.js';
 
 export function crearAlmacenDocumentos(cliente) {
@@ -11,7 +12,24 @@ export function crearAlmacenDocumentos(cliente) {
       if (error) throw error;
     },
 
-    /** Descarga un archivo como Buffer (DA-06: lo entrega el servidor, nunca el bucket al navegador). */
+    /** URL firmada para que el navegador suba UN archivo a `ruta` sin pasar por el servidor (vale 2 horas, no reemplaza). */
+    async firmarSubida(ruta) {
+      const { data, error } = await bucket().createSignedUploadUrl(ruta);
+      if (error) throw error;
+      return { urlFirmada: data.signedUrl };
+    },
+
+    /** URL firmada de lectura que caduca en `segundos` (DA-71), o null si el archivo no existe. */
+    async firmarDescarga(ruta, segundos = 60) {
+      const { data, error } = await bucket().createSignedUrl(ruta, segundos);
+      if (error) {
+        if (error.status === 404 || error.statusCode === '404' || /not found/i.test(error.message ?? '')) return null;
+        throw error;
+      }
+      return data.signedUrl;
+    },
+
+    /** Descarga un archivo como Buffer (solo para el servidor: validar lo subido directo). */
     async descargar(ruta) {
       const { data, error } = await bucket().download(ruta);
       if (error) throw error;

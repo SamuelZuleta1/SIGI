@@ -158,13 +158,13 @@ describe('HU-16 — seguimiento semanal (rutas)', () => {
     expect(res.text).not.toContain('Pago registrado');
   });
 
-  it('ver evidencia: la entrega el servidor sin caché; inexistente → 404', async () => {
+  it('DA-71 — ver evidencia: 303 al enlace firmado del bucket y sin caché; inexistente → 404', async () => {
     await cobrar();
     const agente = await agenteCon(request, app, 'auxiliar');
     await seguir(agente);
     const res = await agente.get('/seguimientos/1/evidencia');
-    expect(res.status).toBe(200);
-    expect(res.headers['content-type']).toContain('application/pdf');
+    expect(res.status).toBe(303);
+    expect(res.headers.location).toMatch(/\/object\/sign\/documentos\/incapacidades\/1\/seguimiento-1\.pdf\?token=/);
     expect(res.headers['cache-control']).toBe('no-store');
     expect((await agente.get('/seguimientos/99/evidencia')).status).toBe(404);
   });

@@ -138,7 +138,7 @@
             <span class="punto actual"><svg viewBox="0 0 24 24" aria-hidden="true"><%- ICONOS.nueva %></svg></span>
             <div class="paso">
               <p class="titulo"><b><%= radicaciones.length > 0 ? 'Nueva radicación' : `Radicar ante ${entidad.nombre}` %></b></p>
-              <form class="radicar" method="post" action="/incapacidades/<%= incapacidad.idIncapacidad %>/radicacion" enctype="multipart/form-data" novalidate>
+              <form class="radicar" method="post" action="/incapacidades/<%= incapacidad.idIncapacidad %>/radicacion" enctype="multipart/form-data" novalidate data-subida-directa>
                 <% if (errores.estado) { %><p class="mensaje mensaje-error" role="alert"><%= errores.estado %></p><% } %>
                 <div class="campos dos">
                   <div class="campo <%= errores.radicado ? 'invalido' : '' %>">
