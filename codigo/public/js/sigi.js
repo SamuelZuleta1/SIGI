@@ -3,14 +3,28 @@ document.documentElement.classList.add('js');
 
 // Formularios que se envían solos al cambiar una casilla (verificación, DA-26) o la entidad (conciliación): sin
 // JavaScript tienen su botón. Si el atributo nombra un campo (`data-enviar-al-cambiar="entidad"`), solo se envía con él lleno.
+// En una lista desplegable, las flechas del teclado cambian el valor (en Windows, sin abrirla): si se enviara con cada
+// flecha no se podría recorrer la lista. Con teclado no se envía solo: aparece el botón para confirmar (WCAG 3.2.2).
 for (const formulario of document.querySelectorAll('[data-enviar-al-cambiar]')) {
   const requerido = formulario.dataset.enviarAlCambiar;
-  formulario.addEventListener('change', () => {
+  let conTeclado = false;
+  formulario.addEventListener('keydown', () => { conTeclado = true; });
+  formulario.addEventListener('pointerdown', () => { conTeclado = false; });
+  formulario.addEventListener('change', (evento) => {
     if (requerido && !formulario.elements[requerido]?.value) return;
+    if (conTeclado && evento.target.tagName === 'SELECT') {
+      formulario.classList.add('con-boton');
+      return;
+    }
     formulario.requestSubmit();
   });
-  // Tras la recarga, el foco vuelve al control para no perder el sitio con teclado o lector de pantalla.
-  if (formulario.id && location.hash === `#${formulario.id}`) formulario.querySelector('input, select')?.focus();
+  // Tras la recarga, el foco vuelve al control para no perder el sitio con teclado o lector de pantalla. Se espera a
+  // `load`: antes, el salto del navegador al ancla (#id) le quita el foco.
+  if (formulario.id && location.hash === `#${formulario.id}`) {
+    const enfocar = () => formulario.querySelector('input, select')?.focus();
+    if (document.readyState === 'complete') enfocar();
+    else window.addEventListener('load', enfocar, { once: true });
+  }
 }
 
 // Lista de documentos por tipo: cada fila recibe el archivo que se suelta sobre ella.
@@ -323,6 +337,35 @@ for (const formulario of document.querySelectorAll('form[data-subida-directa]'))
 // Reconocimiento (lista): el IBC se escribe en la fila y las columnas Empresa y Entidad se llenan ahí mismo; «Ver tramos»
 // abre el detalle debajo de la fila. Sin JavaScript, el formulario de la fila es un POST normal y el enlace abre la
 // pantalla de cálculo de siempre. Solo se calcula con Enter o con el botón (calcular guarda, no se hace al salir del campo).
+// Si el servidor no responde con JSON (sesión vencida, sin permiso, error), se recarga la página para que lo explique.
+const esJson = (respuesta) => (respuesta.headers.get('Content-Type') ?? '').includes('application/json');
+
+// «Ver tramos» en todas las filas con cálculo, también las pagadas (que no tienen formulario).
+for (const enlace of document.querySelectorAll('[data-ver-tramos]')) {
+  if (!window.fetch) break;
+  const fila = enlace.closest('tr');
+  const detalle = fila.nextElementSibling;
+  enlace.addEventListener('click', async (evento) => {
+    evento.preventDefault();
+    const abrir = detalle.hidden;
+    if (abrir && !detalle.dataset.cargado) {
+      try {
+        const respuesta = await fetch(`/incapacidades/${fila.dataset.incapacidad}/reconocimiento/detalle`, { credentials: 'same-origin' });
+        // Sin sesión, la petición se redirige a «Iniciar sesión»: eso no es el detalle.
+        if (!respuesta.ok || respuesta.redirected || !(respuesta.headers.get('Content-Type') ?? '').includes('text/html')) throw new Error();
+        detalle.querySelector('[data-detalle]').innerHTML = await respuesta.text();
+        detalle.dataset.cargado = '1';
+      } catch {
+        location.href = enlace.href; // sin el detalle aquí, la pantalla de cálculo lo muestra (o pide iniciar sesión)
+        return;
+      }
+    }
+    detalle.hidden = !abrir;
+    enlace.setAttribute('aria-expanded', String(abrir));
+    enlace.textContent = abrir ? 'Ocultar tramos' : 'Ver tramos';
+  });
+}
+
 for (const formulario of document.querySelectorAll('form[data-calculo-en-fila]')) {
   if (!window.fetch) continue;
   const fila = formulario.closest('tr');
@@ -386,6 +429,10 @@ for (const formulario of document.querySelectorAll('form[data-calculo-en-fila]')
         headers: { Accept: 'application/json', 'Content-Type': 'application/x-www-form-urlencoded' },
         body: new URLSearchParams({ ibc: campo.value }),
       });
+      if (!esJson(respuesta)) {
+        location.reload(); // sesión vencida, sin permiso o error del servidor: la página lo explica
+        return;
+      }
       const datos = await respuesta.json();
       if (respuesta.ok) pintar(datos);
       else fallo(datos.errores?.ibc ?? datos.errores?.estado ?? 'No se pudo calcular.');
@@ -396,24 +443,5 @@ for (const formulario of document.querySelectorAll('form[data-calculo-en-fila]')
       boton.disabled = false;
       fila.classList.remove('calculando');
     }
-  });
-
-  enlace.addEventListener('click', async (evento) => {
-    evento.preventDefault();
-    const abrir = detalle.hidden;
-    if (abrir && !detalle.dataset.cargado) {
-      try {
-        const respuesta = await fetch(`/incapacidades/${fila.dataset.incapacidad}/reconocimiento/detalle`, { credentials: 'same-origin' });
-        if (!respuesta.ok) throw new Error();
-        detalle.querySelector('[data-detalle]').innerHTML = await respuesta.text();
-        detalle.dataset.cargado = '1';
-      } catch {
-        location.href = enlace.href; // sin el detalle aquí, la pantalla de cálculo lo muestra
-        return;
-      }
-    }
-    detalle.hidden = !abrir;
-    enlace.setAttribute('aria-expanded', String(abrir));
-    enlace.textContent = abrir ? 'Ocultar tramos' : 'Ver tramos';
   });
 }

@@ -418,7 +418,7 @@ input[type='file']::file-selector-button {
 .casilla.fija input { opacity: 1; cursor: default; } /* se lee como estado, no como control apagado */
 .boton.pequeno { height: 30px; padding: 0 10px; font-size: 0.82rem; }
 .js .exencion .boton { display: none; } /* con JavaScript, la casilla actualiza sola */
-.js .conciliar-entidad .acciones { display: none; } /* con JavaScript, elegir la entidad muestra sus pagos */
+.js .conciliar-entidad:not(.con-boton) .acciones { display: none; } /* con JavaScript, elegir la entidad muestra sus pagos; con teclado, vuelve el botón */
 .veredicto { display: grid; gap: 8px; }
 .veredicto:empty { display: none; }
 .oculto { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }

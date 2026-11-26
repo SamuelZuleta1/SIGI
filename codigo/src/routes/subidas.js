@@ -45,8 +45,9 @@ export async function archivosDePeticion(control, req, campos) {
   const archivos = {};
   const rutas = [];
   const perdidos = [];
-  // Lo subido directo al bucket se lee a la vez (no uno tras otro).
-  await Promise.all(
+  // Lo subido directo al bucket se lee a la vez (no uno tras otro). Si una lectura falla (Storage caído), se borran
+  // todas las subidas de la petición antes de propagar el error: la ruta no llega a su `finally` para borrarlas.
+  const lecturas = await Promise.allSettled(
     campos.map(async (campo) => {
       const recibido = req.files?.[campo]?.[0] ?? (req.file?.fieldname === campo ? req.file : null);
       if (recibido) {
@@ -61,5 +62,10 @@ export async function archivosDePeticion(control, req, campos) {
       else perdidos.push(campo);
     }),
   );
+  const fallida = lecturas.find((lectura) => lectura.status === 'rejected');
+  if (fallida) {
+    await control.descartarSubidas(rutas, req.usuario).catch((error) => console.error('No se pudieron borrar las subidas:', error));
+    throw fallida.reason;
+  }
   return { archivos, rutas, perdidos };
 }

@@ -28,7 +28,7 @@
     <% } %>
   <% } %>
   <% if (Object.keys(errores).length > 0) { %>
-    <p class="mensaje mensaje-error" role="alert">No se registró ningún documento. <%= errores.documentos ?? 'Revise las filas marcadas y adjunte de nuevo los archivos.' %></p>
+    <p class="mensaje mensaje-error" role="alert">No se registró ningún documento. <%= errores.documentos ?? (((incapacidad.archivoPreparado || incapacidad.epicrisisEliminada) && errores.epicrisis) || 'Revise las filas marcadas y adjunte de nuevo los archivos.') %></p>
   <% } %>
 
   <form class="formulario" method="post" action="/incapacidades/<%= incapacidad.idIncapacidad %>/documentos" enctype="multipart/form-data" novalidate data-subida-directa>
@@ -44,9 +44,13 @@
       // Lo que ya está registrado va arriba (con «Ver»); abajo solo se agregan los tipos que faltan.
       const porTipo = {};
       for (const d of incapacidad.documentos ?? []) (porTipo[d.tipo] ??= []).push(d);
+      // CAR-11, DA-59: con el archivo preparado la epicrisis ya no se recibe; no se ofrece para agregar.
+      const sinEpicrisis = incapacidad.archivoPreparado || incapacidad.epicrisisEliminada;
+      const seRecibe = (tipo) => !(sinEpicrisis && tipo === 'epicrisis');
       const registradosTipos = Object.keys(tipos).filter((tipo) => porTipo[tipo]);
-      const faltantesTipos = Object.keys(tipos).filter((tipo) => !porTipo[tipo]);
-      const errorEnRegistrados = registradosTipos.some((tipo) => errores[tipo]);
+      const faltantesTipos = Object.keys(tipos).filter((tipo) => !porTipo[tipo] && seRecibe(tipo));
+      const otrosTipos = registradosTipos.filter(seRecibe);
+      const errorEnRegistrados = otrosTipos.some((tipo) => errores[tipo]);
     %>
     <% if (registradosTipos.length > 0) { %>
       <section class="ya-registrados" aria-labelledby="titulo-registrados">
@@ -75,15 +79,15 @@
         <div class="lista-tipos" data-soltar-archivos>
           <% for (const tipo of faltantesTipos) { %><%- include('_fila-archivo', { tipo, tipos, errores }) %><% } %>
         </div>
-        <p class="ayuda">Elija el archivo o arrástrelo a la fila de su tipo. Adjunte solo los que recibió.</p>
+        <p class="ayuda">Elija el archivo o arrástrelo a la fila de su tipo. Adjunte solo los que recibió.<% if (sinEpicrisis) { %> La epicrisis se eliminó al preparar el archivo: ya no se recibe.<% } %></p>
       </fieldset>
     <% } %>
 
-    <% if (registradosTipos.length > 0) { %>
+    <% if (otrosTipos.length > 0) { %>
       <details class="otro-del-mismo-tipo"<%- errorEnRegistrados ? ' open' : '' %>>
         <summary>Agregar otro archivo de un tipo ya registrado</summary>
         <div class="lista-tipos" data-soltar-archivos>
-          <% for (const tipo of registradosTipos) { %><%- include('_fila-archivo', { tipo, tipos, errores }) %><% } %>
+          <% for (const tipo of otrosTipos) { %><%- include('_fila-archivo', { tipo, tipos, errores }) %><% } %>
         </div>
       </details>
     <% } %>

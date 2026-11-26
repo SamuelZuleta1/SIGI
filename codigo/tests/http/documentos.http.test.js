@@ -220,3 +220,34 @@ describe('Registrar documentos — lo ya registrado se ve en la pantalla', () =>
     expect(res.text).toContain('El archivo debe ser PDF, JPG o PNG.');
   });
 });
+
+describe('Registrar documentos — con el archivo preparado no se ofrece la epicrisis (CAR-11, DA-59)', () => {
+  const prepararArchivo = () => Object.assign(baseDeDatos.incapacidades[0], { fechaArchivoPreparado: '2026-11-19T10:00:00Z' });
+
+  it('la epicrisis no aparece para agregar (ni en «otro del mismo tipo») y se explica por qué', async () => {
+    const auxiliar = await agenteCon(request, app, 'auxiliar');
+    await subir(auxiliar, { soporte_incapacidad: PDF, epicrisis: PDF });
+    prepararArchivo();
+    const { text } = await auxiliar.get('/incapacidades/1/documentos');
+    expect(text).not.toContain('name="epicrisis"');
+    expect(text).toContain('name="soporte_incapacidad"'); // otro del mismo tipo, sí
+    expect(text).toContain('La epicrisis se eliminó al preparar el archivo: ya no se recibe.');
+  });
+
+  it('sin documentos previos, tampoco se ofrece', async () => {
+    prepararArchivo();
+    const receptor = await agenteCon(request, app, 'receptor');
+    const { text } = await receptor.get('/incapacidades/1/documentos');
+    expect(text).not.toContain('name="epicrisis"');
+    expect((text.match(/type="file"/g) ?? []).length).toBe(6);
+  });
+
+  it('si igual llega una epicrisis (pestaña vieja), el motivo se ve arriba aunque su fila ya no exista', async () => {
+    prepararArchivo();
+    const receptor = await agenteCon(request, app, 'receptor');
+    const res = await subir(receptor, { epicrisis: PDF });
+    expect(res.status).toBe(400);
+    expect(res.text).toContain('No se registró ningún documento. La epicrisis de esta incapacidad se eliminó al preparar el archivo');
+    expect(baseDeDatos.documentos).toHaveLength(0);
+  });
+});
