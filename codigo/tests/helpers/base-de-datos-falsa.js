@@ -182,6 +182,9 @@ export function crearBaseDeDatosFalsa() {
         originalPendiente: guardada.originalPendiente ?? false,
         archivoPreparado: guardada.fechaArchivoPreparado != null,
         epicrisisEliminada: guardada.epicrisisEliminadaEn != null,
+        documentos: documentos
+          .filter((d) => d.idIncapacidad === idIncapacidad)
+          .map(({ idDocumento, tipo }) => ({ idDocumento, tipo, creadoEn: '2026-11-25T15:00:00.000Z' })),
       };
     },
     // Subidas directas al bucket (pendientes/{idUsuario}/{uuid}): `subidas` es lo que el navegador dejó allí.

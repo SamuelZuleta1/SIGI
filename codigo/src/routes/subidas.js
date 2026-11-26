@@ -45,18 +45,27 @@ export async function archivosDePeticion(control, req, campos) {
   const archivos = {};
   const rutas = [];
   const perdidos = [];
-  for (const campo of campos) {
-    const recibido = req.files?.[campo]?.[0] ?? (req.file?.fieldname === campo ? req.file : null);
-    if (recibido) {
-      archivos[campo] = recibido.buffer;
-      continue;
-    }
-    const ruta = req.body?.[`subida_${campo}`];
-    if (typeof ruta !== 'string' || ruta === '') continue;
-    rutas.push(ruta);
-    const contenido = await control.leerSubida(ruta, req.usuario);
-    if (contenido) archivos[campo] = contenido;
-    else perdidos.push(campo);
+  // Lo subido directo al bucket se lee a la vez (no uno tras otro). Si una lectura falla (Storage caído), se borran
+  // todas las subidas de la petición antes de propagar el error: la ruta no llega a su `finally` para borrarlas.
+  const lecturas = await Promise.allSettled(
+    campos.map(async (campo) => {
+      const recibido = req.files?.[campo]?.[0] ?? (req.file?.fieldname === campo ? req.file : null);
+      if (recibido) {
+        archivos[campo] = recibido.buffer;
+        return;
+      }
+      const ruta = req.body?.[`subida_${campo}`];
+      if (typeof ruta !== 'string' || ruta === '') return;
+      rutas.push(ruta);
+      const contenido = await control.leerSubida(ruta, req.usuario);
+      if (contenido) archivos[campo] = contenido;
+      else perdidos.push(campo);
+    }),
+  );
+  const fallida = lecturas.find((lectura) => lectura.status === 'rejected');
+  if (fallida) {
+    await control.descartarSubidas(rutas, req.usuario).catch((error) => console.error('No se pudieron borrar las subidas:', error));
+    throw fallida.reason;
   }
   return { archivos, rutas, perdidos };
 }

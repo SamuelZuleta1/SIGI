@@ -1,0 +1,50 @@
+<%#
+  Resultado del reconocimiento por tramos (HU-21): lo usan la pantalla de cálculo y el detalle que se abre en la lista.
+  Recibe `reconocimiento` (prepararReconocimiento), `calculado` (acaba de calcularse) e `idTitulo` (único por fila en la lista).
+%>
+<%
+  const dias = (n) => (n === 1 ? '1 día' : `${n} días`);
+  const { incapacidad, resultado, aCargoDe, regla } = reconocimiento;
+  const cargo = { empresa: 'Empresa', eps: aCargoDe };
+  const titulo = typeof idTitulo === 'string' ? idTitulo : 'titulo-resultado';
+%>
+<section class="radicaciones <%= calculado ? 'entra' : '' %>" aria-labelledby="<%= titulo %>">
+  <h2 id="<%= titulo %>">Resultado<% if (resultado.fechaCalculo) { %> <span class="tenue">· calculado el <%= fechaBreve(fechaEnColombia(resultado.fechaCalculo)) %></span><% } %></h2>
+  <% if (!resultado.desgloseCoincide) { %>
+    <p class="mensaje mensaje-aviso" role="status">Los totales son los guardados. El detalle por tramo se recalculó con la regla actual y no coincide con ellos: vuelva a calcular para actualizarlo.</p>
+  <% } %>
+  <div class="tabla-envuelta">
+    <table class="estados calculo">
+      <caption class="oculto">Reconocimiento por tramos con un IBC de <%= pesos(resultado.ibc) %></caption>
+      <thead>
+        <tr><th scope="col">Tramo</th><th scope="col" class="num">Días</th><th scope="col" class="num">%</th><th scope="col">A cargo de</th><th scope="col" class="num">Valor</th></tr>
+      </thead>
+      <tbody>
+        <% for (const t of resultado.tramos) { %>
+        <tr class="<%= t.dias === 0 ? 'sin-dias' : '' %>">
+          <td><%= t.nombre %></td>
+          <td class="num cifra"><%= t.dias %></td>
+          <td class="num cifra"><%= t.porcentaje %> %</td>
+          <td><%= cargo[t.aCargo] %></td>
+          <td class="num cifra"><%= pesos(t.valor / 100) %></td>
+        </tr>
+        <% } %>
+      </tbody>
+      <tfoot>
+        <tr><th scope="row" colspan="4">A cargo de la empresa</th><td class="num cifra"><b><%= pesos(resultado.valorEmpresa / 100) %></b></td></tr>
+        <tr><th scope="row" colspan="4">A cargo de la <%= aCargoDe %></th><td class="num cifra"><b><%= pesos(resultado.valorEPS / 100) %></b></td></tr>
+      </tfoot>
+    </table>
+  </div>
+  <% if (regla === 'laboral') { %>
+    <p class="nota-tabla">Origen laboral: el día del evento lo paga la empresa y desde el día siguiente la ARL paga el 100 % (Ley 776 de 2002).</p>
+  <% } else if (regla === 'licencia') { %>
+    <p class="nota-tabla">Licencia: la EPS paga el 100 % de todos los días y la empresa no asume ninguno (Ley 2114 de 2021).</p>
+  <% } %>
+  <% if (incapacidad.diasPrevios) { %>
+    <p class="nota-tabla">Prórroga de la <a href="/incapacidades/<%= incapacidad.prorrogaDe %>/reconocimiento">n.º <%= incapacidad.prorrogaDe %></a>: este certificado cubre los días <%= incapacidad.diasPrevios + 1 %> a <%= incapacidad.diasPrevios + incapacidad.diasIncapacidad %> del caso, y los tramos se aplican a esos días.</p>
+  <% } %>
+  <% if (resultado.tramitePension) { %>
+    <p class="mensaje mensaje-aviso separado" role="status">Trámite de pensión: la incapacidad supera los 180 días (<%= dias(resultado.diasPension) %> desde el día 181). Esos días no se incluyen en el cálculo.</p>
+  <% } %>
+</section>

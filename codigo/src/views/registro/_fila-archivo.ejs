@@ -1,0 +1,6 @@
+<%# Una fila del formulario de documentos: el tipo y su selector de archivo (clic o arrastre). %>
+<div class="fila <%= errores[tipo] ? 'invalido' : '' %>">
+  <label for="doc-<%= tipo %>"><%= tipos[tipo] %></label>
+  <input id="doc-<%= tipo %>" name="<%= tipo %>" type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"<%- errores[tipo] ? ` aria-invalid="true" aria-describedby="error-${tipo}"` : '' %>>
+  <% if (errores[tipo]) { %><span class="error" id="error-<%= tipo %>"><%= errores[tipo] %></span><% } %>
+</div>

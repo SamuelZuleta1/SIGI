@@ -46,28 +46,48 @@
     </p>
     <div class="tabla-envuelta">
       <table class="estados lista-reconocimiento">
+        <caption class="oculto">Reconocimiento económico por incapacidad: escriba el IBC de la fila y calcule</caption>
         <thead>
-          <tr><th scope="col">N.º</th><th scope="col">Colaborador</th><th scope="col">Entidad</th><th scope="col">Días</th><th scope="col" class="num">Empresa</th><th scope="col" class="num">Entidad</th><th scope="col">Cálculo</th></tr>
+          <tr><th scope="col">N.º</th><th scope="col">Colaborador</th><th scope="col">Entidad</th><th scope="col">Días</th><th scope="col">IBC</th><th scope="col" class="num">Empresa</th><th scope="col" class="num">Entidad</th><th scope="col">Cálculo</th></tr>
         </thead>
         <tbody>
-          <% for (const f of filas) { %>
-          <tr>
+          <% for (const f of filas) { const pagada = f.estado === 'pagada'; const calculada = f.ibc != null; %>
+          <tr data-incapacidad="<%= f.idIncapacidad %>">
             <td><a href="/incapacidades/<%= f.idIncapacidad %>/reconocimiento" aria-label="Abrir la incapacidad <%= f.idIncapacidad %>"><%= f.idIncapacidad %></a></td>
             <td><%= f.colaborador %><small><%= nombresTipo[f.tipo] ?? f.tipo %></small></td>
             <td><%= f.entidad %></td>
             <td><%= f.diasIncapacidad %></td>
-            <% if (f.ibc != null) { %>
-              <td class="num cifra"><%= pesos(f.valorEmpresa) %></td>
-              <td class="num cifra"><%= pesos(f.valorEPS) %></td>
-              <td><% if (f.tramitePension) { %><span class="chip por_vencer">Trámite de pensión</span><% } else { %><span class="chip al_dia">Calculado</span><% } %></td>
-            <% } else { %>
-              <td class="num tenue">—</td><td class="num tenue">—</td>
-              <td><span class="tenue">Sin calcular</span></td>
-            <% } %>
+            <td class="celda-ibc">
+              <% if (pagada) { %>
+                <%# DA-53: una incapacidad pagada conserva su cálculo y ya no se cambia. %>
+                <% if (calculada) { %><span class="cifra"><%= pesos(f.ibc) %></span><% } else { %><span class="tenue">—</span><% } %>
+              <% } else { %>
+                <form class="ibc-fila" method="post" action="/incapacidades/<%= f.idIncapacidad %>/reconocimiento" novalidate data-calculo-en-fila>
+                  <div class="con-prefijo">
+                    <span aria-hidden="true">$</span>
+                    <input name="ibc" type="text" inputmode="decimal" maxlength="20" value="<%= calculada ? pesos(f.ibc).replace(/^\$\s?/, '') : '' %>" placeholder="IBC" autocomplete="off" required data-pesos aria-label="IBC de la incapacidad <%= f.idIncapacidad %> (pesos)">
+                  </div>
+                  <button class="boton pequeno secundario"><%= calculada ? 'Recalcular' : 'Calcular' %></button>
+                  <span class="error" data-error role="alert" hidden></span>
+                  <span class="advierte" data-advertencia hidden></span>
+                </form>
+              <% } %>
+            </td>
+            <td class="num cifra<%= calculada ? '' : ' tenue' %>" data-celda="empresa"><%= calculada ? pesos(f.valorEmpresa) : '—' %></td>
+            <td class="num cifra<%= calculada ? '' : ' tenue' %>" data-celda="entidad"><%= calculada ? pesos(f.valorEPS) : '—' %></td>
+            <td class="celda-calculo">
+              <% if (pagada) { %><span class="chip pagada">Pagada</span>
+              <% } else if (!calculada) { %><span class="tenue" data-estado>Sin calcular</span>
+              <% } else if (f.tramitePension) { %><span class="chip por_vencer" data-estado>Trámite de pensión</span>
+              <% } else { %><span class="chip al_dia" data-estado>Calculado</span><% } %>
+              <a class="ver-tramos" href="/incapacidades/<%= f.idIncapacidad %>/reconocimiento"<%- calculada ? '' : ' hidden' %> aria-expanded="false" data-ver-tramos>Ver tramos</a>
+            </td>
           </tr>
+          <tr class="detalle-calculo" hidden data-detalle-de="<%= f.idIncapacidad %>"><td colspan="8"><div data-detalle></div></td></tr>
           <% } %>
         </tbody>
       </table>
     </div>
+    <p class="oculto" id="aviso-calculo" role="status" aria-live="polite"></p>
   <% } %>
 </section>

@@ -115,7 +115,9 @@ describe('HU-04 — registrar la documentación recibida (base de datos y Storag
   });
 
   it('consultarIncapacidad trae los datos que la identifican y null si no existe', async () => {
-    expect(await baseDeDatos.consultarIncapacidad(ids[0])).toEqual({
+    const { documentos, ...datos } = await baseDeDatos.consultarIncapacidad(ids[0]);
+    expect(documentos.length).toBeGreaterThan(0); // los que registró la preparación de la prueba
+    expect(datos).toEqual({
       idIncapacidad: ids[0],
       colaborador: 'Ana María Gómez',
       correoColaborador,
@@ -128,6 +130,22 @@ describe('HU-04 — registrar la documentación recibida (base de datos y Storag
       epicrisisEliminada: false,
     });
     expect(await baseDeDatos.consultarIncapacidad(2 ** 40)).toBeNull();
+  });
+
+  it('consultarIncapacidad lista lo ya registrado, en orden y con su fecha, sin traer el archivo', async () => {
+    const id = await nueva();
+    await baseDeDatos.guardarDocumentos(
+      id,
+      [
+        { tipo: 'epicrisis', contenido: PDF, tipoMime: 'application/pdf' },
+        { tipo: 'furips', contenido: PDF, tipoMime: 'application/pdf' },
+      ],
+      receptor.id,
+    );
+    const { documentos } = await baseDeDatos.consultarIncapacidad(id);
+    expect(documentos.map((d) => d.tipo)).toEqual(['epicrisis', 'furips']);
+    expect(documentos[0]).toEqual({ idDocumento: expect.any(Number), tipo: 'epicrisis', creadoEn: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/) });
+    expect(documentos[0].idDocumento).toBeLessThan(documentos[1].idDocumento);
   });
 
   it('DA-06 — la base de datos rechaza un tipo de documento fuera de los 7 y no deja archivos sueltos', async () => {

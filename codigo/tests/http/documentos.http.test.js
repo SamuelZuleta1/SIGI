@@ -160,3 +160,94 @@ describe('HU-04 — registrar la documentación recibida (rutas)', () => {
     expect(res.text).not.toContain('Se registr');
   });
 });
+
+describe('Registrar documentos — lo ya registrado se ve en la pantalla', () => {
+  it('sin documentos: un solo bloque con todos los tipos y sin «Ya registrados»', async () => {
+    const agente = await agenteCon(request, app, 'receptor');
+    const { text } = await agente.get('/incapacidades/1/documentos');
+    expect(text).not.toContain('Ya registrados');
+    expect(text).not.toContain('Agregar otro archivo de un tipo ya registrado');
+    expect(text).toContain('<legend>Documentos</legend>');
+    expect((text.match(/type="file"/g) ?? []).length).toBe(7);
+  });
+
+  it('con documentos: «Ya registrados» con su fecha y «Ver»; abajo solo se agregan los que faltan', async () => {
+    const auxiliar = await agenteCon(request, app, 'auxiliar');
+    await subir(auxiliar, { soporte_incapacidad: PDF, historia_clinica: PNG });
+    const { text } = await auxiliar.get('/incapacidades/1/documentos?registrados=2');
+    expect(text).toContain('Ya registrados');
+    expect(text).toContain('2 de 7 tipos');
+    expect(text).toContain('Recibido · 25 nov 2026');
+    expect(text).toContain('href="/documentos/1/archivo"');
+    expect(text).toContain('href="/documentos/2/archivo"');
+    expect(text).toContain('<legend>Agregar documentos</legend>');
+    // Los dos tipos ya registrados solo aparecen como selector dentro de «Agregar otro archivo…»; los 5 que faltan, arriba.
+    const [agregar, otro] = text.split('Agregar otro archivo de un tipo ya registrado');
+    expect((agregar.match(/type="file"/g) ?? []).length).toBe(5);
+    expect((otro.match(/type="file"/g) ?? []).length).toBe(2);
+    expect(agregar).not.toContain('name="soporte_incapacidad"');
+    expect(otro).toContain('name="soporte_incapacidad"');
+  });
+
+  it('el receptor ve lo recibido pero no puede abrir ningún documento (DA-02, HU-02)', async () => {
+    const auxiliar = await agenteCon(request, app, 'auxiliar');
+    await subir(auxiliar, { soporte_incapacidad: PDF, historia_clinica: PNG });
+    const receptor = await agenteCon(request, app, 'receptor');
+    const { text } = await receptor.get('/incapacidades/1/documentos');
+    expect(text).toContain('2 de 7 tipos');
+    expect(text).not.toContain('/archivo"'); // el receptor no tiene «verDocumento»: ningún enlace
+    expect(text.match(/Lo abre el auxiliar/g)).toHaveLength(2);
+  });
+
+  it('con todos los tipos registrados no queda bloque «Agregar»: solo «Agregar otro archivo…»', async () => {
+    const auxiliar = await agenteCon(request, app, 'auxiliar');
+    const todos = Object.fromEntries(
+      ['soporte_incapacidad', 'epicrisis', 'historia_clinica', 'furips', 'certificado_nacido_vivo', 'registro_civil', 'documento_identidad'].map((t) => [t, PDF]),
+    );
+    await subir(auxiliar, todos);
+    const { text } = await auxiliar.get('/incapacidades/1/documentos');
+    expect(text).not.toContain('<legend>Agregar documentos</legend>');
+    expect(text).toContain('7 de 7 tipos');
+    expect(text).toContain('Agregar otro archivo de un tipo ya registrado');
+  });
+
+  it('un error en un tipo ya registrado deja abierto «Agregar otro archivo…»', async () => {
+    const auxiliar = await agenteCon(request, app, 'auxiliar');
+    await subir(auxiliar, { soporte_incapacidad: PDF });
+    const res = await subir(auxiliar, { soporte_incapacidad: Buffer.from('MZ no es pdf') });
+    expect(res.status).toBe(400);
+    expect(res.text).toMatch(/<details class="otro-del-mismo-tipo" open>/);
+    expect(res.text).toContain('El archivo debe ser PDF, JPG o PNG.');
+  });
+});
+
+describe('Registrar documentos — con el archivo preparado no se ofrece la epicrisis (CAR-11, DA-59)', () => {
+  const prepararArchivo = () => Object.assign(baseDeDatos.incapacidades[0], { fechaArchivoPreparado: '2026-11-19T10:00:00Z' });
+
+  it('la epicrisis no aparece para agregar (ni en «otro del mismo tipo») y se explica por qué', async () => {
+    const auxiliar = await agenteCon(request, app, 'auxiliar');
+    await subir(auxiliar, { soporte_incapacidad: PDF, epicrisis: PDF });
+    prepararArchivo();
+    const { text } = await auxiliar.get('/incapacidades/1/documentos');
+    expect(text).not.toContain('name="epicrisis"');
+    expect(text).toContain('name="soporte_incapacidad"'); // otro del mismo tipo, sí
+    expect(text).toContain('La epicrisis se eliminó al preparar el archivo: ya no se recibe.');
+  });
+
+  it('sin documentos previos, tampoco se ofrece', async () => {
+    prepararArchivo();
+    const receptor = await agenteCon(request, app, 'receptor');
+    const { text } = await receptor.get('/incapacidades/1/documentos');
+    expect(text).not.toContain('name="epicrisis"');
+    expect((text.match(/type="file"/g) ?? []).length).toBe(6);
+  });
+
+  it('si igual llega una epicrisis (pestaña vieja), el motivo se ve arriba aunque su fila ya no exista', async () => {
+    prepararArchivo();
+    const receptor = await agenteCon(request, app, 'receptor');
+    const res = await subir(receptor, { epicrisis: PDF });
+    expect(res.status).toBe(400);
+    expect(res.text).toContain('No se registró ningún documento. La epicrisis de esta incapacidad se eliminó al preparar el archivo');
+    expect(baseDeDatos.documentos).toHaveLength(0);
+  });
+});
