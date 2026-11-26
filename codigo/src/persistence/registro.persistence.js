@@ -135,8 +135,9 @@ export function crearPersistenciaRegistro(cliente, almacen = crearAlmacenDocumen
       const fila = comprobar(
         await cliente
           .from('incapacidad')
-          .select('id, tipo, fecha_inicio, dias_incapacidad, original_pendiente, fecha_archivo_preparado, epicrisis_eliminada_en, colaborador(nombre, correo), entidad(nombre)')
+          .select('id, tipo, fecha_inicio, dias_incapacidad, original_pendiente, fecha_archivo_preparado, epicrisis_eliminada_en, colaborador(nombre, correo), entidad(nombre), documento(id, tipo, creado_en)')
           .eq('id', idIncapacidad)
+          .order('id', { referencedTable: 'documento' })
           .maybeSingle(),
       );
       if (!fila) return null;
@@ -153,6 +154,8 @@ export function crearPersistenciaRegistro(cliente, almacen = crearAlmacenDocumen
         archivoPreparado: fila.fecha_archivo_preparado != null,
         // B4: sigue aunque se deshaga la preparación del archivo.
         epicrisisEliminada: fila.epicrisis_eliminada_en != null,
+        // Lo ya registrado, para mostrarlo al volver a «Registrar documentos» (sin el archivo).
+        documentos: fila.documento.map((d) => ({ idDocumento: d.id, tipo: d.tipo, creadoEn: d.creado_en })),
       };
     },
 
@@ -168,13 +171,18 @@ export function crearPersistenciaRegistro(cliente, almacen = crearAlmacenDocumen
      * @returns {Promise<Array<{ tipo: string, archivo: string }>>}
      */
     async guardarDocumentos(idIncapacidad, documentos, creadoPor, { originalPendiente = false } = {}) {
-      const guardados = [];
-      try {
-        for (const { tipo, contenido, tipoMime } of documentos) {
+      // Los archivos se suben a la vez (no uno tras otro): con varios documentos es lo que más tarda al registrar.
+      const intentos = await Promise.allSettled(
+        documentos.map(async ({ tipo, contenido, tipoMime }) => {
           const archivo = `incapacidades/${idIncapacidad}/${tipo}-${randomUUID()}.${EXTENSIONES[tipoMime]}`;
           await almacen.guardar(archivo, contenido, tipoMime);
-          guardados.push({ tipo, archivo });
-        }
+          return { tipo, archivo };
+        }),
+      );
+      const guardados = intentos.filter((intento) => intento.status === 'fulfilled').map((intento) => intento.value);
+      try {
+        const fallido = intentos.find((intento) => intento.status === 'rejected');
+        if (fallido) throw fallido.reason;
         comprobar(
           await cliente.rpc('registrar_documentos', {
             p_incapacidad_id: idIncapacidad,

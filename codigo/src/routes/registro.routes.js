@@ -7,7 +7,8 @@ import { TAMANO_MAXIMO_ARCHIVO } from '../controllers/registro.controller.js';
 import { permitir } from '../middleware/autenticacion.js';
 import { NOMBRES_TIPO_DOCUMENTO, TIPOS_DOCUMENTO } from '../models/documento.model.js';
 import { NOMBRES_TIPO_INCAPACIDAD } from '../models/incapacidad.model.js';
-import { fechaBreve, hoyEnColombia } from '../servicios/dias-habiles.js';
+import { puedeVerDocumento } from '../config/permisos.js';
+import { fechaBreve, fechaEnColombia, hoyEnColombia } from '../servicios/dias-habiles.js';
 import { archivosDePeticion, MENSAJE_SUBIDA_PERDIDA } from './subidas.js';
 
 // Los archivos se reciben en memoria y el Control los pasa al bucket privado: nunca tocan el disco del servidor.
@@ -109,6 +110,9 @@ export function crearRutasRegistro({ control }) {
 
   const paginaDocumentos = (res, estado, datos = {}) =>
     res.status(estado).pagina('registro/registrar-documentos', {
+      // Lo ya registrado: «Ver» solo en los tipos que el rol puede abrir (HU-02) y con la fecha en Colombia.
+      puedeVer: (tipo) => Boolean(res.locals.usuario) && puedeVerDocumento(res.locals.usuario.rol, tipo),
+      fechaRecibido: (instante) => fechaBreve(fechaEnColombia(instante)),
       titulo: 'Registrar documentos',
       incapacidad: null,
       numero: '',

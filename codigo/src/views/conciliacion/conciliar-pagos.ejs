@@ -15,7 +15,8 @@
   <p class="mensaje mensaje-error" role="alert"><%= errores.cambio ?? errores.pagos %></p>
 <% } %>
 
-<form class="formulario filtros conciliar-entidad" method="get" action="/conciliacion">
+<%# Con JavaScript, al elegir la entidad se muestran sus pagos (sin pulsar «Ver pagos»); sin él, el botón sigue ahí. %>
+<form class="formulario filtros conciliar-entidad" id="elegir-entidad" method="get" action="/conciliacion#elegir-entidad" data-enviar-al-cambiar="entidad">
   <div class="campos">
     <div class="campo <%= errores.entidad ? 'invalido' : '' %>">
       <label for="entidad">Entidad</label>

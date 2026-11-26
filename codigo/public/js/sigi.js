@@ -1,11 +1,16 @@
 // Mejoras opcionales de la interfaz: todo funciona igual sin este archivo.
 document.documentElement.classList.add('js');
 
-// Formularios que se envían solos al cambiar una casilla (verificación, DA-26): sin JavaScript tienen su botón.
+// Formularios que se envían solos al cambiar una casilla (verificación, DA-26) o la entidad (conciliación): sin
+// JavaScript tienen su botón. Si el atributo nombra un campo (`data-enviar-al-cambiar="entidad"`), solo se envía con él lleno.
 for (const formulario of document.querySelectorAll('[data-enviar-al-cambiar]')) {
-  formulario.addEventListener('change', () => formulario.requestSubmit());
-  // Tras la recarga, el foco vuelve a la casilla para no perder el sitio con teclado o lector de pantalla.
-  if (formulario.id && location.hash === `#${formulario.id}`) formulario.querySelector('input')?.focus();
+  const requerido = formulario.dataset.enviarAlCambiar;
+  formulario.addEventListener('change', () => {
+    if (requerido && !formulario.elements[requerido]?.value) return;
+    formulario.requestSubmit();
+  });
+  // Tras la recarga, el foco vuelve al control para no perder el sitio con teclado o lector de pantalla.
+  if (formulario.id && location.hash === `#${formulario.id}`) formulario.querySelector('input, select')?.focus();
 }
 
 // Lista de documentos por tipo: cada fila recibe el archivo que se suelta sobre ella.
@@ -312,5 +317,103 @@ for (const formulario of document.querySelectorAll('form[data-subida-directa]'))
       boton.textContent = boton.dataset.texto ?? texto; // el bloqueo de doble envío guarda este texto como el original
     }
     formulario.requestSubmit(boton ?? undefined);
+  });
+}
+
+// Reconocimiento (lista): el IBC se escribe en la fila y las columnas Empresa y Entidad se llenan ahí mismo; «Ver tramos»
+// abre el detalle debajo de la fila. Sin JavaScript, el formulario de la fila es un POST normal y el enlace abre la
+// pantalla de cálculo de siempre. Solo se calcula con Enter o con el botón (calcular guarda, no se hace al salir del campo).
+for (const formulario of document.querySelectorAll('form[data-calculo-en-fila]')) {
+  if (!window.fetch) continue;
+  const fila = formulario.closest('tr');
+  const detalle = fila.nextElementSibling;
+  const campo = formulario.elements.ibc;
+  const boton = formulario.querySelector('button');
+  const error = formulario.querySelector('[data-error]');
+  const advertencia = formulario.querySelector('[data-advertencia]');
+  const enlace = fila.querySelector('[data-ver-tramos]');
+  const aviso = document.getElementById('aviso-calculo');
+  let enCurso = false;
+
+  const decir = (nodo, texto) => {
+    nodo.textContent = texto ?? '';
+    nodo.hidden = !texto;
+  };
+  const fallo = (texto) => {
+    decir(error, texto);
+    campo.setAttribute('aria-invalid', 'true');
+    campo.setAttribute('aria-describedby', error.id ||= `error-ibc-${fila.dataset.incapacidad}`);
+  };
+  const destello = (celda) => {
+    celda.classList.remove('actualizada');
+    void celda.offsetWidth; // reinicia la animación si se calcula otra vez
+    celda.classList.add('actualizada');
+  };
+
+  const pintar = (datos) => {
+    campo.value = datos.ibc;
+    campo.removeAttribute('aria-invalid');
+    campo.removeAttribute('aria-describedby');
+    decir(error, '');
+    decir(advertencia, datos.advertencia);
+    for (const [clave, valor] of [['empresa', datos.empresa], ['entidad', datos.entidad]]) {
+      const celda = fila.querySelector(`[data-celda="${clave}"]`);
+      celda.textContent = valor;
+      celda.classList.remove('tenue');
+      destello(celda);
+    }
+    const estado = fila.querySelector('[data-estado]');
+    estado.className = datos.tramitePension ? 'chip por_vencer' : 'chip al_dia';
+    estado.textContent = datos.tramitePension ? 'Trámite de pensión' : 'Calculado';
+    boton.textContent = 'Recalcular';
+    enlace.hidden = false;
+    detalle.querySelector('[data-detalle]').innerHTML = datos.detalle;
+    detalle.dataset.cargado = '1';
+    if (aviso) aviso.textContent = `Incapacidad ${fila.dataset.incapacidad}: empresa ${datos.empresa}, entidad ${datos.entidad}.`;
+  };
+
+  formulario.addEventListener('submit', async (evento) => {
+    evento.preventDefault();
+    if (enCurso) return;
+    if (!campo.value.trim()) return fallo('Escriba el IBC.');
+    enCurso = true;
+    boton.disabled = true;
+    fila.classList.add('calculando');
+    try {
+      const respuesta = await fetch(formulario.action, {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { Accept: 'application/json', 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({ ibc: campo.value }),
+      });
+      const datos = await respuesta.json();
+      if (respuesta.ok) pintar(datos);
+      else fallo(datos.errores?.ibc ?? datos.errores?.estado ?? 'No se pudo calcular.');
+    } catch {
+      fallo('No se pudo calcular. Revise su conexión e intente de nuevo.');
+    } finally {
+      enCurso = false;
+      boton.disabled = false;
+      fila.classList.remove('calculando');
+    }
+  });
+
+  enlace.addEventListener('click', async (evento) => {
+    evento.preventDefault();
+    const abrir = detalle.hidden;
+    if (abrir && !detalle.dataset.cargado) {
+      try {
+        const respuesta = await fetch(`/incapacidades/${fila.dataset.incapacidad}/reconocimiento/detalle`, { credentials: 'same-origin' });
+        if (!respuesta.ok) throw new Error();
+        detalle.querySelector('[data-detalle]').innerHTML = await respuesta.text();
+        detalle.dataset.cargado = '1';
+      } catch {
+        location.href = enlace.href; // sin el detalle aquí, la pantalla de cálculo lo muestra
+        return;
+      }
+    }
+    detalle.hidden = !abrir;
+    enlace.setAttribute('aria-expanded', String(abrir));
+    enlace.textContent = abrir ? 'Ocultar tramos' : 'Ver tramos';
   });
 }

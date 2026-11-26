@@ -40,6 +40,16 @@ describe('HU-26 — conciliación (rutas)', () => {
     expect(res.text).toContain('Aún no hay conciliaciones.');
   });
 
+  it('elegir la entidad muestra sus pagos sin pulsar «Ver pagos»: el formulario se envía solo y conserva el botón sin JavaScript', async () => {
+    const agente = await agenteCon(request, app, 'auxiliar');
+    const { text } = await agente.get('/conciliacion');
+    expect(text).toContain('data-enviar-al-cambiar="entidad"');
+    expect(text).toContain('action="/conciliacion#elegir-entidad"');
+    expect(text).toContain('Ver pagos</button>'); // sin JavaScript, el botón sigue ahí
+    // El formulario del cruce (más abajo) no se envía solo: solo el de elegir la entidad.
+    expect((text.match(/data-enviar-al-cambiar/g) ?? []).length).toBe(1);
+  });
+
   it('HU-26.CA1 — al elegir la entidad muestra sus consignados y los pagos registrados, marcados y comparados', async () => {
     const agente = await agenteCon(request, app, 'auxiliar');
     const res = await agente.get('/conciliacion?entidad=2');

@@ -218,3 +218,98 @@ describe('Lista de reconocimiento — búsqueda (rutas)', () => {
     expect((await agente.get('/reconocimiento?q=1&q=2')).text).toContain('href="/incapacidades/1/reconocimiento"');
   });
 });
+
+describe('Reconocimiento — calcular en la propia fila de la lista', () => {
+  const json = (agente, ibc, id = 1) =>
+    agente.post(`/incapacidades/${id}/reconocimiento`).set('Accept', 'application/json').type('form').send({ ibc });
+
+  it('la lista trae el IBC de cada fila: un formulario por incapacidad sin pagar, y los valores sin calcular en «—»', async () => {
+    const agente = await agenteCon(request, app, 'auxiliar');
+    const { text } = await agente.get('/reconocimiento');
+    expect(text).toContain('<form class="ibc-fila" method="post" action="/incapacidades/1/reconocimiento"');
+    expect(text).toContain('data-calculo-en-fila');
+    expect(text).toContain('aria-label="IBC de la incapacidad 1 (pesos)"');
+    expect(text).toContain('>Calcular</button>');
+    expect(text).toMatch(/data-ver-tramos[^>]*>Ver tramos/);
+    expect(text).toMatch(/href="\/incapacidades\/1\/reconocimiento" hidden/); // sin cálculo no hay tramos que ver
+  });
+
+  it('con Accept: JSON devuelve los valores de la fila y el detalle por tramos, y guarda el cálculo', async () => {
+    const agente = await agenteCon(request, app, 'auxiliar');
+    const res = await json(agente, '3.000.000');
+    expect(res.status).toBe(200);
+    expect(res.headers['cache-control']).toBe('no-store');
+    expect(res.body).toMatchObject({ idIncapacidad: 1, ibc: '3.000.000', empresa: '$ 200.000', entidad: '$ 536.000', tramitePension: false, advertencia: null });
+    expect(res.body.detalle).toContain('A cargo de la empresa');
+    expect(res.body.detalle).toContain('aria-labelledby="titulo-resultado-1"');
+    expect(baseDeDatos.incapacidades[0].ibc).toBe('3000000.00');
+    // Y la lista ya lo muestra calculado, con el IBC escrito y «Recalcular».
+    const lista = (await agente.get('/reconocimiento')).text;
+    expect(lista).toContain('value="3.000.000"');
+    expect(lista).toContain('>Recalcular</button>');
+    expect(lista).toContain('Calculado');
+    expect(lista).not.toMatch(/href="\/incapacidades\/1\/reconocimiento" hidden/);
+  });
+
+  it('avisa si el IBC está fuera de lo habitual, pero calcula igual (DA-50)', async () => {
+    const agente = await agenteCon(request, app, 'auxiliar');
+    const res = await json(agente, '500.000');
+    expect(res.status).toBe(200);
+    expect(res.body.advertencia).toMatch(/^IBC por debajo de 1 SMMLV de 2026/);
+  });
+
+  it.each([['', 400], ['abc', 400], ['-5', 400]])('IBC «%s» no válido: 400 con el mensaje en JSON y sin guardar', async (ibc, estado) => {
+    const agente = await agenteCon(request, app, 'auxiliar');
+    const res = await json(agente, ibc);
+    expect(res.status).toBe(estado);
+    expect(res.body.errores.ibc).toBeTruthy();
+    expect(baseDeDatos.incapacidades[0].ibc).toBeUndefined();
+  });
+
+  it('una incapacidad pagada no se calcula (DA-53): 409 en JSON, y su fila no ofrece el formulario', async () => {
+    const agente = await agenteCon(request, app, 'auxiliar');
+    await json(agente, '3.000.000');
+    baseDeDatos.incapacidades[0].estado = 'pagada';
+    const res = await json(agente, '4.000.000');
+    expect(res.status).toBe(409);
+    expect(res.body.errores.estado).toBeTruthy();
+    expect(baseDeDatos.incapacidades[0].ibc).toBe('3000000.00');
+    const lista = (await agente.get('/reconocimiento')).text;
+    expect(lista).not.toContain('class="ibc-fila"');
+    expect(lista).toContain('<span class="chip pagada">Pagada</span>');
+  });
+
+  it('incapacidad inexistente: 404 en JSON', async () => {
+    const agente = await agenteCon(request, app, 'auxiliar');
+    const res = await json(agente, '3.000.000', 99);
+    expect(res.status).toBe(404);
+    expect(res.body.errores.estado).toBe('No hay una incapacidad con ese número.');
+  });
+
+  it('sin Accept: JSON sigue siendo el POST de siempre (303 a la pantalla de cálculo)', async () => {
+    const agente = await agenteCon(request, app, 'auxiliar');
+    const res = await calcular(agente, '3.000.000');
+    expect(res.status).toBe(303);
+    expect(res.headers.location).toBe('/incapacidades/1/reconocimiento?calculado=1');
+  });
+
+  it('GET …/detalle da el detalle por tramos de lo calculado (HTML sin la página), y 404 sin cálculo o sin incapacidad', async () => {
+    const agente = await agenteCon(request, app, 'auxiliar');
+    expect((await agente.get('/incapacidades/1/reconocimiento/detalle')).status).toBe(404);
+    await calcular(agente, '3.000.000');
+    const res = await agente.get('/incapacidades/1/reconocimiento/detalle');
+    expect(res.status).toBe(200);
+    expect(res.headers['content-type']).toMatch(/text\/html/);
+    expect(res.headers['cache-control']).toBe('no-store');
+    expect(res.text).toContain('A cargo de la empresa');
+    expect(res.text).not.toContain('<html');
+    expect((await agente.get('/incapacidades/99/reconocimiento/detalle')).status).toBe(404);
+  });
+
+  it.each(['receptor', 'lider', 'contabilidad', 'cartera'])('DA-02 — %s no calcula ni ve el detalle (403)', async (rol) => {
+    const agente = await agenteCon(request, app, rol);
+    expect((await json(agente, '3.000.000')).status).toBe(403);
+    expect((await agente.get('/incapacidades/1/reconocimiento/detalle')).status).toBe(403);
+    expect(baseDeDatos.incapacidades[0].ibc).toBeUndefined();
+  });
+});
