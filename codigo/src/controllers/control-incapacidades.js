@@ -13,6 +13,7 @@ import { crearControlReportes } from './reportes.controller.js';
 import { crearControlReemplazo } from './reemplazo.controller.js';
 import { crearControlRegistro } from './registro.controller.js';
 import { crearControlSeguimiento } from './seguimiento.controller.js';
+import { crearControlSubidas } from './subidas.controller.js';
 import { crearControlVerificacion } from './verificacion.controller.js';
 
 /** @param {{ baseDeDatos: object, correo: object }} dependencias */
@@ -32,5 +33,6 @@ export function crearControlIncapacidades(dependencias) {
     ...crearControlConciliacion(dependencias),
     ...crearControlReportes(dependencias),
     ...crearControlArchivo(dependencias),
+    ...crearControlSubidas(dependencias),
   };
 }

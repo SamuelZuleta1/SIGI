@@ -15,6 +15,7 @@ import { fechaBreve, fechaEnColombia, fechaLarga, sumarIntervalo } from '../serv
 import { ACUERDO_DIAS_MAXIMO } from '../controllers/seguimiento.controller.js';
 import { pesos } from '../servicios/moneda.js';
 import { responderAvisoFallido } from './aviso-fallido.js';
+import { archivosDePeticion, MENSAJE_SUBIDA_PERDIDA } from './subidas.js';
 
 // La evidencia (P-D) se recibe en memoria y la Persistencia la pasa al bucket privado: nunca toca el disco.
 const recibirEvidencia = multer({
@@ -83,9 +84,11 @@ export function crearRutasSeguimiento({ control }) {
         next();
       }),
     async (req, res) => {
+      const { archivos, rutas: subidas, perdidos } = await archivosDePeticion(control, req, ['evidencia']);
       try {
         if (req.errorDeSubida) throw new ErrorDeValidacion(req.errorDeSubida);
-        const resultado = await control.registrarSeguimiento(req.params.id, { evidencia: req.file?.buffer }, req.usuario);
+        if (perdidos.length > 0) throw new ErrorDeValidacion({ evidencia: MENSAJE_SUBIDA_PERDIDA });
+        const resultado = await control.registrarSeguimiento(req.params.id, { evidencia: archivos.evidencia }, req.usuario);
         if (!resultado) return noExiste(res);
         res.redirect(303, `/incapacidades/${resultado.idIncapacidad}/seguimiento?registrado=1`);
       } catch (error) {
@@ -103,6 +106,8 @@ export function crearRutasSeguimiento({ control }) {
         const seguimiento = await control.prepararSeguimiento(req.params.id);
         if (!seguimiento) return noExiste(res);
         await pagina(res, error.errores.estado ? 409 : 400, { seguimiento, errores: error.errores });
+      } finally {
+        await control.descartarSubidas(subidas, req.usuario).catch((error) => console.error('No se pudieron borrar las subidas:', error));
       }
     },
   );

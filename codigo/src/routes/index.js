@@ -16,6 +16,7 @@ import { crearRutasRegistro } from './registro.routes.js';
 import { crearRutasReportes } from './reportes.routes.js';
 import { crearRutasSeguimiento } from './seguimiento.routes.js';
 import { crearRutasSesion } from './sesion.routes.js';
+import { crearRutasSubidas } from './subidas.js';
 import { crearRutasVerificacion } from './verificacion.routes.js';
 
 export function crearRutas(dependencias) {
@@ -34,6 +35,7 @@ export function crearRutas(dependencias) {
 
   // Grupos de operaciones (necesitan el Control de incapacidades).
   if (dependencias.control) {
+    rutas.use(crearRutasSubidas(dependencias));
     rutas.use(crearRutasRegistro(dependencias));
     rutas.use(crearRutasReemplazo(dependencias));
     rutas.use(crearRutasVerificacion(dependencias));

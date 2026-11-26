@@ -95,7 +95,7 @@ export function exigirSesion(req, res, next) {
   });
 }
 
-const prohibido = (res) =>
+export const prohibido = (res) =>
   res.status(403).pagina('error', {
     titulo: 'Sin permiso',
     mensaje: 'Su rol no tiene permiso para esta operación.',

@@ -1,4 +1,5 @@
 // Persistencia falsa en memoria para las pruebas unitarias y HTTP: no usa Supabase.
+import { randomUUID } from 'node:crypto';
 import { diasDelCaso, fechasDelCaso, llegoAlDia } from '../../src/controllers/hitos.js';
 import { sumarIntervalo } from '../../src/servicios/dias-habiles.js';
 export const ENTIDADES = Object.freeze([
@@ -44,6 +45,7 @@ export function crearBaseDeDatosFalsa() {
   const colaboradores = [];
   const incapacidades = [];
   const documentos = [];
+  const subidas = new Map(); // ruta → Buffer (lo que el navegador subió directo al bucket)
   const reemplazos = []; // máximo uno por incapacidad, como el índice único de la tabla
   const radicaciones = [];
   const pagos = [];
@@ -181,6 +183,18 @@ export function crearBaseDeDatosFalsa() {
         archivoPreparado: guardada.fechaArchivoPreparado != null,
         epicrisisEliminada: guardada.epicrisisEliminadaEn != null,
       };
+    },
+    // Subidas directas al bucket (pendientes/{idUsuario}/{uuid}): `subidas` es lo que el navegador dejó allí.
+    subidas,
+    async prepararSubida(idUsuario) {
+      const ruta = `pendientes/${idUsuario}/${randomUUID()}`;
+      return { ruta, urlFirmada: `https://supabase.test/storage/v1/object/upload/sign/documentos/${ruta}?token=t` };
+    },
+    async descargarSubida(ruta) {
+      return subidas.get(ruta) ?? null;
+    },
+    async eliminarSubidas(rutas) {
+      for (const ruta of rutas) subidas.delete(ruta);
     },
     async guardarDocumentos(idIncapacidad, nuevos, creadoPor, { originalPendiente = false } = {}) {
       const guardados = nuevos.map(({ tipo, contenido, tipoMime }, i) => ({

@@ -10,8 +10,18 @@ import { crearRutas } from './routes/index.js';
 
 const directorio = path.dirname(fileURLToPath(import.meta.url));
 
+// Origen de Supabase: el navegador sube allí los archivos grandes con una URL firmada (Vercel limita la petición a 4,5 MB).
+const origenDeSupabase = () => {
+  try {
+    return new URL(process.env.SUPABASE_URL ?? '').origin;
+  } catch {
+    return '';
+  }
+};
+
 export function crearApp(dependencias) {
   if (!dependencias?.sesion) throw new Error('crearApp necesita el servicio de sesión');
+  const conectar = ['\'self\'', origenDeSupabase()].filter(Boolean).join(' ');
   const app = express();
 
   app.disable('x-powered-by');
@@ -25,7 +35,7 @@ export function crearApp(dependencias) {
       'X-Frame-Options': 'DENY',
       'Referrer-Policy': 'same-origin',
       'Content-Security-Policy':
-        "default-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'",
+        `default-src 'self'; connect-src ${conectar}; img-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'`,
     });
     next();
   });

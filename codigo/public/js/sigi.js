@@ -200,3 +200,99 @@ for (const bloque of document.querySelectorAll('[data-nacimiento]')) {
   campo.addEventListener('input', pintar);
   pintar();
 }
+
+// Subida directa de archivos (Vercel no admite más de 4,5 MB por petición): al enviar un formulario con
+// `data-subida-directa`, cada archivo se sube al bucket privado con una URL firmada que pide SIGI y el formulario solo
+// envía la referencia (`subida_<campo>`). Sin JavaScript, o si algo falla antes de enviar, el formulario sigue enviando
+// el archivo en la propia petición.
+const TAMANO_MAXIMO = 10 * 1024 * 1024;
+
+const avisoDe = (campo, mensaje) => {
+  const contenedor = campo.closest('.campo, .fila') ?? campo.parentElement;
+  let aviso = contenedor.querySelector('.error[data-subida]');
+  if (!aviso) {
+    aviso = document.createElement('span');
+    aviso.className = 'error';
+    aviso.dataset.subida = '';
+    aviso.setAttribute('role', 'alert');
+    contenedor.append(aviso);
+  }
+  aviso.textContent = mensaje;
+  contenedor.classList.add('invalido');
+};
+
+const limpiarAvisos = (formulario) => {
+  for (const aviso of formulario.querySelectorAll('.error[data-subida]')) {
+    aviso.closest('.campo, .fila')?.classList.remove('invalido');
+    aviso.remove();
+  }
+};
+
+async function subirArchivo(archivo) {
+  const respuesta = await fetch('/subidas', { method: 'POST', credentials: 'same-origin', headers: { Accept: 'application/json' } });
+  if (!respuesta.ok) throw new Error('No se pudo preparar la subida.');
+  const { ruta, urlFirmada } = await respuesta.json();
+  const cuerpo = new FormData();
+  cuerpo.append('cacheControl', '3600');
+  cuerpo.append('', archivo);
+  const subida = await fetch(urlFirmada, { method: 'PUT', headers: { 'x-upsert': 'false' }, body: cuerpo });
+  if (!subida.ok) throw new Error('No se pudo subir el archivo.');
+  return ruta;
+}
+
+for (const formulario of document.querySelectorAll('form[data-subida-directa]')) {
+  if (!window.fetch || !window.FormData) continue;
+  let subido = false;
+
+  formulario.addEventListener('submit', async (evento) => {
+    if (subido) return; // segundo envío, ya con las referencias
+    const campos = [...formulario.querySelectorAll('input[type=file]')].filter((campo) => campo.files.length > 0);
+    if (campos.length === 0) return; // sin archivos: el servidor explica qué falta
+    limpiarAvisos(formulario);
+
+    const grande = campos.find((campo) => campo.files[0].size > TAMANO_MAXIMO);
+    if (grande) {
+      evento.preventDefault();
+      avisoDe(grande, 'El archivo pesa más de 10 MB.');
+      return;
+    }
+
+    evento.preventDefault();
+    const boton = evento.submitter ?? formulario.querySelector('button.boton');
+    const texto = boton?.textContent;
+    if (boton) {
+      boton.disabled = true;
+      boton.textContent = 'Subiendo archivos…';
+    }
+    const referencias = [];
+    try {
+      const rutas = await Promise.all(campos.map((campo) => subirArchivo(campo.files[0])));
+      campos.forEach((campo, i) => {
+        const oculto = document.createElement('input');
+        oculto.type = 'hidden';
+        oculto.name = `subida_${campo.name}`;
+        oculto.value = rutas[i];
+        referencias.push(oculto);
+      });
+    } catch {
+      // Se deshace lo que hizo el bloqueo de doble envío (arriba) para que se pueda reintentar.
+      for (const otro of formulario.querySelectorAll('[data-enviando]')) {
+        otro.disabled = false;
+        otro.removeAttribute('aria-disabled');
+        if (otro.dataset.texto) otro.textContent = otro.dataset.texto;
+      }
+      if (boton) {
+        boton.disabled = false;
+        boton.textContent = boton.dataset.texto ?? texto;
+      }
+      for (const campo of campos) avisoDe(campo, 'No se pudo subir el archivo. Revise su conexión e intente de nuevo.');
+      return;
+    }
+    formulario.append(...referencias);
+    for (const campo of campos) campo.disabled = true; // ya está en el bucket: no se envía otra vez
+    formulario.enctype = 'application/x-www-form-urlencoded';
+    subido = true;
+    if (boton) boton.disabled = false; // el navegador toma los datos del envío con el botón activo
+    formulario.requestSubmit(boton ?? undefined);
+  });
+}

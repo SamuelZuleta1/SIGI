@@ -99,7 +99,7 @@
               <% } %>
             </nav>
 
-            <form class="radicar" method="post" action="<%= enlace %>" enctype="multipart/form-data" novalidate data-un-envio data-panel-respuesta="seguimiento"<%- accion === 'seguimiento' ? '' : ' hidden' %>>
+            <form class="radicar" method="post" action="<%= enlace %>" enctype="multipart/form-data" novalidate data-subida-directa data-un-envio data-panel-respuesta="seguimiento"<%- accion === 'seguimiento' ? '' : ' hidden' %>>
               <div class="campo <%= errores.evidencia ? 'invalido' : '' %>">
                 <label for="evidencia">Evidencia de la gestión</label>
                 <input id="evidencia" name="evidencia" type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" required aria-describedby="<%= errores.evidencia ? 'error-evidencia' : 'ayuda-evidencia' %>"<%- errores.evidencia ? ' aria-invalid="true" autofocus' : '' %>>

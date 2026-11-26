@@ -8,6 +8,7 @@ import { permitir } from '../middleware/autenticacion.js';
 import { NOMBRES_TIPO_DOCUMENTO, TIPOS_DOCUMENTO } from '../models/documento.model.js';
 import { NOMBRES_TIPO_INCAPACIDAD } from '../models/incapacidad.model.js';
 import { fechaBreve, hoyEnColombia } from '../servicios/dias-habiles.js';
+import { archivosDePeticion, MENSAJE_SUBIDA_PERDIDA } from './subidas.js';
 
 // Los archivos se reciben en memoria y el Control los pasa al bucket privado: nunca tocan el disco del servidor.
 // Un campo de archivo por tipo de documento (DA-06).
@@ -151,10 +152,13 @@ export function crearRutasRegistro({ control }) {
         next();
       }),
     async (req, res) => {
-      const recibidos = TIPOS_DOCUMENTO.filter((tipo) => req.files?.[tipo]?.[0]);
+      // Los archivos llegan en el formulario o, si el navegador los subió directo al bucket (Vercel), como referencias.
+      const { archivos, rutas: subidas, perdidos } = await archivosDePeticion(control, req, TIPOS_DOCUMENTO);
+      const recibidos = TIPOS_DOCUMENTO.filter((tipo) => archivos[tipo]);
       try {
         if (req.errorDeSubida) throw new ErrorDeValidacion({ documentos: req.errorDeSubida });
-        const documentos = recibidos.map((tipo) => ({ tipo, contenido: req.files[tipo][0].buffer }));
+        if (perdidos.length > 0) throw new ErrorDeValidacion({ documentos: MENSAJE_SUBIDA_PERDIDA });
+        const documentos = recibidos.map((tipo) => ({ tipo, contenido: archivos[tipo] }));
         const { idIncapacidad, cantidad, originalPendiente, avisoEnviado } = await control.registrarDocumentos(
           req.params.id,
           documentos,
@@ -175,6 +179,8 @@ export function crearRutasRegistro({ control }) {
           errores[posicion === undefined ? 'documentos' : recibidos[Number(posicion)]] = mensaje;
         }
         await paginaDocumentos(res, 400, { incapacidad, errores });
+      } finally {
+        await control.descartarSubidas(subidas, req.usuario).catch((error) => console.error('No se pudieron borrar las subidas:', error));
       }
     },
   );
