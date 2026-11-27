@@ -1,0 +1,70 @@
+<%
+  // Panel de estadísticas: filtros en una fila arriba (atajos de rango, meses y entidad), indicadores y tablero.
+  const error = (campo) => errores[campo];
+  const atributosError = (campo) => (errores[campo] ? ` aria-invalid="true" aria-describedby="error-estadisticas-${campo}"` : '');
+  const atajoActual = (a) => a.desde === filtros.desde && a.hasta === filtros.hasta;
+  const conFiltros = (extra) => enlaceCon('/estadisticas', { desde: filtros.desde, hasta: filtros.hasta, entidad: filtros.entidad, ...extra });
+%>
+<div class="encabezado-pagina">
+  <div>
+    <h1>Estadísticas</h1>
+    <p class="sub">Ausentismo, cobro y recaudo de un periodo. Los días se cuentan como en el reporte de ausentismo: los de cada incapacidad que caen dentro del periodo.</p>
+  </div>
+  <% if (estadisticas) { %>
+  <a class="boton secundario" href="<%= enlaceCon('/informes', { desde: filtros.desde, hasta: filtros.hasta, entidad: filtros.entidad }) %>">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3.5h8l4 4V20.5H6z"/><path d="M14 3.5v4h4M12 11v6M9.5 14.5 12 17l2.5-2.5"/></svg>
+    Generar informe
+  </a>
+  <% } %>
+</div>
+
+<nav aria-label="Periodos rápidos">
+  <ul class="tipos-plazo">
+    <% for (const a of atajos) { %>
+    <li><a href="<%= conFiltros({ desde: a.desde, hasta: a.hasta }) %>"<%- atajoActual(a) ? ' aria-current="page"' : '' %>><%= a.nombre %></a></li>
+    <% } %>
+  </ul>
+</nav>
+
+<form class="filtros filtros-estadisticas" method="get" action="/estadisticas" novalidate>
+  <div class="campos">
+    <div class="campo <%= error('desde') ? 'invalido' : '' %>">
+      <label for="desde">Desde</label>
+      <input id="desde" name="desde" type="month" value="<%= filtros.desde %>" min="<%= periodoMinimo %>" max="<%= periodoMaximo %>" placeholder="AAAA-MM"<%- atributosError('desde') %>>
+      <% if (error('desde')) { %><span class="error" id="error-estadisticas-desde"><%= error('desde') %></span><% } %>
+    </div>
+    <div class="campo <%= error('hasta') ? 'invalido' : '' %>">
+      <label for="hasta">Hasta</label>
+      <input id="hasta" name="hasta" type="month" value="<%= filtros.hasta %>" min="<%= periodoMinimo %>" max="<%= periodoMaximo %>" placeholder="AAAA-MM"<%- atributosError('hasta') %>>
+      <% if (error('hasta')) { %><span class="error" id="error-estadisticas-hasta"><%= error('hasta') %></span><% } %>
+    </div>
+    <div class="campo <%= error('entidad') ? 'invalido' : '' %>">
+      <label for="entidad">Entidad</label>
+      <select id="entidad" name="entidad"<%- atributosError('entidad') %>>
+        <option value="">Todas</option>
+        <% for (const x of entidades) { %>
+        <option value="<%= x.id %>"<%- String(x.id) === filtros.entidad ? ' selected' : '' %>><%= x.nombre %></option>
+        <% } %>
+      </select>
+      <% if (error('entidad')) { %><span class="error" id="error-estadisticas-entidad"><%= error('entidad') %></span><% } %>
+    </div>
+    <div class="acciones">
+      <button class="boton">Consultar</button>
+      <a class="boton secundario" href="/estadisticas">Limpiar</a>
+    </div>
+  </div>
+</form>
+
+<% if (!estadisticas) { %>
+  <p class="mensaje mensaje-error panel-vacio" role="alert">Corrija los filtros marcados y vuelva a consultar.</p>
+<% } else { const e = estadisticas; %>
+  <p class="cuenta-resultado periodo-actual">
+    <span>Periodo <b><%= nombreRango(e.rango) %></b></span>
+    <span>Comparado con <b><%= nombreRango(e.anterior) %></b></span>
+    <span>Entidad <b><%= entidad ? entidad.nombre : 'Todas' %></b></span>
+  </p>
+  <%- include('_indicadores', { e }) %>
+  <div class="tablero">
+    <%- include('_tablero', { e }) %>
+  </div>
+<% } %>

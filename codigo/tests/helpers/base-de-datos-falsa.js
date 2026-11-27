@@ -791,6 +791,48 @@ export function crearBaseDeDatosFalsa() {
           ...datosDelCaso(i),
         }));
     },
+    // Estadísticas e informes: como estadisticas.persistence.js.
+    async consultarDatosEstadisticas(desde, hasta) {
+      return incapacidades
+        .filter((i) => i.fechaInicio <= hasta)
+        .sort((a, b) => a.idIncapacidad - b.idIncapacidad)
+        .map((i) => ({
+          idIncapacidad: i.idIncapacidad,
+          idColaborador: i.colaboradorId,
+          colaborador: colaboradores.find((c) => c.id === i.colaboradorId).nombre,
+          idEntidad: i.entidad,
+          entidad: nombreEntidad(i.entidad),
+          tipo: i.tipo,
+          fechaInicio: i.fechaInicio,
+          diasIncapacidad: i.diasIncapacidad,
+          fechaRecepcion: i.fechaRecepcion,
+          estado: i.estado ?? 'registrada',
+          fechaCobrada: i.fechaCobrada ?? null,
+          fechaRechazo: i.fechaRechazo ?? null,
+          tiempoPago: i.tiempoPago ?? null,
+          decision: i.decision ?? null,
+          casoId: datosDelCaso(i).casoId,
+          diasAcumulados: datosDelCaso(i).diasAcumulados,
+        }));
+    },
+    async consultarPagosDelPeriodo(desde, hasta) {
+      return pagos
+        .filter((p) => !p.anulacion && p.fechaPago >= desde && p.fechaPago <= hasta)
+        .sort((a, b) => a.idPago - b.idPago)
+        .map((p) => {
+          const i = incapacidades.find((x) => x.idIncapacidad === p.idIncapacidad);
+          return {
+            idPago: p.idPago,
+            idIncapacidad: p.idIncapacidad,
+            valor: Number(p.valor).toFixed(2),
+            fechaPago: p.fechaPago,
+            idEntidad: i.entidad,
+            entidad: nombreEntidad(i.entidad),
+            colaborador: colaboradores.find((c) => c.id === i.colaboradorId).nombre,
+            fechaCobrada: i.fechaCobrada ?? null,
+          };
+        });
+    },
     async guardarReporte(tipo, periodo, contenido, por) {
       const id = (reportes.at(-1)?.id ?? 0) + 1;
       reportes.push({ id, tipo, periodo, contenido: structuredClone(contenido), creadoPor: por, creadoEn: new Date().toISOString() });

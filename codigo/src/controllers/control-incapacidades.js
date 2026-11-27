@@ -5,6 +5,7 @@ import { crearControlArchivo } from './archivo.controller.js';
 import { crearControlCobro } from './cobro.controller.js';
 import { crearControlConciliacion } from './conciliacion.controller.js';
 import { crearControlCobroJuridico } from './cobro-juridico.controller.js';
+import { crearControlEstadisticas } from './estadisticas.controller.js';
 import { crearControlEstados } from './estados.controller.js';
 import { crearControlMonitoreo } from './monitoreo.controller.js';
 import { crearControlRadicacion } from './radicacion.controller.js';
@@ -32,6 +33,7 @@ export function crearControlIncapacidades(dependencias) {
     ...crearControlMonitoreo(dependencias),
     ...crearControlConciliacion(dependencias),
     ...crearControlReportes(dependencias),
+    ...crearControlEstadisticas(dependencias),
     ...crearControlArchivo(dependencias),
     ...crearControlSubidas(dependencias),
   };

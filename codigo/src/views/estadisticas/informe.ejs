@@ -1,0 +1,211 @@
+<%
+  // Un informe generado: documento listo para imprimir o guardar en PDF (la hoja de impresión oculta el menú y los
+  // botones). Se calcula al pedirlo; no se guarda.
+  const ind = e.indicadores;
+  const t = informe.tipo;
+  const dias = (n) => (n === 1 ? '1 día' : `${numero(n)} días`);
+  const incap = (n) => (n === 1 ? '1 incapacidad' : `${numero(n)} incapacidades`);
+  const nombreEstado = (s) => NOMBRES_ESTADO_INCAPACIDAD[s ?? 'registrada'] ?? s;
+  const nombreTipo = (x) => NOMBRES_TIPO_INCAPACIDAD[x] ?? x;
+  const recaudoPorEntidad = e.entidades.filter((x) => x.pagos > 0).sort((a, b) => b.recaudado - a.recaudado);
+%>
+<div class="barra-informe no-imprimir">
+  <p class="miga"><a href="<%= enlaceVolver %>">← Informes</a></p>
+  <div class="acciones">
+    <button class="boton imprimir" type="button" data-imprimir>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 9V3.5h10V9M7 17H4.5V10h15v7H17M7 14h10v6.5H7z"/></svg>
+      Imprimir o guardar PDF
+    </button>
+    <a class="boton secundario" href="<%= enlaceCsv %>">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11M8 11l4 4 4-4M5 19.5h14"/></svg>
+      Descargar CSV
+    </a>
+  </div>
+</div>
+
+<article class="informe" aria-labelledby="titulo-informe">
+  <header class="informe-encabezado">
+    <div class="logo">
+      <span class="sello" aria-hidden="true">S</span>
+      <span><b>SIGI</b><small>Sistema Integral de Gestión de Incapacidades</small></span>
+    </div>
+    <h1 id="titulo-informe"><%= informe.titulo %></h1>
+    <dl class="datos-informe">
+      <% if (t.usaRango) { %>
+      <div><dt>Periodo</dt><dd><%= nombreRango(e.rango) %> <span class="tenue">(<%= fechaBreve(e.fechas.desde) %> al <%= fechaBreve(e.fechas.hasta) %>)</span></dd></div>
+      <% } else { %>
+      <div><dt>Corte</dt><dd><%= fechaBreve(informe.hoy) %></dd></div>
+      <% } %>
+      <div><dt>Entidad</dt><dd><%= informe.encabezado.entidad %></dd></div>
+      <div><dt>Generado</dt><dd><%= informe.encabezado.generado %></dd></div>
+    </dl>
+  </header>
+
+  <% if (t.clave === 'gestion') { %>
+    <section class="informe-seccion" aria-labelledby="titulo-resumen">
+      <h2 id="titulo-resumen">Resumen</h2>
+      <p class="resumen-texto">
+        <% if (ind.incapacidades === 0) { %>
+          En <%= nombreRango(e.rango) %> no hubo incapacidades con días dentro del periodo.
+        <% } else { %>
+          En <%= nombreRango(e.rango) %> hubo <b><%= incap(ind.incapacidades) %></b> con días dentro del periodo, que suman
+          <b><%= dias(ind.diasAusencia) %></b> de ausencia de <b><%= ind.colaboradores === 1 ? '1 colaborador' : `${numero(ind.colaboradores)} colaboradores` %></b><% if (e.variaciones.diasAusencia && !e.variaciones.diasAusencia.igual) { %>
+          (<%= porcentaje(e.variaciones.diasAusencia.fraccion) %> <%= e.variaciones.diasAusencia.sube ? 'más' : 'menos' %> días que en <%= nombreRango(e.anterior) %>)<% } %>.
+        <% } %>
+        <% if (ind.pagos > 0) { %>
+          Se registraron <b><%= ind.pagos === 1 ? '1 pago' : `${numero(ind.pagos)} pagos` %></b> por <b><%= pesos(ind.recaudado) %></b><% if (ind.tiempoPago != null) { %>, con <%= dias(ind.tiempoPago) %> en promedio desde la cuenta de cobro<% } %>.
+        <% } else { %>
+          No se registraron pagos en el periodo.
+        <% } %>
+        <% if (ind.tasaRechazo != null) { %>
+          De las incapacidades con respuesta de la entidad, el <%= porcentaje(ind.tasaRechazo) %> fue rechazado.
+        <% } %>
+        Hoy hay <b><%= incap(e.cartera.total) %></b> cobradas sin pago<% if (e.cartera.vencidas > 0) { %>, <%= numero(e.cartera.vencidas) %> con la fecha prometida vencida<% } %>.
+      </p>
+    </section>
+    <%- include('_indicadores', { e }) %>
+    <div class="tablero">
+      <%- include('_tablero', { e, enInforme: true }) %>
+    </div>
+  <% } %>
+
+  <% if (t.clave === 'detalle') { %>
+    <dl class="resumen resumen-reporte">
+      <dt>Incapacidades</dt><dd class="cifra"><%= numero(ind.incapacidades) %></dd>
+      <dt>Colaboradores</dt><dd class="cifra"><%= numero(ind.colaboradores) %></dd>
+      <dt>Días de ausencia en el periodo</dt><dd class="cifra"><%= dias(ind.diasAusencia) %></dd>
+    </dl>
+    <section class="informe-seccion" aria-labelledby="titulo-detalle">
+      <h2 id="titulo-detalle">Incapacidades del periodo</h2>
+      <div class="tabla-envuelta">
+        <% if (e.filas.length === 0) { %>
+          <div class="vacio"><b>Sin incapacidades en el periodo.</b><p>Amplíe el rango o quite el filtro de entidad.</p></div>
+        <% } else { %>
+        <table class="estados tabla-informe">
+          <thead>
+            <tr><th scope="col">N.º</th><th scope="col">Colaborador</th><th scope="col">Tipo</th><th scope="col">Entidad</th><th scope="col">Inicio</th><th scope="col">Fin</th><th scope="col" class="num">Días</th><th scope="col" class="num">En el periodo</th><th scope="col">Estado</th></tr>
+          </thead>
+          <tbody>
+            <% for (const i of e.filas) { %>
+            <tr>
+              <td><a href="/incapacidades/<%= i.idIncapacidad %>/radicacion"><%= i.idIncapacidad %></a></td>
+              <td><%= i.colaborador %></td>
+              <td><%= nombreTipo(i.tipo) %></td>
+              <td><%= i.entidad %></td>
+              <td class="fecha"><%= fechaBreve(i.fechaInicio) %></td>
+              <td class="fecha"><%= fechaBreve(i.fechaFin) %></td>
+              <td class="num cifra"><%= numero(i.diasIncapacidad) %></td>
+              <td class="num cifra"><%= numero(i.diasEnRango) %></td>
+              <td><span class="chip <%= i.estado ?? 'registrada' %>"><%= nombreEstado(i.estado) %></span></td>
+            </tr>
+            <% } %>
+          </tbody>
+          <tfoot><tr><th scope="row" colspan="7">Total</th><td class="num cifra"><%= numero(ind.diasAusencia) %></td><td></td></tr></tfoot>
+        </table>
+        <% } %>
+      </div>
+    </section>
+  <% } %>
+
+  <% if (t.clave === 'recaudo') { %>
+    <dl class="resumen resumen-reporte">
+      <dt>Valor recaudado</dt><dd class="cifra"><%= pesos(ind.recaudado) %></dd>
+      <dt>Pagos</dt><dd class="cifra"><%= numero(ind.pagos) %></dd>
+      <dt>Del cobro al pago, en promedio</dt><dd class="cifra"><%= ind.tiempoPago == null ? '—' : dias(ind.tiempoPago) %></dd>
+    </dl>
+    <section class="informe-seccion" aria-labelledby="titulo-recaudo-entidad">
+      <h2 id="titulo-recaudo-entidad">Por entidad</h2>
+      <div class="tabla-envuelta">
+        <% if (recaudoPorEntidad.length === 0) { %>
+          <div class="vacio"><b>Sin pagos en el periodo.</b><p>Aparecerán aquí cuando se registren pagos de las entidades.</p></div>
+        <% } else { %>
+        <table class="estados">
+          <thead><tr><th scope="col">Entidad</th><th scope="col" class="num">Pagos</th><th scope="col" class="num">Participación</th><th scope="col" class="num">Valor recaudado</th></tr></thead>
+          <tbody>
+            <% for (const x of recaudoPorEntidad) { %>
+            <tr><th scope="row"><%= x.entidad %></th><td class="num cifra"><%= numero(x.pagos) %></td><td class="num cifra"><%= porcentaje(x.recaudado / ind.recaudado) %></td><td class="num cifra"><%= pesos(x.recaudado) %></td></tr>
+            <% } %>
+          </tbody>
+          <tfoot><tr><th scope="row">Total</th><td class="num cifra"><%= numero(ind.pagos) %></td><td class="num cifra">100 %</td><td class="num cifra"><%= pesos(ind.recaudado) %></td></tr></tfoot>
+        </table>
+        <% } %>
+      </div>
+    </section>
+    <% if (e.pagos.length > 0) { %>
+    <section class="informe-seccion" aria-labelledby="titulo-recaudo-detalle">
+      <h2 id="titulo-recaudo-detalle">Pagos del periodo</h2>
+      <div class="tabla-envuelta">
+        <table class="estados tabla-informe">
+          <thead><tr><th scope="col">Fecha de pago</th><th scope="col">Incapacidad</th><th scope="col">Colaborador</th><th scope="col">Entidad</th><th scope="col">Cuenta de cobro</th><th scope="col" class="num">Días desde el cobro</th><th scope="col" class="num">Valor</th></tr></thead>
+          <tbody>
+            <% for (const p of e.pagos) { %>
+            <tr>
+              <td class="fecha"><%= fechaBreve(p.fechaPago) %></td>
+              <td><a href="/incapacidades/<%= p.idIncapacidad %>/cobro">n.º <%= p.idIncapacidad %></a></td>
+              <td><%= p.colaborador %></td>
+              <td><%= p.entidad %></td>
+              <td class="fecha"><%= p.fechaCobrada ? fechaBreve(p.fechaCobrada) : '—' %></td>
+              <td class="num cifra"><%= p.fechaCobrada ? numero(Math.max(0, diasCalendario(p.fechaCobrada, p.fechaPago))) : '—' %></td>
+              <td class="num cifra"><%= pesos(aCentavos(p.valor)) %></td>
+            </tr>
+            <% } %>
+          </tbody>
+        </table>
+      </div>
+    </section>
+    <% } %>
+  <% } %>
+
+  <% if (t.clave === 'cartera') { const c = e.cartera; %>
+    <dl class="resumen resumen-reporte">
+      <dt>Cobradas sin pago</dt><dd class="cifra"><%= numero(c.total) %></dd>
+      <dt>Con la fecha prometida vencida</dt><dd class="cifra"><%= numero(c.vencidas) %></dd>
+      <% if (c.sinFecha) { %><dt>Sin fecha de cobro</dt><dd class="cifra"><%= numero(c.sinFecha) %></dd><% } %>
+    </dl>
+    <section class="informe-seccion" aria-labelledby="titulo-tramos">
+      <h2 id="titulo-tramos">Por antigüedad</h2>
+      <div class="tabla-envuelta">
+        <table class="estados">
+          <thead><tr><th scope="col">Días desde la cuenta de cobro</th><th scope="col" class="num">Incapacidades</th><th scope="col" class="num">Participación</th></tr></thead>
+          <tbody>
+            <% for (const x of c.tramos) { %>
+            <tr><th scope="row"><%= x.nombre %></th><td class="num cifra"><%= numero(x.cantidad) %></td><td class="num cifra"><%= c.total ? porcentaje(x.cantidad / c.total) : '—' %></td></tr>
+            <% } %>
+          </tbody>
+          <tfoot><tr><th scope="row">Total</th><td class="num cifra"><%= numero(c.total) %></td><td></td></tr></tfoot>
+        </table>
+      </div>
+    </section>
+    <section class="informe-seccion" aria-labelledby="titulo-cartera-detalle">
+      <h2 id="titulo-cartera-detalle">Detalle</h2>
+      <div class="tabla-envuelta">
+        <% if (c.filas.length === 0) { %>
+          <div class="vacio"><b>No hay cartera pendiente.</b><p>Ninguna incapacidad cobrada está esperando pago.</p></div>
+        <% } else { %>
+        <table class="estados tabla-informe">
+          <thead><tr><th scope="col">Incapacidad</th><th scope="col">Colaborador</th><th scope="col">Entidad</th><th scope="col">Cuenta de cobro</th><th scope="col" class="num">Días</th><th scope="col">Vence</th><th scope="col">Situación</th><th scope="col" class="num">Requerimientos</th></tr></thead>
+          <tbody>
+            <% for (const f of c.filas) { %>
+            <tr>
+              <td><a href="/incapacidades/<%= f.idIncapacidad %>/seguimiento">n.º <%= f.idIncapacidad %></a></td>
+              <td><%= f.colaborador %><small class="tenue bloque"><%= nombreTipo(f.tipo) %></small></td>
+              <td><%= f.entidad %></td>
+              <td class="fecha"><%= f.fechaCobrada ? fechaBreve(f.fechaCobrada) : '—' %></td>
+              <td class="num cifra"><%= f.diasTranscurridos == null ? '—' : numero(f.diasTranscurridos) %></td>
+              <td class="fecha"><%= f.vence ? fechaBreve(f.vence) : '—' %></td>
+              <td><% if (f.vencida) { %><span class="chip vencido">Vencida</span><% } else if (f.vence) { %><span class="chip al_dia">En plazo</span><% } else { %><span class="tenue">Sin plazo</span><% } %></td>
+              <td class="num cifra"><%= numero(f.requerimientos ?? 0) %></td>
+            </tr>
+            <% } %>
+          </tbody>
+        </table>
+        <% } %>
+      </div>
+    </section>
+  <% } %>
+
+  <footer class="informe-pie">
+    <p>Informe generado por SIGI. Contiene datos personales de colaboradores: compártalo solo con quien deba conocerlos.</p>
+    <% if (t.usaRango) { %><p>Los días de ausencia son los de cada incapacidad que caen dentro del periodo. Los pagos anulados no se cuentan.</p><% } %>
+  </footer>
+</article>

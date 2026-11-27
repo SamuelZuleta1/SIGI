@@ -1,0 +1,26 @@
+<%
+  // Columnas de una sola serie (una por mes). `g` es el resultado de columnas() (servicios/graficas.js). Cada columna
+  // tiene su área sensible a lo alto de la banda y un <title> que el navegador muestra al pasar el puntero. La tabla de
+  // datos va aparte, en un <details>, para el teclado y los lectores de pantalla.
+%>
+<svg class="grafica <%= clase %>" viewBox="0 0 <%= g.ancho %> <%= g.alto %>" role="img" aria-labelledby="<%= id %>-titulo <%= id %>-desc">
+  <title id="<%= id %>-titulo"><%= titulo %></title>
+  <desc id="<%= id %>-desc"><%= descripcion %></desc>
+  <g class="guias" aria-hidden="true">
+    <% for (const l of g.guias) { %>
+    <line class="guia<%= l.base ? ' base' : '' %>" x1="<%= g.area.x %>" x2="<%= g.area.x + g.area.ancho %>" y1="<%= l.y %>" y2="<%= l.y %>"/>
+    <text class="eje" x="<%= g.area.x - 6 %>" y="<%= l.y + 4 %>" text-anchor="end"><%= l.texto %></text>
+    <% } %>
+  </g>
+  <g class="columnas">
+    <% for (const b of g.barras) { %>
+    <g class="columna">
+      <title><%= b.titulo %></title>
+      <rect class="zona" x="<%= b.zona.x %>" y="<%= b.zona.y %>" width="<%= b.zona.ancho %>" height="<%= b.zona.alto %>"/>
+      <% if (b.d) { %><path class="barra-col" d="<%= b.d %>"/><% } %>
+      <% if (b.etiquetada) { %><text class="valor" x="<%= b.centro %>" y="<%= b.yValor %>" text-anchor="middle"><%= b.textoValor %></text><% } %>
+      <% if (b.conEtiquetaEje) { %><text class="eje" x="<%= b.centro %>" y="<%= g.yEje %>" text-anchor="middle"><%= b.etiqueta %></text><% } %>
+    </g>
+    <% } %>
+  </g>
+</svg>

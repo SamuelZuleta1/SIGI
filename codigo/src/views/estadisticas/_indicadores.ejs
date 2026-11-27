@@ -1,0 +1,57 @@
+<%
+  // Indicadores principales del rango, con la variación frente al rango anterior del mismo largo. La flecha y el texto
+  // dicen si sube o baja; el color solo acompaña (más ausentismo es «mal», más recaudo es «ok»).
+  const ind = e.indicadores;
+  const rangoPrevio = nombreRango(e.anterior);
+  const dias = (n) => (n === 1 ? '1 día' : `${numero(n)} días`);
+  const tendencia = (v, subirEsBueno) => {
+    if (!v) return '';
+    if (v.igual) return `<span class="tendencia igual">Igual</span> <span class="tenue">que ${rangoPrevio}</span>`;
+    const clase = v.sube === subirEsBueno ? 'ok' : 'mal';
+    const flecha = v.sube ? 'M12 19V5M6 11l6-6 6 6' : 'M12 5v14M6 13l6 6 6-6';
+    return `<span class="tendencia ${clase}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="${flecha}"/></svg>${porcentaje(v.fraccion)}</span> <span class="tenue">${v.sube ? 'más' : 'menos'} que ${rangoPrevio}</span>`;
+  };
+  const sinComparacion = `<span class="tenue">Sin datos en ${rangoPrevio} para comparar</span>`;
+%>
+<dl class="indicadores">
+  <div class="indicador">
+    <dt>Incapacidades</dt>
+    <dd class="valor cifra"><%= numero(ind.incapacidades) %></dd>
+    <dd class="detalle"><%- tendencia(e.variaciones.incapacidades, false) || sinComparacion %></dd>
+  </div>
+  <div class="indicador">
+    <dt>Días de ausencia</dt>
+    <dd class="valor cifra"><%= numero(ind.diasAusencia) %></dd>
+    <dd class="detalle"><%- tendencia(e.variaciones.diasAusencia, false) || sinComparacion %></dd>
+  </div>
+  <div class="indicador">
+    <dt>Colaboradores incapacitados</dt>
+    <dd class="valor cifra"><%= numero(ind.colaboradores) %></dd>
+    <dd class="detalle"><span class="tenue"><%= ind.promedioDias != null ? `${decimal(ind.promedioDias)} días por certificado, en promedio` : 'Con al menos un día de incapacidad' %></span></dd>
+  </div>
+  <div class="indicador">
+    <dt>Casos prolongados</dt>
+    <dd class="valor cifra"><%= numero(ind.prolongadas) %></dd>
+    <dd class="detalle"><span class="tenue">Más de 90 días acumulados, con prórrogas</span></dd>
+  </div>
+  <div class="indicador">
+    <dt>Valor recaudado</dt>
+    <dd class="valor cifra"><%= pesos(ind.recaudado) %></dd>
+    <dd class="detalle"><%- tendencia(e.variaciones.recaudado, true) || `<span class="tenue">${ind.pagos === 1 ? '1 pago registrado' : `${numero(ind.pagos)} pagos registrados`}</span>` %></dd>
+  </div>
+  <div class="indicador">
+    <dt>Del cobro al pago</dt>
+    <dd class="valor cifra"><%= ind.tiempoPago == null ? '—' : dias(ind.tiempoPago) %></dd>
+    <dd class="detalle"><span class="tenue"><%= ind.tiempoPago == null ? 'Aún no hay pagos con cuenta de cobro en el periodo' : 'Promedio desde la cuenta de cobro hasta el primer pago' %></span></dd>
+  </div>
+  <div class="indicador">
+    <dt>Tasa de rechazo</dt>
+    <dd class="valor cifra"><%= ind.tasaRechazo == null ? '—' : porcentaje(ind.tasaRechazo) %></dd>
+    <dd class="detalle"><span class="tenue"><%= ind.respondidas === 0 ? 'Ninguna incapacidad del periodo tiene respuesta de la entidad' : `De ${numero(ind.respondidas)} con respuesta de la entidad · ${porcentaje(ind.tasaPagadas)} pagadas` %></span></dd>
+  </div>
+  <div class="indicador">
+    <dt>Cartera pendiente hoy</dt>
+    <dd class="valor cifra"><%= numero(e.cartera.total) %></dd>
+    <dd class="detalle"><% if (e.cartera.vencidas > 0) { %><span class="chip vencido"><%= e.cartera.vencidas === 1 ? '1 vencida' : `${numero(e.cartera.vencidas)} vencidas` %></span> <span class="tenue">con el plazo prometido</span><% } else if (e.cartera.total > 0) { %><span class="chip al_dia">Todas en plazo</span><% } else { %><span class="tenue">Ninguna cobrada sin pago</span><% } %></dd>
+  </div>
+</dl>
