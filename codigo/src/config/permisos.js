@@ -19,6 +19,7 @@ const AUXILIAR = [
   'generarReporte',                                                                           // DS-12
   'consultarPagadas', 'archivarIncapacidad', 'registrarEnvioArchivo',                         // DS-13
   'consultarAlertas',                                                                         // DS-14
+  'consultarEstadisticas', 'generarInforme',                                                  // estadísticas e informes
 ];
 
 export const OPERACIONES_POR_ROL = Object.freeze({

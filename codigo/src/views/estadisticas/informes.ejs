@@ -1,0 +1,76 @@
+<%
+  // Informes: se elige el informe, el periodo, la entidad y el formato. Se calcula al pedirlo y no se guarda.
+  const error = (campo) => errores[campo];
+  const atributosError = (campo) => (errores[campo] ? ` aria-invalid="true" aria-describedby="error-informe-${campo}"` : '');
+  const formato = filtros.formato === 'csv' ? 'csv' : 'html';
+%>
+<h1>Informes</h1>
+<p class="sub">Genere un informe para leer en pantalla, imprimir o guardar en PDF, o descárguelo en CSV para abrirlo en Excel. Los reportes oficiales (ausentismo al SG-SST y prolongadas por hito) están en <a href="/reportes">Reportes</a>.</p>
+
+<% if (Object.keys(errores).length > 0) { %>
+  <p class="mensaje mensaje-error" role="alert">Revise los datos marcados y vuelva a generar el informe.</p>
+<% } %>
+
+<form class="formulario formulario-informe" method="get" action="/informes/generar" novalidate>
+  <fieldset class="<%= error('tipo') ? 'invalido' : '' %>"<%- error('tipo') ? ' aria-describedby="error-informe-tipo"' : '' %>>
+    <legend>Informe</legend>
+    <div class="opciones-informe">
+      <% for (const t of tipos) { %>
+      <label class="opcion-informe">
+        <input type="radio" name="tipo" value="<%= t.clave %>"<%- t.clave === filtros.tipo ? ' checked' : '' %>>
+        <span class="opcion-texto">
+          <b><%= t.nombre %></b>
+          <small><%= t.descripcion %></small>
+          <% if (!t.usaRango) { %><small class="nota-opcion">Muestra la situación de hoy: no usa el periodo.</small><% } %>
+        </span>
+      </label>
+      <% } %>
+    </div>
+    <% if (error('tipo')) { %><span class="error" id="error-informe-tipo"><%= error('tipo') %></span><% } %>
+  </fieldset>
+
+  <fieldset>
+    <legend>Periodo y entidad</legend>
+    <div class="campos">
+      <div class="campo <%= error('desde') ? 'invalido' : '' %>">
+        <label for="informe-desde">Desde</label>
+        <input id="informe-desde" name="desde" type="month" value="<%= filtros.desde %>" min="<%= periodoMinimo %>" max="<%= periodoMaximo %>" placeholder="AAAA-MM"<%- atributosError('desde') %>>
+        <% if (error('desde')) { %><span class="error" id="error-informe-desde"><%= error('desde') %></span><% } %>
+      </div>
+      <div class="campo <%= error('hasta') ? 'invalido' : '' %>">
+        <label for="informe-hasta">Hasta</label>
+        <input id="informe-hasta" name="hasta" type="month" value="<%= filtros.hasta %>" min="<%= periodoMinimo %>" max="<%= periodoMaximo %>" placeholder="AAAA-MM"<%- atributosError('hasta') %>>
+        <% if (error('hasta')) { %><span class="error" id="error-informe-hasta"><%= error('hasta') %></span><% } else { %><span class="ayuda">Hasta 24 meses.</span><% } %>
+      </div>
+      <div class="campo <%= error('entidad') ? 'invalido' : '' %>">
+        <label for="informe-entidad">Entidad</label>
+        <select id="informe-entidad" name="entidad"<%- atributosError('entidad') %>>
+          <option value="">Todas</option>
+          <% for (const x of entidades) { %>
+          <option value="<%= x.id %>"<%- String(x.id) === filtros.entidad ? ' selected' : '' %>><%= x.nombre %></option>
+          <% } %>
+        </select>
+        <% if (error('entidad')) { %><span class="error" id="error-informe-entidad"><%= error('entidad') %></span><% } %>
+      </div>
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Formato</legend>
+    <div class="formatos">
+      <label class="casilla">
+        <input type="radio" name="formato" value="html"<%- formato === 'html' ? ' checked' : '' %>>
+        <span>En pantalla<small>Para revisar, imprimir o guardar en PDF.</small></span>
+      </label>
+      <label class="casilla">
+        <input type="radio" name="formato" value="csv"<%- formato === 'csv' ? ' checked' : '' %>>
+        <span>Archivo CSV<small>Se descarga y se abre en Excel.</small></span>
+      </label>
+    </div>
+  </fieldset>
+
+  <div class="acciones">
+    <button class="boton">Generar informe</button>
+    <a class="boton secundario" href="<%= enlaceCon('/estadisticas', { desde: filtros.desde, hasta: filtros.hasta, entidad: filtros.entidad }) %>">Ver estadísticas</a>
+  </div>
+</form>

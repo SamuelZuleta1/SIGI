@@ -7,6 +7,7 @@ import { crearRutasArchivo } from './archivo.routes.js';
 import { crearRutasCobro } from './cobro.routes.js';
 import { crearRutasCobroJuridico } from './cobro-juridico.routes.js';
 import { crearRutasConciliacion } from './conciliacion.routes.js';
+import { crearRutasEstadisticas } from './estadisticas.routes.js';
 import { crearRutasEstados } from './estados.routes.js';
 import { crearRutasMonitoreo } from './monitoreo.routes.js';
 import { crearRutasRadicacion } from './radicacion.routes.js';
@@ -48,6 +49,7 @@ export function crearRutas(dependencias) {
     rutas.use(crearRutasMonitoreo(dependencias));
     rutas.use(crearRutasConciliacion(dependencias));
     rutas.use(crearRutasReportes(dependencias));
+    rutas.use(crearRutasEstadisticas(dependencias));
     rutas.use(crearRutasArchivo(dependencias));
   }
 

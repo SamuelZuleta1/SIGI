@@ -118,6 +118,22 @@
         </a>
       </li>
       <% } %>
+      <% if (puede('consultarEstadisticas')) { %>
+      <li>
+        <a href="/estadisticas" <%- ruta === '/estadisticas' ? 'aria-current="page"' : '' %>>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h16M7 16.5v-4M12 16.5V7M17 16.5v-6.5"/></svg>
+          Estadísticas
+        </a>
+      </li>
+      <% } %>
+      <% if (puede('generarInforme')) { %>
+      <li>
+        <a href="/informes" <%- ruta === '/informes' || ruta === '/informes/generar' ? 'aria-current="page"' : '' %>>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4.5" y="3.5" width="15" height="17" rx="1.5"/><path d="M8 8h8M8 12h8M8 16h5"/></svg>
+          Informes
+        </a>
+      </li>
+      <% } %>
       <% if (puede('consultarPagadas')) { %>
       <li>
         <a href="/archivo" <%- ruta === '/archivo' || /^\/incapacidades\/\d+\/archivo(\/envio)?$/.test(ruta) ? 'aria-current="page"' : '' %>>

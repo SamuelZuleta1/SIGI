@@ -20,13 +20,14 @@ const SOLO_AUXILIAR = [
   'registrarRequerimiento', 'trasladarACartera', 'calcularReconocimiento',
   'consultarReporteProlongadas', 'registrarConcepto', 'registrarFaltaConcepto', 'registrarSuspensionPago',
   'identificarPagos', 'generarReporte', 'consultarPagadas', 'archivarIncapacidad', 'registrarEnvioArchivo',
+  'consultarEstadisticas', 'generarInforme', // estadísticas e informes: de consulta, como los reportes
 ];
 for (const operacion of SOLO_AUXILIAR) ESPERADO[operacion] = ['auxiliar'];
 
 describe('HU-02 / DA-02 — permisos por rol', () => {
-  it('la tabla cubre las 31 operaciones de la Vista más «ver documento» (DA-06) y las 2 anulaciones de la auditoría', () => {
+  it('la tabla cubre las 31 operaciones de la Vista más «ver documento» (DA-06) y las 2 anulaciones de la auditoría y las 2 de estadísticas e informes', () => {
     expect([...OPERACIONES].sort()).toEqual(Object.keys(ESPERADO).sort());
-    expect(OPERACIONES).toHaveLength(34);
+    expect(OPERACIONES).toHaveLength(36);
   });
 
   it('los roles de la tabla son los 5 roles con pantalla', () => {

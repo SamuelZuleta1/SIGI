@@ -445,3 +445,8 @@ for (const formulario of document.querySelectorAll('form[data-calculo-en-fila]')
     }
   });
 }
+
+// Informes: el botón «Imprimir o guardar PDF» abre el diálogo de impresión (la hoja de impresión oculta el menú).
+for (const boton of document.querySelectorAll('[data-imprimir]')) {
+  boton.addEventListener('click', () => window.print());
+}

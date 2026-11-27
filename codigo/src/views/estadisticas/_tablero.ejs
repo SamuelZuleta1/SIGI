@@ -1,0 +1,183 @@
+<%
+  // Tablero de Estadísticas (y del informe de gestión): evolución mensual, estados, tipos, entidades, cartera y
+  // colaboradores. Las barras son de un solo color (magnitud); la identidad la da siempre el texto de cada fila.
+  const total = e.filas.length;
+  const dias = (n) => (n === 1 ? '1 día' : `${numero(n)} días`);
+  const incap = (n) => (n === 1 ? '1 incapacidad' : `${numero(n)} incapacidades`);
+  const etiquetaMes = (m, i) => {
+    const [corto, anio] = nombreMes(m).split(' ');
+    return i === 0 || m.endsWith('-01') ? `${corto} ’${anio.slice(2)}` : corto;
+  };
+  const graficaDias = columnas(
+    e.serie.map((m, i) => ({ etiqueta: etiquetaMes(m.mes, i), valor: m.dias, titulo: `${nombreMes(m.mes)}: ${dias(m.dias)} de ausencia · ${incap(m.incapacidades)} (${numero(m.nuevas)} nuevas)` })),
+    { ancho: 440, alto: 190, formato: numero },
+  );
+  const graficaRecaudo = columnas(
+    e.serie.map((m, i) => ({ etiqueta: etiquetaMes(m.mes, i), valor: m.recaudado, titulo: `${nombreMes(m.mes)}: ${pesos(m.recaudado)} recaudados` })),
+    { ancho: 440, alto: 190, formato: pesosCortos },
+  );
+  const maxTipo = Math.max(0, ...e.tipos.map((t) => t.dias));
+  const maxTramo = Math.max(0, ...e.cartera.tramos.map((t) => t.cantidad));
+  const hayRecaudo = e.indicadores.recaudado > 0;
+%>
+<section class="tarjeta-dato ancho-completo" aria-labelledby="titulo-evolucion">
+  <div class="titulo-bloque">
+    <h2 id="titulo-evolucion">Evolución mensual</h2>
+    <span class="tenue no-imprimir">Pase el puntero sobre una columna para ver el detalle del mes</span>
+  </div>
+  <div class="par-graficas">
+    <figure>
+      <figcaption>Días de ausencia</figcaption>
+      <%- include('_columnas', { g: graficaDias, id: 'grafica-dias', clase: 'serie-dias', titulo: 'Días de ausencia por mes', descripcion: `Días de ausencia de cada mes entre ${nombreRango(e.rango)}. Los datos están en la tabla «Ver los datos».` }) %>
+    </figure>
+    <figure>
+      <figcaption>Valor recaudado</figcaption>
+      <% if (hayRecaudo) { %>
+      <%- include('_columnas', { g: graficaRecaudo, id: 'grafica-recaudo', clase: 'serie-recaudo', titulo: 'Valor recaudado por mes', descripcion: `Valor de los pagos registrados en cada mes entre ${nombreRango(e.rango)}.` }) %>
+      <% } else { %>
+      <div class="vacio grafica-vacia"><b>Sin pagos en el periodo.</b><p>Aparecerán aquí cuando se registren pagos de las entidades.</p></div>
+      <% } %>
+    </figure>
+  </div>
+  <details class="ver-datos"<%- locals.enInforme ? ' open' : '' %>>
+    <summary>Ver los datos</summary>
+    <div class="tabla-envuelta">
+      <table class="estados">
+        <thead><tr><th scope="col">Mes</th><th scope="col" class="num">Incapacidades</th><th scope="col" class="num">Nuevas</th><th scope="col" class="num">Días de ausencia</th><th scope="col" class="num">Recaudado</th></tr></thead>
+        <tbody>
+          <% for (const m of e.serie) { %>
+          <tr><th scope="row"><%= nombreMes(m.mes) %></th><td class="num cifra"><%= numero(m.incapacidades) %></td><td class="num cifra"><%= numero(m.nuevas) %></td><td class="num cifra"><%= numero(m.dias) %></td><td class="num cifra"><%= pesos(m.recaudado) %></td></tr>
+          <% } %>
+        </tbody>
+      </table>
+    </div>
+  </details>
+</section>
+
+<section class="tarjeta-dato" aria-labelledby="titulo-por-estado">
+  <div class="titulo-bloque">
+    <h2 id="titulo-por-estado">Estado de las incapacidades</h2>
+    <span class="tenue"><%= incap(total) %></span>
+  </div>
+  <% if (total === 0) { %>
+    <div class="vacio"><b>Sin incapacidades en el periodo.</b><p>Amplíe el rango o quite el filtro de entidad.</p></div>
+  <% } else { %>
+  <ul class="barras-h">
+    <% for (const s of e.estados) { %>
+    <li>
+      <span class="etiqueta"><span class="chip <%= s.estado %>"><%= s.nombre %></span></span>
+      <svg class="barra-h" viewBox="0 0 100 8" preserveAspectRatio="none" aria-hidden="true"><rect class="fondo" width="100" height="8"/><rect class="relleno" width="<%= anchoRelativo(s.cantidad, total) %>" height="8"/></svg>
+      <span class="cifra"><%= numero(s.cantidad) %> <small><%= porcentaje(s.cantidad / total) %></small></span>
+    </li>
+    <% } %>
+  </ul>
+  <% } %>
+</section>
+
+<section class="tarjeta-dato" aria-labelledby="titulo-por-tipo">
+  <div class="titulo-bloque">
+    <h2 id="titulo-por-tipo">Por tipo de incapacidad</h2>
+    <span class="tenue">Días en el periodo</span>
+  </div>
+  <% if (e.tipos.length === 0) { %>
+    <div class="vacio"><b>Sin incapacidades en el periodo.</b><p>Amplíe el rango o quite el filtro de entidad.</p></div>
+  <% } else { %>
+  <ul class="barras-h">
+    <% for (const t of e.tipos) { %>
+    <li>
+      <span class="etiqueta"><%= t.nombre %></span>
+      <svg class="barra-h" viewBox="0 0 100 8" preserveAspectRatio="none" aria-hidden="true"><rect class="fondo" width="100" height="8"/><rect class="relleno" width="<%= anchoRelativo(t.dias, maxTipo) %>" height="8"/></svg>
+      <span class="cifra"><%= dias(t.dias) %> <small><%= incap(t.cantidad) %></small></span>
+    </li>
+    <% } %>
+  </ul>
+  <% } %>
+</section>
+
+<section class="tarjeta-dato ancho-completo" aria-labelledby="titulo-por-entidad">
+  <div class="titulo-bloque">
+    <h2 id="titulo-por-entidad">Por entidad</h2>
+    <span class="tenue">El rechazo se calcula sobre las incapacidades con respuesta de la entidad</span>
+  </div>
+  <% if (e.entidades.length === 0) { %>
+    <div class="vacio"><b>Sin incapacidades ni pagos en el periodo.</b><p>Amplíe el rango o quite el filtro de entidad.</p></div>
+  <% } else { %>
+  <div class="tabla-envuelta">
+    <table class="estados">
+      <thead>
+        <tr><th scope="col">Entidad</th><th scope="col" class="num">Incapacidades</th><th scope="col" class="num">Días de ausencia</th><th scope="col" class="num">Con respuesta</th><th scope="col" class="num">Rechazo</th><th scope="col" class="num">Recaudado</th></tr>
+      </thead>
+      <tbody>
+        <% for (const x of e.entidades) { %>
+        <tr>
+          <th scope="row"><%= x.entidad %></th>
+          <td class="num cifra"><%= numero(x.incapacidades) %></td>
+          <td class="num cifra"><%= numero(x.dias) %></td>
+          <td class="num cifra"><%= numero(x.respondidas) %></td>
+          <td class="num cifra"><%= x.tasaRechazo == null ? '—' : porcentaje(x.tasaRechazo) %></td>
+          <td class="num cifra"><%= pesos(x.recaudado) %></td>
+        </tr>
+        <% } %>
+      </tbody>
+      <% if (e.entidades.length > 1) { %>
+      <tfoot>
+        <tr>
+          <th scope="row">Total</th>
+          <td class="num cifra"><%= numero(e.indicadores.incapacidades) %></td>
+          <td class="num cifra"><%= numero(e.indicadores.diasAusencia) %></td>
+          <td class="num cifra"><%= numero(e.indicadores.respondidas) %></td>
+          <td class="num cifra"><%= e.indicadores.tasaRechazo == null ? '—' : porcentaje(e.indicadores.tasaRechazo) %></td>
+          <td class="num cifra"><%= pesos(e.indicadores.recaudado) %></td>
+        </tr>
+      </tfoot>
+      <% } %>
+    </table>
+  </div>
+  <% } %>
+</section>
+
+<section class="tarjeta-dato" aria-labelledby="titulo-cartera">
+  <div class="titulo-bloque">
+    <h2 id="titulo-cartera">Antigüedad de la cartera</h2>
+    <span class="tenue">Cobradas sin pago, hoy</span>
+  </div>
+  <% if (e.cartera.total === 0) { %>
+    <div class="vacio"><b>No hay cartera pendiente.</b><p>Ninguna incapacidad cobrada está esperando pago.</p></div>
+  <% } else { %>
+  <ul class="barras-h">
+    <% for (const t of e.cartera.tramos) { %>
+    <li>
+      <span class="etiqueta"><%= t.nombre %></span>
+      <svg class="barra-h<%= t.hasta > 90 && t.cantidad > 0 ? ' antigua' : '' %>" viewBox="0 0 100 8" preserveAspectRatio="none" aria-hidden="true"><rect class="fondo" width="100" height="8"/><rect class="relleno" width="<%= anchoRelativo(t.cantidad, maxTramo) %>" height="8"/></svg>
+      <span class="cifra"><%= numero(t.cantidad) %></span>
+    </li>
+    <% } %>
+  </ul>
+  <p class="nota-tabla">
+    <% if (e.cartera.sinFecha) { %><%= numero(e.cartera.sinFecha) %> sin fecha de cobro registrada · <% } %>
+    <%= e.cartera.vencidas === 1 ? '1 ya pasó' : `${numero(e.cartera.vencidas)} ya pasaron` %> la fecha prometida por la entidad.
+    <a class="no-imprimir" href="/seguimiento">Ir a Seguimiento</a>
+  </p>
+  <% } %>
+</section>
+
+<section class="tarjeta-dato" aria-labelledby="titulo-colaboradores">
+  <div class="titulo-bloque">
+    <h2 id="titulo-colaboradores">Colaboradores con más días</h2>
+    <span class="tenue">Los que más días suman en el periodo</span>
+  </div>
+  <% if (e.colaboradores.length === 0) { %>
+    <div class="vacio"><b>Sin incapacidades en el periodo.</b><p>Amplíe el rango o quite el filtro de entidad.</p></div>
+  <% } else { %>
+  <div class="tabla-envuelta">
+    <table class="estados ranking">
+      <thead><tr><th scope="col" class="num">#</th><th scope="col">Colaborador</th><th scope="col" class="num">Incapacidades</th><th scope="col" class="num">Días</th></tr></thead>
+      <tbody>
+        <% e.colaboradores.forEach((c, k) => { %>
+        <tr><td class="num tenue"><%= k + 1 %></td><td><%= c.colaborador %></td><td class="num cifra"><%= numero(c.incapacidades) %></td><td class="num cifra"><%= numero(c.dias) %></td></tr>
+        <% }) %>
+      </tbody>
+    </table>
+  </div>
+  <% } %>
+</section>
