@@ -355,6 +355,7 @@ export function crearBaseDeDatosFalsa() {
         .map((i) => ({
           idIncapacidad: i.idIncapacidad,
           colaborador: colaboradores.find((c) => c.id === i.colaboradorId).nombre,
+          idEntidad: i.entidad,
           entidad: ENTIDADES.find((e) => e.id === i.entidad).nombre,
           tipo: i.tipo,
           fechaInicio: i.fechaInicio,

@@ -26,7 +26,7 @@ export function crearPersistenciaSeguimiento(cliente, almacen = crearAlmacenDocu
           await cliente
             .from('incapacidad')
             .select(
-              'id, tipo, fecha_inicio, dias_incapacidad, estado, decision, tiempo_pago, fecha_cobrada, ' +
+              'id, entidad_id, tipo, fecha_inicio, dias_incapacidad, estado, decision, tiempo_pago, fecha_cobrada, ' +
                 'colaborador(nombre), entidad(nombre), seguimiento(creado_en), acuerdo_pago(fecha, valor), requerimiento(count)',
             )
             .eq('estado', 'cobrada')
@@ -44,6 +44,7 @@ export function crearPersistenciaSeguimiento(cliente, almacen = crearAlmacenDocu
       return filas.map((f) => ({
         idIncapacidad: f.id,
         colaborador: f.colaborador.nombre,
+        idEntidad: f.entidad_id,
         entidad: f.entidad.nombre,
         tipo: f.tipo,
         fechaInicio: f.fecha_inicio,

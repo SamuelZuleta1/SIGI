@@ -160,14 +160,17 @@ describe('cálculos', () => {
       {
         incapacidades: [incapacidad({ idIncapacidad: 1, idEntidad: 1, entidad: 'ARL SURA' }), incapacidad({ idIncapacidad: 2 })],
         pagos: [{ idPago: 1, idIncapacidad: 1, idEntidad: 1, entidad: 'ARL SURA', valor: '10.00', fechaPago: '2026-10-20' }],
-        cobradas: [{ idIncapacidad: 3, entidad: 'ARL SURA', fechaCobrada: '2026-10-01', tiempoPago: 30 }],
+        cobradas: [
+          { idIncapacidad: 3, idEntidad: 1, entidad: 'ARL SURA', fechaCobrada: '2026-10-01', tiempoPago: 30 },
+          { idIncapacidad: 4, idEntidad: 2, entidad: 'Nueva EPS', fechaCobrada: '2026-10-01', tiempoPago: 30 },
+        ],
       },
       { desde: '2026-10', hasta: '2026-10' },
       { entidad: { id: 2, nombre: 'Nueva EPS' }, hoy: HOY },
     );
     expect(e.indicadores.incapacidades).toBe(1);
     expect(e.indicadores.recaudado).toBe(0);
-    expect(e.cartera.total).toBe(0);
+    expect(e.cartera.filas.map((f) => f.idIncapacidad)).toEqual([4]); // la cartera se filtra por id de entidad
     expect(e.entidades.map((x) => x.entidad)).toEqual(['Nueva EPS']);
   });
 });
@@ -178,6 +181,8 @@ describe('CSV', () => {
     expect(celdaCsv('+57 300')).toBe("'+57 300");
     expect(celdaCsv('Ana; Gómez')).toBe('"Ana; Gómez"');
     expect(celdaCsv(16.1)).toBe('16,1');
+    expect(celdaCsv('-12,50')).toBe('-12,50'); // un valor negativo en texto es un número, no una fórmula
+    expect(celdaCsv('-1+2')).toBe("'-1+2");
     expect(celdaCsv(null)).toBe('');
   });
 

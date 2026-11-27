@@ -299,7 +299,7 @@ export function carteraPendiente(cobradas, hoy) {
 export function calcularEstadisticas({ incapacidades, pagos, cobradas }, rango, { entidad = null, hoy = hoyEnColombia() } = {}) {
   const propias = entidad ? incapacidades.filter((i) => i.idEntidad === entidad.id) : incapacidades;
   const pagosPropios = entidad ? pagos.filter((p) => p.idEntidad === entidad.id) : pagos;
-  const cobradasPropias = entidad ? cobradas.filter((c) => c.entidad === entidad.nombre) : cobradas;
+  const cobradasPropias = entidad ? cobradas.filter((c) => c.idEntidad === entidad.id) : cobradas;
 
   const { desde, hasta } = fechasDelRango(rango);
   const anterior = rangoAnterior(rango);
@@ -365,7 +365,7 @@ export function celdaCsv(valor) {
   if (valor == null) return '';
   if (typeof valor === 'number') return String(valor).replace('.', ',');
   let texto = String(valor);
-  if (/^[=+\-@\t\r]/.test(texto)) texto = `'${texto}`;
+  if (/^[=+\-@\t\r]/.test(texto) && !/^-\d+([.,]\d+)?$/.test(texto)) texto = `'${texto}`;
   return /[";\r\n]/.test(texto) || texto !== texto.trim() ? `"${texto.replace(/"/g, '""')}"` : texto;
 }
 
@@ -465,7 +465,8 @@ export function nombreArchivo(informe) {
 
 export function crearControlEstadisticas({ baseDeDatos }) {
   /** Lee lo necesario para el rango y su rango anterior (para comparar). */
-  const leerDatos = async (rango) => {
+  const leerDatos = async (rango, soloCartera = false) => {
+    if (soloCartera) return { incapacidades: [], pagos: [], cobradas: await baseDeDatos.consultarCobradas() };
     const desde = fechasDelRango(rangoAnterior(rango)).desde;
     const { hasta } = fechasDelRango(rango);
     const [incapacidades, pagos, cobradas] = await Promise.all([
@@ -519,7 +520,7 @@ export function crearControlEstadisticas({ baseDeDatos }) {
       if (!tipo) errores.tipo = 'Elija el informe que quiere generar.';
       if (Object.keys(errores).length > 0) throw new ErrorDeValidacion(errores);
 
-      const estadisticas = calcularEstadisticas(await leerDatos(rango), rango, { entidad, hoy });
+      const estadisticas = calcularEstadisticas(await leerDatos(rango, tipo.clave === 'cartera'), rango, { entidad, hoy });
       const generado = new Intl.DateTimeFormat('es-CO', { timeZone: 'America/Bogota', dateStyle: 'long', timeStyle: 'short' }).format(ahora);
       return {
         tipo,
