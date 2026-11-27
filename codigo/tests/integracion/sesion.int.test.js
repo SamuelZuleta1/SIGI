@@ -15,8 +15,13 @@ describe('HU-01 — sesión con Supabase Auth', () => {
     expect(entrada.status).toBe(302);
     expect(entrada.headers.location).toBe('/');
 
+    // `/` lleva a la pantalla de entrada del rol; sin módulos montados esa pantalla da 404,
+    // pero se dibuja dentro del layout con el usuario y su rol (la sesión sirvió).
+    const raiz = await agente.get('/');
+    expect(raiz.status).toBe(302);
+    expect(raiz.headers.location).toBe('/cartera');
     const inicio = await agente.get('/').redirects(1);
-    expect(inicio.status).toBe(200);
+    expect(inicio.status).toBe(404);
     expect(inicio.text).toContain('cartera1@sigi.test');
     expect(inicio.text).toContain('Cartera y Jurídica');
   });
