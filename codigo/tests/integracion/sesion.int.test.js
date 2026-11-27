@@ -15,7 +15,7 @@ describe('HU-01 — sesión con Supabase Auth', () => {
     expect(entrada.status).toBe(302);
     expect(entrada.headers.location).toBe('/');
 
-    const inicio = await agente.get('/');
+    const inicio = await agente.get('/').redirects(1);
     expect(inicio.status).toBe(200);
     expect(inicio.text).toContain('cartera1@sigi.test');
     expect(inicio.text).toContain('Cartera y Jurídica');

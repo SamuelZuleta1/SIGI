@@ -114,7 +114,7 @@ describe('HU-27 — reporte de ausentismo (rutas)', () => {
     const agente = await agenteCon(request, app, rol);
     expect((await agente.get('/reportes')).status).toBe(403);
     expect((await generar(agente, '2026-10')).status).toBe(403);
-    expect((await agente.get('/')).text).not.toContain('href="/reportes"');
+    expect((await agente.get('/').redirects(1)).text).not.toContain('href="/reportes"');
     expect(baseDeDatos.reportes).toHaveLength(0);
   });
 

@@ -14,10 +14,10 @@ describe('T-00a — base del proyecto', () => {
 
   it('GET / dibuja la vista dentro de layout.ejs, con el usuario y su rol', async () => {
     const agente = await agenteCon(request, app, 'auxiliar');
-    const res = await agente.get('/');
-    expect(res.status).toBe(200);
+    // Sin módulos montados, la pantalla de entrada del rol da 404, pero igual se dibuja dentro del layout.
+    const res = await agente.get('/').redirects(1);
+    expect(res.status).toBe(404);
     expect(res.text).toContain('<html lang="es">');
-    expect(res.text).toContain('<title>Inicio · SIGI</title>');
     expect(res.text).toContain('auxiliar@sigi.test');
     expect(res.text).toContain('Auxiliar de Administración de Personal');
   });
@@ -45,7 +45,7 @@ describe('T-00a — base del proyecto', () => {
 
   it('las páginas no usan estilos ni scripts en línea (los bloquearía la CSP)', async () => {
     const agente = await agenteCon(request, app, 'auxiliar');
-    for (const res of [await agente.get('/'), await request(app).get('/iniciar-sesion')]) {
+    for (const res of [await agente.get('/').redirects(1), await request(app).get('/iniciar-sesion')]) {
       expect(res.text).not.toMatch(/<script(?![^>]*\ssrc="\/)|<style|\sstyle=|\son[a-z]+=/i);
     }
   });

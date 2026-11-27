@@ -97,7 +97,7 @@ describe('HU-11 — consultar estados (rutas)', () => {
   it.each(ROLES.filter((r) => r !== 'auxiliar'))('DA-02 — el rol %s no consulta estados: 403 y sin enlace en el menú', async (rol) => {
     const agente = await agenteCon(request, app, rol);
     expect((await agente.get('/estados')).status).toBe(403);
-    expect((await agente.get('/')).text).not.toContain('href="/estados"');
+    expect((await agente.get('/').redirects(1)).text).not.toContain('href="/estados"');
   });
 
   it('HU-01 — sin sesión: lleva a iniciar sesión', async () => {

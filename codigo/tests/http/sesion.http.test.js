@@ -36,7 +36,10 @@ describe('HU-01 — iniciar sesión con el correo institucional', () => {
     expect(res.headers.location).toBe('/');
 
     const agente = await agenteCon(request, app, 'auxiliar');
-    expect((await agente.get('/')).status).toBe(200);
+    const entrada = await agente.get('/');
+    expect(entrada.status).toBe(302);
+    expect(entrada.headers.location).toBe('/incapacidades/nueva');
+    expect((await agente.get('/').redirects(1)).text).toContain('Sesión iniciada como');
   });
 
   it('HU-01.CA2 — las cookies de sesión son HttpOnly y SameSite', async () => {
@@ -106,7 +109,8 @@ describe('HU-01 — iniciar sesión con el correo institucional', () => {
     sesion.vencer(acceso.split('=')[1]);
 
     const res = await request(app).get('/').set('Cookie', `${acceso}; ${renovacion}`);
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(302);
+    expect(res.headers.location).not.toBe('/iniciar-sesion');
     expect(cookies(res)[COOKIE_ACCESO]).toBeDefined();
   });
 
@@ -149,7 +153,7 @@ describe('Acceso rápido de pruebas: un botón por actor', () => {
     expect(res.status).toBe(302);
     expect(res.headers.location).toBe('/');
     const acceso = cookies(res)[COOKIE_ACCESO].split(';')[0];
-    expect((await request(aplicacion).get('/').set('Cookie', acceso)).status).toBe(200);
+    expect((await request(aplicacion).get('/').set('Cookie', acceso)).status).toBe(302);
   });
 
   it.each([['rol inexistente', 'admin'], ['propiedad heredada', 'toString'], ['vacío', '']])(

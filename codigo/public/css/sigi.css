@@ -191,7 +191,9 @@ p { margin: 0 0 12px; max-width: 70ch; }
 }
 .logo b { display: block; font-size: 1.3rem; font-weight: 700; letter-spacing: -0.01em; line-height: 1.1; }
 .logo small { display: block; font-size: 0.68rem; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--nav-texto); }
-.lema { margin-top: auto; padding-top: 40px; }
+.lema { margin-top: clamp(48px, 18vh, 160px); }
+.entrada { margin: 0 0 18px; color: var(--tenue); font-size: 0.85rem; }
+.entrada strong { color: var(--texto, inherit); }
 .lema p { color: var(--nav-texto); max-width: 40ch; margin: 14px 0 0; }
 .lema .lema-titulo {
   margin: 0; color: var(--nav-fuerte); max-width: 12ch;

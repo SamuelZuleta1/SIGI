@@ -144,7 +144,7 @@ describe('HU-04 — registrar la documentación recibida (rutas)', () => {
     expect((await agente.get('/documentos')).status).toBe(403);
     expect((await agente.get('/incapacidades/1/documentos')).status).toBe(403);
     expect((await subir(agente)).status).toBe(403);
-    expect((await agente.get('/')).text).not.toContain('href="/documentos"');
+    expect((await agente.get('/').redirects(1)).text).not.toContain('href="/documentos"');
     expect(baseDeDatos.documentos).toHaveLength(0);
   });
 

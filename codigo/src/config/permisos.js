@@ -39,6 +39,15 @@ export const NOMBRES_DE_ROL = Object.freeze({
   cartera: 'Cartera y Jurídica',
 });
 
+/** Pantalla a la que entra cada rol al iniciar sesión (no hay página de inicio aparte). */
+export const PAGINA_DE_ENTRADA = Object.freeze({
+  receptor: '/incapacidades/nueva',
+  lider: '/reemplazo',
+  auxiliar: '/incapacidades/nueva',
+  contabilidad: '/pagos-consignados',
+  cartera: '/cartera',
+});
+
 /** ¿Puede este rol ejecutar esta operación de la Vista? */
 export function puedeEjecutar(rol, operacion) {
   if (!OPERACIONES.includes(operacion)) throw new Error(`Operación desconocida: ${operacion}`);
