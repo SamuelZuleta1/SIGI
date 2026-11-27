@@ -106,7 +106,7 @@ describe('HU-05 — registrar el reemplazo del colaborador (rutas)', () => {
     expect((await agente.get('/reemplazo')).status).toBe(403);
     expect((await agente.get('/incapacidades/1/reemplazo')).status).toBe(403);
     expect((await registrar(agente)).status).toBe(403);
-    expect((await agente.get('/')).text).not.toContain('href="/reemplazo"');
+    expect((await agente.get('/').redirects(1)).text).not.toContain('href="/reemplazo"');
     expect(baseDeDatos.reemplazos).toHaveLength(0);
   });
 

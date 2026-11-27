@@ -65,7 +65,7 @@ describe('HU-26 — conciliación (rutas)', () => {
     const agente = await agenteCon(request, app, rol);
     expect((await agente.get('/conciliacion')).status).toBe(403);
     expect((await conciliar(agente, { entidad: '2', pagos: [String(pagoAna)] })).status).toBe(403);
-    expect((await agente.get('/')).text).not.toContain('href="/conciliacion"');
+    expect((await agente.get('/').redirects(1)).text).not.toContain('href="/conciliacion"');
     expect(baseDeDatos.conciliaciones).toHaveLength(0);
   });
 

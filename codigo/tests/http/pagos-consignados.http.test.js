@@ -37,7 +37,7 @@ describe('HU-25 — pagos consignados (rutas)', () => {
     expect((await agente.get('/pagos-consignados')).status).toBe(403);
     expect((await enviar(agente, LISTA)).status).toBe(403);
     expect(baseDeDatos.pagosConsignados).toHaveLength(0);
-    expect((await agente.get('/')).text).not.toContain('href="/pagos-consignados"');
+    expect((await agente.get('/').redirects(1)).text).not.toContain('href="/pagos-consignados"');
   });
 
   it('HU-01 — sin sesión, el registro se rechaza', async () => {

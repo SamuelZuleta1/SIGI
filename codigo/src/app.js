@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import express from 'express';
 import cookieParser from 'cookie-parser';
 import { cargarSesion, mismoOrigen } from './middleware/autenticacion.js';
-import { NOMBRES_DE_ROL, puedeEjecutar } from './config/permisos.js';
+import { NOMBRES_DE_ROL, PAGINA_DE_ENTRADA, puedeEjecutar } from './config/permisos.js';
 import { crearRutas } from './routes/index.js';
 
 const directorio = path.dirname(fileURLToPath(import.meta.url));
@@ -57,6 +57,7 @@ export function crearApp(dependencias) {
           usuario,
           nombreRol: usuario ? NOMBRES_DE_ROL[usuario.rol] : null,
           ruta: req.path,
+          paginaEntrada: usuario ? PAGINA_DE_ENTRADA[usuario.rol] : null,
           puede: (operacion) => Boolean(usuario) && puedeEjecutar(usuario.rol, operacion),
         });
       });

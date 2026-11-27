@@ -137,7 +137,7 @@ describe('HU-02 — solo el auxiliar registra la cobrada (DA-02)', () => {
     expect((await agente.get('/cobro')).status).toBe(403);
     expect((await cobrar(agente)).status).toBe(403);
     expect(baseDeDatos.incapacidades[0].estado).toBe('transcrita');
-    const inicio = await agente.get('/');
+    const inicio = await agente.get('/').redirects(1);
     expect(inicio.text).not.toContain('href="/cobro"');
   });
 

@@ -1,7 +1,7 @@
 // Índice de rutas: compone los 14 archivos <grupo>.routes.js (se agregan módulo por módulo).
 import { Router } from 'express';
 import { exigirSesion } from '../middleware/autenticacion.js';
-import { NOMBRES_DE_ROL } from '../config/permisos.js';
+import { PAGINA_DE_ENTRADA } from '../config/permisos.js';
 import { crearRutasAlertas } from './alertas.routes.js';
 import { crearRutasArchivo } from './archivo.routes.js';
 import { crearRutasCobro } from './cobro.routes.js';
@@ -29,9 +29,8 @@ export function crearRutas(dependencias) {
   // Desde aquí, todo exige una sesión válida (HU-01).
   rutas.use(exigirSesion);
 
-  rutas.get('/', (req, res) =>
-    res.pagina('inicio', { titulo: 'Inicio', nombreRol: NOMBRES_DE_ROL[req.usuario.rol] }),
-  );
+  // No hay página de inicio: cada rol entra directo a su primera pantalla.
+  rutas.get('/', (req, res) => res.redirect(PAGINA_DE_ENTRADA[req.usuario.rol] ?? '/iniciar-sesion'));
 
   // Grupos de operaciones (necesitan el Control de incapacidades).
   if (dependencias.control) {

@@ -185,8 +185,8 @@ describe('HU-16 — seguimiento semanal (rutas)', () => {
 
   it('menú: el auxiliar ve «Seguimiento»; el receptor no', async () => {
     const auxiliar = await agenteCon(request, app, 'auxiliar');
-    expect((await auxiliar.get('/')).text).toContain('href="/seguimiento"');
+    expect((await auxiliar.get('/').redirects(1)).text).toContain('href="/seguimiento"');
     const receptor = await agenteCon(request, app, 'receptor');
-    expect((await receptor.get('/')).text).not.toContain('href="/seguimiento"');
+    expect((await receptor.get('/').redirects(1)).text).not.toContain('href="/seguimiento"');
   });
 });

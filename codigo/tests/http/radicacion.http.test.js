@@ -98,13 +98,13 @@ describe('HU-09 — preparar la radicación (rutas)', () => {
 
   it('el menú muestra «Radicación» al auxiliar', async () => {
     const agente = await agenteCon(request, app, 'auxiliar');
-    expect((await agente.get('/')).text).toContain('href="/radicacion"');
+    expect((await agente.get('/').redirects(1)).text).toContain('href="/radicacion"');
   });
 
   it.each(ROLES.filter((rol) => rol !== 'auxiliar'))('DA-02 — %s no puede preparar la radicación (403)', async (rol) => {
     const agente = await agenteCon(request, app, rol);
     expect((await agente.get('/incapacidades/1/radicacion')).status).toBe(403);
     expect((await agente.get('/radicacion')).status).toBe(403);
-    expect((await agente.get('/')).text).not.toContain('href="/radicacion"');
+    expect((await agente.get('/').redirects(1)).text).not.toContain('href="/radicacion"');
   });
 });

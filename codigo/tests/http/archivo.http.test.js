@@ -52,7 +52,7 @@ describe('HU-29.CA1 — lista de pagadas (GET /archivo)', () => {
       expect((await agente.get('/archivo')).status).toBe(403);
       expect((await agente.get(`/incapacidades/${id}/archivo`)).status).toBe(403);
       expect((await archivar(agente, id)).status).toBe(403);
-      expect((await agente.get('/')).text).not.toContain('href="/archivo"');
+      expect((await agente.get('/').redirects(1)).text).not.toContain('href="/archivo"');
     }
     expect(enviados).toHaveLength(0);
   });
